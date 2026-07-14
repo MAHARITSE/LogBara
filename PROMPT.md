@@ -1,0 +1,225 @@
+# 📋 PROMPT COMPLET — Bar POS v4.2
+
+## Identité
+- **Projet** : Application POS Bar/Restaurant
+- **Langue** : Français
+- **Devise** : Ariary (Ar)
+- **Développeur** : MAHARITSE Hiacinthe Bertrand — 📞 038 34 092 61
+- **Base GitHub** : [MAHARITSE/LogBara](https://github.com/MAHARITSE/LogBara)
+
+---
+
+## Stack technique
+| Couche | Technologie |
+|--------|-------------|
+| Frontend | React 19 + Vite + Tailwind CSS 4 |
+| Charts | Recharts |
+| Icônes | Lucide React |
+| Export | SheetJS (xlsx) |
+| Backend cible | API PHP REST (WAMP) |
+| Base de données | MySQL 8 ou localStorage |
+
+---
+
+## Architecture & modes
+
+### Structure cible WAMP
+```
+C:\wamp64\www\barpos\
+├── index.html
+├── assets\
+├── api\
+│   ├── config.php
+│   ├── index.php
+│   ├── auth.php
+│   ├── articles.php
+│   ├── ventes.php
+│   └── ...
+└── sql\
+    └── barpos.sql
+```
+
+### Basculement
+```
+http://localhost/barpos/              → Mode Local (défaut)
+http://localhost/barpos/?mode=mysql   → Mode MySQL
+http://localhost/barpos/?mode=local   → Revenir
+```
+Le choix est mémorisé dans `localStorage` (clé: `pos_mode`).
+
+---
+
+## Design
+Conserver la page de connexion et la sidebar du dépôt GitHub LogBara :
+- gradient bleu foncé → bleu clair
+- cercles décoratifs
+- logo dynamique (emoji/image/lettre)
+- signature développeur en bas du login et de la sidebar
+
+---
+
+## Rôles et accès
+
+| Module | Admin | Gérant | Caissier | Serveur | Magasinier |
+|--------|-------|--------|----------|---------|------------|
+| Dashboard | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Caisse POS | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Tables | ✅🆕🗑️ | ✅💳 | 👁️💳 | 👁️ | ❌ |
+| Ventes | ✅🗑️ | ✅ | 👁️ | ❌ | ❌ |
+| Clôture | 📜 | ✅ | 🔘 | ❌ | ❌ |
+| Articles | ✅🗑️ | ✅ | ❌ | ❌ | 👁️ |
+| Familles | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Stock | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Achats | ✅🗑️ | ❌ | ✅ | ❌ | ✅ |
+| Inventaire | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Fournisseurs | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Personnel | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Clients | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Crédits | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Société | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Sauvegarde | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+### Comptes par défaut
+```
+admin / admin123     → Administrateur
+gerant / gerant123   → Gérant
+caisse1 / 1234       → Caissier
+caisse2 / 1234       → Caissier
+magasin / 1234       → Magasinier
+serveur / 1234       → Serveur
+```
+
+---
+
+## Modules — Règles détaillées
+
+### 1. Connexion
+Page du GitHub conservée. Signature développeur affichée.
+
+### 2. Dashboard
+8 KPIs + 4 graphiques Recharts + top 5 produits + dernières ventes.
+
+### 3. Caisse POS
+**Grille articles** :
+- Afficher l'**icône emoji** de l'article
+- Nom, Prix, Stock (ou ∞)
+- **Pas de famille** dans les cards
+- Zone agrandie (colonnes moins nombreuses, cards plus grandes)
+- Badge quantité si au panier
+- Badge ✏️ si prix libre
+
+**Panier** (320px) :
+- Emoji + nom + prix + quantité +/- + montant
+- Remise
+- Total bleu gras
+- Bouton Envoyer (table) / Payer (comptoir)
+
+**Encaissement** :
+- **Montant reçu pré-rempli avec le total**
+- 4 modes : Espèces, Mobile Money, Crédit, Mixte
+- Impression directe
+
+**Envoi table** :
+- Relit les consommations fraîches depuis le store
+- Met à jour l'état table à "Occupée"
+- Vide le panier et revient en comptoir
+
+### 4. Tables
+- Admin : CRUD (ajout/suppression), lecture seule sur consommations
+- Caissier/Gérant : encaissement de leurs tables
+- Serveur : lecture seule
+
+### 5. Ventes
+- Stats par caissier
+- Annulation (Admin uniquement)
+- Caissier ne voit que ses ventes non clôturées
+
+### 6. Clôture
+Affiche :
+- Total ventes
+- **Total remises accordées**
+- Espèces / Mobile / Crédits (avec détail par client)
+- **Remboursements reçus (avec nom client + montant)**
+- Achats du jour
+- Espèces attendues
+
+### 7. Articles
+Toggles cliquables directement dans le tableau : Stocké, Prix libre.
+
+### 8. Familles
+CRUD standard avec couleur.
+
+### 9. Achats
+- Recherche prédictive : **clavier ET souris**
+- Grille éditable : Qté, PA, PV
+- Création inline fournisseur
+- Masque téléphone : XXX XX XXX XX
+
+### 10. Stock
+Entrée / Sortie / Ajustement avec motifs prédéfinis.
+
+### 11. Inventaire
+- Démarrage avec observation/assistants
+- **Checkbox "Vérifié"** pour marquer les articles inventoriés même sans changement de quantité
+- Écarts colorés (vert positif, rouge négatif)
+- Validation avec ajustement stock
+
+### 12. Fournisseurs
+CRUD avec NIF/STAT/Email + masque téléphone.
+
+### 13. Clients
+CRUD + suivi crédit + masque téléphone.
+
+### 14. Crédits
+- Liste des clients débiteurs avec bouton **Rembourser** sur chaque ligne
+- **Pas de section séparée "Enregistrer un remboursement"** (le bouton dans la liste suffit)
+- Modal de remboursement : montant pré-rempli avec le crédit, mode paiement, confirmation
+- Remboursement = paiement sans vente → alimente la clôture
+
+### 15. Personnel
+CRUD avec rôle et activation.
+
+### 16. Société
+Logo emoji/image/aucun + masque téléphone + toggle impression.
+
+### 17. Sauvegarde
+- Export Excel multi-onglets
+- Export SQL (pas de JSON)
+- **Réinitialisation avec 3 messages de confirmation** avant validation
+- La réinitialisation supprime : ventes, achats, mouvements, stock, inventaires, clôtures, paiements, consommations
+
+---
+
+## Impression
+
+| Document | Mode |
+|----------|------|
+| Ticket Caisse POS | DIRECT |
+| Ticket Table | DIRECT |
+| Suivi Table | APERÇU |
+| Facture Vente | APERÇU |
+| Clôture | APERÇU |
+| Bon d'achat | APERÇU |
+
+**Format** : 80mm, Courier New 12px, sans signature développeur, sans emoji article.
+
+---
+
+## Saisie
+- Masque téléphone : XXX XX XXX XX (10 chiffres)
+- Capitalisation auto première lettre (sauf login, email, code-barre)
+
+---
+
+## Signature développeur
+Affichée sur :
+- ✅ Page de connexion
+- ✅ Sidebar
+
+Non affichée sur :
+- ❌ Tickets imprimés
+
+```
+Développé par MAHARITSE Hiacinthe Bertrand
+📞 038 34 092 61
+```

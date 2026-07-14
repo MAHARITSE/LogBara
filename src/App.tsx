@@ -3,16 +3,23 @@ import { store } from './store';
 import { Personnel, ModuleType } from './types';
 import LoginPage from './components/LoginPage';
 import Sidebar from './components/Sidebar';
-import Dashboard from './modules/Dashboard';
-import CaissePOS from './modules/CaissePOS';
-import Tables from './modules/Tables';
-import Ventes from './modules/Ventes';
-import AchatsModule from './modules/Achats';
-import { 
-  ArticlesModule, FamillesModule, StockModule, FournisseursModule,
-  PersonnelModule, ClientsModule, CreditsModule, SocieteModule,
-  ClotureModule, InventaireModule, SauvegardeModule
-} from './modules/OtherModules';
+import DashboardModule from './modules/DashboardModule';
+import CaisseModule from './modules/CaisseModule';
+import TablesModule from './modules/TablesModule';
+import VentesModule from './modules/VentesModule';
+import ClotureModule from './modules/ClotureModule';
+import ArticlesModule from './modules/ArticlesModule';
+import FamillesModule from './modules/FamillesModule';
+import StockModule from './modules/StockModule';
+import AchatsModule from './modules/AchatsModule';
+import ClientsModule from './modules/ClientsModule';
+import PersonnelModule from './modules/PersonnelModule';
+import SocieteModule from './modules/SocieteModule';
+import FournisseursModule from './modules/FournisseursModule';
+import CreditsModule from './modules/CreditsModule';
+import InventaireModule from './modules/InventaireModule';
+import SauvegardeModule from './modules/SauvegardeModule';
+import { Package } from 'lucide-react';
 
 function App() {
   const [user, setUser] = useState<Personnel | null>(null);
@@ -64,10 +71,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#0D47A1] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Chargement...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0D47A1] to-[#1565C0]">
+        <div className="text-center text-white">
+          <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg font-medium">Chargement...</p>
         </div>
       </div>
     );
@@ -80,13 +87,13 @@ function App() {
   const renderModule = () => {
     switch (activeModule) {
       case 'dashboard':
-        return <Dashboard user={user} />;
+        return <DashboardModule user={user} />;
       case 'caisse':
-        return <CaissePOS user={user} />;
+        return <CaisseModule user={user} />;
       case 'tables':
-        return <Tables user={user} />;
+        return <TablesModule user={user} />;
       case 'ventes':
-        return <Ventes user={user} />;
+        return <VentesModule user={user} />;
       case 'cloture':
         return <ClotureModule user={user} />;
       case 'articles':
@@ -101,23 +108,31 @@ function App() {
         return <InventaireModule user={user} />;
       case 'fournisseurs':
         return <FournisseursModule user={user} />;
-      case 'personnel':
-        return <PersonnelModule user={user} />;
       case 'clients':
         return <ClientsModule user={user} />;
       case 'credits':
         return <CreditsModule user={user} />;
+      case 'personnel':
+        return <PersonnelModule user={user} />;
       case 'societe':
         return <SocieteModule user={user} />;
       case 'sauvegarde':
         return <SauvegardeModule user={user} />;
       default:
-        return <Dashboard user={user} />;
+        return (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center text-gray-400">
+              <Package size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Module "{activeModule}"</p>
+              <p className="text-sm">En cours de développement</p>
+            </div>
+          </div>
+        );
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar
         user={user}
         activeModule={activeModule}
@@ -127,8 +142,10 @@ function App() {
         onMobileToggle={() => setMobileOpen(!mobileOpen)}
       />
       
-      <main className="flex-1 lg:ml-0 pt-16 lg:pt-0">
-        <div className="p-4 lg:p-6 max-w-[1600px] mx-auto">
+      {/* Main content */}
+      <main className="lg:ml-64 min-h-screen">
+        <div className="lg:hidden h-16" /> {/* Spacer for mobile header */}
+        <div className="p-4 lg:p-6">
           {renderModule()}
         </div>
       </main>

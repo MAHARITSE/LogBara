@@ -1,30 +1,18 @@
-// Store localStorage pour l'application POS
-import { Societe, Personnel, Famille, Article, TableR, Client, Fournisseur, Vente, LigneVente, Paiement, Mouvement, Achat, LigneAchat, Inventaire, LigneInventaire, Cloture, ConsommationTable } from './types';
+// ============================================
+// STORE (LocalStorage) BAR POS v4.2
+// ============================================
+
+import { 
+  Societe, Personnel, Famille, Article, TableR, Client, 
+  Fournisseur, Vente, LigneVente, Paiement, Cloture, 
+  Mouvement, Achat, LigneAchat, Inventaire, LigneInventaire, Consommation 
+} from './types';
 import { today } from './helpers';
 
-const KEYS = {
-  SOCIETE: 'pos_societe',
-  PERSONNEL: 'pos_personnel',
-  FAMILLES: 'pos_familles',
-  ARTICLES: 'pos_articles',
-  TABLES: 'pos_tables',
-  CLIENTS: 'pos_clients',
-  FOURNISSEURS: 'pos_fournisseurs',
-  VENTES: 'pos_ventes',
-  LIGNES_VENTE: 'pos_lignes_vente',
-  PAIEMENTS: 'pos_paiements',
-  MOUVEMENTS: 'pos_mouvements',
-  ACHATS: 'pos_achats',
-  LIGNES_ACHAT: 'pos_lignes_achat',
-  INVENTAIRES: 'pos_inventaires',
-  LIGNES_INVENTAIRE: 'pos_lignes_inventaire',
-  CLOTURES: 'pos_clotures',
-  CONSOMMATIONS: 'pos_consommations',
-  SESSION: 'pos_session',
-};
+const STORAGE_PREFIX = 'barpos_';
 
 // Données initiales
-const initSociete: Societe = {
+const initialSociete: Societe = {
   NOM: 'Bar POS',
   ADRESSE: 'Antananarivo, Madagascar',
   TELEPHONE: '034 00 000 00',
@@ -34,7 +22,7 @@ const initSociete: Societe = {
   UTILISER_IMPRIMANTE: true,
 };
 
-const initPersonnel: Personnel[] = [
+const initialPersonnel: Personnel[] = [
   { IDPERSONNEL: 1, NOM: 'Admin', PRENOM: 'Super', LOGIN: 'admin', MOT_DE_PASSE: 'admin123', ROLE: 'Administrateur', ACTIF: true },
   { IDPERSONNEL: 2, NOM: 'Gérant', PRENOM: 'Principal', LOGIN: 'gerant', MOT_DE_PASSE: 'gerant123', ROLE: 'Gérant', ACTIF: true },
   { IDPERSONNEL: 3, NOM: 'Caisse', PRENOM: 'Jean', LOGIN: 'caisse1', MOT_DE_PASSE: '1234', ROLE: 'Caissier', ACTIF: true },
@@ -43,14 +31,14 @@ const initPersonnel: Personnel[] = [
   { IDPERSONNEL: 6, NOM: 'Serveur', PRENOM: 'Luc', LOGIN: 'serveur', MOT_DE_PASSE: '1234', ROLE: 'Serveur', ACTIF: true },
 ];
 
-const initFamilles: Famille[] = [
+const initialFamilles: Famille[] = [
   { IDFAMILLE: 1, CODE: 'BIE', FAMILLE: 'Bières', COULEUR: '#F59E0B', ORDRE: 1 },
   { IDFAMILLE: 2, CODE: 'SPI', FAMILLE: 'Spiritueux', COULEUR: '#8B5CF6', ORDRE: 2 },
   { IDFAMILLE: 3, CODE: 'SOF', FAMILLE: 'Softs', COULEUR: '#10B981', ORDRE: 3 },
   { IDFAMILLE: 4, CODE: 'SNA', FAMILLE: 'Snacks', COULEUR: '#EC4899', ORDRE: 4 },
 ];
 
-const initArticles: Article[] = [
+const initialArticles: Article[] = [
   { IDARTICLE: 1, CODE: 'BIE001', NOM: 'THB Pilsener', IDFAMILLE: 1, EMOJI: '🍺', PRIX_ACHAT: 3000, PRIX_VENTE: 4000, STOCK: 50, STOCK_MIN: 10, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
   { IDARTICLE: 2, CODE: 'BIE002', NOM: 'Gold', IDFAMILLE: 1, EMOJI: '🍺', PRIX_ACHAT: 3500, PRIX_VENTE: 5000, STOCK: 40, STOCK_MIN: 10, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
   { IDARTICLE: 3, CODE: 'SPI001', NOM: 'Rhum Dzama', IDFAMILLE: 2, EMOJI: '🥃', PRIX_ACHAT: 8000, PRIX_VENTE: 12000, STOCK: 20, STOCK_MIN: 5, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
@@ -63,7 +51,7 @@ const initArticles: Article[] = [
   { IDARTICLE: 10, CODE: 'SNA004', NOM: 'Poulet grillé', IDFAMILLE: 4, EMOJI: '🍗', PRIX_ACHAT: 7000, PRIX_VENTE: 10000, STOCK: 0, STOCK_MIN: 0, ACTIF: true, GERE_STOCK: false, SAISIE_PRIX_VENTE: true },
 ];
 
-const initTables: TableR[] = [
+const initialTables: TableR[] = [
   { IDTABLE: 1, NUMERO: 1, DESCRIPTION: 'Terrasse 1', PLACES: 4, ETAT: 'Libre' },
   { IDTABLE: 2, NUMERO: 2, DESCRIPTION: 'Terrasse 2', PLACES: 4, ETAT: 'Libre' },
   { IDTABLE: 3, NUMERO: 3, DESCRIPTION: 'Intérieur 1', PLACES: 6, ETAT: 'Libre' },
@@ -71,209 +59,162 @@ const initTables: TableR[] = [
   { IDTABLE: 5, NUMERO: 5, DESCRIPTION: 'VIP', PLACES: 8, ETAT: 'Libre' },
 ];
 
-const initFournisseurs: Fournisseur[] = [
+const initialFournisseurs: Fournisseur[] = [
   { IDFOURNISSEUR: 1, NOM: 'STAR Beverages', ADRESSE: 'Ankorondrano', TELEPHONE: '020 22 000 00' },
   { IDFOURNISSEUR: 2, NOM: 'Dzama Company', ADRESSE: 'Nosy Be', TELEPHONE: '020 86 000 00' },
 ];
 
-const initClients: Client[] = [
-  { IDCLIENT: 1, NOM_CLIENT: 'Bertrand', TELEPHONE: '038 34 092 61', CREDIT_TOTAL: 0, DATE_CREATION: today() },
+const initialClients: Client[] = [
+  { IDCLIENT: 1, NOM_CLIENT: 'Bertrand', TELEPHONE: '038 34 092 61', ADRESSE: '', CREDIT_TOTAL: 0, DATE_CREATION: today() },
 ];
 
-// Helpers
-const get = <T>(key: string, init: T): T => {
-  const stored = localStorage.getItem(key);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return init;
-    }
+// Fonctions utilitaires
+const getItem = <T>(key: string, defaultValue: T): T => {
+  try {
+    const item = localStorage.getItem(STORAGE_PREFIX + key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch {
+    return defaultValue;
   }
-  return init;
 };
 
-const set = <T>(key: string, data: T): void => {
-  localStorage.setItem(key, JSON.stringify(data));
+const setItem = <T>(key: string, value: T): void => {
+  localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
 };
 
-// Store API
+// Store
 export const store = {
-  isMySQL: false,
-
   // Société
-  getSociete: (): Societe => get(KEYS.SOCIETE, initSociete),
-  setSociete: (data: Societe) => set(KEYS.SOCIETE, data),
+  getSociete: (): Societe => getItem('societe', initialSociete),
+  setSociete: (data: Societe) => setItem('societe', data),
 
   // Personnel
-  getPersonnel: (): Personnel[] => get(KEYS.PERSONNEL, initPersonnel),
-  setPersonnel: (data: Personnel[]) => set(KEYS.PERSONNEL, data),
+  getPersonnel: (): Personnel[] => getItem('personnel', initialPersonnel),
+  setPersonnel: (data: Personnel[]) => setItem('personnel', data),
 
   // Familles
-  getFamilles: (): Famille[] => get(KEYS.FAMILLES, initFamilles),
-  setFamilles: (data: Famille[]) => set(KEYS.FAMILLES, data),
+  getFamilles: (): Famille[] => getItem('familles', initialFamilles),
+  setFamilles: (data: Famille[]) => setItem('familles', data),
 
   // Articles
-  getArticles: (): Article[] => get(KEYS.ARTICLES, initArticles),
-  setArticles: (data: Article[]) => set(KEYS.ARTICLES, data),
+  getArticles: (): Article[] => getItem('articles', initialArticles),
+  setArticles: (data: Article[]) => setItem('articles', data),
 
   // Tables
-  getTables: (): TableR[] => get(KEYS.TABLES, initTables),
-  setTables: (data: TableR[]) => set(KEYS.TABLES, data),
+  getTables: (): TableR[] => getItem('tables', initialTables),
+  setTables: (data: TableR[]) => setItem('tables', data),
 
   // Clients
-  getClients: (): Client[] => get(KEYS.CLIENTS, initClients),
-  setClients: (data: Client[]) => set(KEYS.CLIENTS, data),
+  getClients: (): Client[] => getItem('clients', initialClients),
+  setClients: (data: Client[]) => setItem('clients', data),
 
   // Fournisseurs
-  getFournisseurs: (): Fournisseur[] => get(KEYS.FOURNISSEURS, initFournisseurs),
-  setFournisseurs: (data: Fournisseur[]) => set(KEYS.FOURNISSEURS, data),
+  getFournisseurs: (): Fournisseur[] => getItem('fournisseurs', initialFournisseurs),
+  setFournisseurs: (data: Fournisseur[]) => setItem('fournisseurs', data),
 
   // Ventes
-  getVentes: (): Vente[] => get(KEYS.VENTES, []),
-  setVentes: (data: Vente[]) => set(KEYS.VENTES, data),
+  getVentes: (): Vente[] => getItem('ventes', []),
+  setVentes: (data: Vente[]) => setItem('ventes', data),
 
   // Lignes de vente
-  getLignesVente: (): LigneVente[] => get(KEYS.LIGNES_VENTE, []),
-  setLignesVente: (data: LigneVente[]) => set(KEYS.LIGNES_VENTE, data),
+  getLignesVente: (): LigneVente[] => getItem('lignes_vente', []),
+  setLignesVente: (data: LigneVente[]) => setItem('lignes_vente', data),
 
   // Paiements
-  getPaiements: (): Paiement[] => get(KEYS.PAIEMENTS, []),
-  setPaiements: (data: Paiement[]) => set(KEYS.PAIEMENTS, data),
-
-  // Mouvements stock
-  getMouvements: (): Mouvement[] => get(KEYS.MOUVEMENTS, []),
-  setMouvements: (data: Mouvement[]) => set(KEYS.MOUVEMENTS, data),
-
-  // Achats
-  getAchats: (): Achat[] => get(KEYS.ACHATS, []),
-  setAchats: (data: Achat[]) => set(KEYS.ACHATS, data),
-
-  // Lignes d'achat
-  getLignesAchat: (): LigneAchat[] => get(KEYS.LIGNES_ACHAT, []),
-  setLignesAchat: (data: LigneAchat[]) => set(KEYS.LIGNES_ACHAT, data),
-
-  // Inventaires
-  getInventaires: (): Inventaire[] => get(KEYS.INVENTAIRES, []),
-  setInventaires: (data: Inventaire[]) => set(KEYS.INVENTAIRES, data),
-
-  // Lignes d'inventaire
-  getLignesInventaire: (): LigneInventaire[] => get(KEYS.LIGNES_INVENTAIRE, []),
-  setLignesInventaire: (data: LigneInventaire[]) => set(KEYS.LIGNES_INVENTAIRE, data),
+  getPaiements: (): Paiement[] => getItem('paiements', []),
+  setPaiements: (data: Paiement[]) => setItem('paiements', data),
 
   // Clôtures
-  getClotures: (): Cloture[] => get(KEYS.CLOTURES, []),
-  setClotures: (data: Cloture[]) => set(KEYS.CLOTURES, data),
+  getClotures: (): Cloture[] => getItem('clotures', []),
+  setClotures: (data: Cloture[]) => setItem('clotures', data),
 
-  // Consommations tables
-  getConsommations: (): ConsommationTable[] => get(KEYS.CONSOMMATIONS, []),
-  setConsommations: (data: ConsommationTable[]) => set(KEYS.CONSOMMATIONS, data),
+  // Mouvements
+  getMouvements: (): Mouvement[] => getItem('mouvements', []),
+  setMouvements: (data: Mouvement[]) => setItem('mouvements', data),
+
+  // Achats
+  getAchats: (): Achat[] => getItem('achats', []),
+  setAchats: (data: Achat[]) => setItem('achats', data),
+
+  // Lignes d'achat
+  getLignesAchat: (): LigneAchat[] => getItem('lignes_achat', []),
+  setLignesAchat: (data: LigneAchat[]) => setItem('lignes_achat', data),
+
+  // Inventaires
+  getInventaires: (): Inventaire[] => getItem('inventaires', []),
+  setInventaires: (data: Inventaire[]) => setItem('inventaires', data),
+
+  // Lignes d'inventaire
+  getLignesInventaire: (): LigneInventaire[] => getItem('lignes_inventaire', []),
+  setLignesInventaire: (data: LigneInventaire[]) => setItem('lignes_inventaire', data),
+
+  // Consommations (tables)
+  getConsommations: (): Consommation[] => getItem('consommations', []),
+  setConsommations: (data: Consommation[]) => setItem('consommations', data),
 
   // Session
-  getSession: (): Personnel | null => get(KEYS.SESSION, null),
-  setSession: (data: Personnel | null) => set(KEYS.SESSION, data),
+  getSession: (): Personnel | null => getItem('session', null),
+  setSession: (data: Personnel | null) => setItem('session', data),
 
   // Authentification
   authenticate: (login: string, password: string): Personnel | null => {
-    const personnel = get<Personnel[]>(KEYS.PERSONNEL, initPersonnel);
-    const user = personnel.find(p => p.LOGIN === login && p.MOT_DE_PASSE === password && p.ACTIF);
+    const personnel = getItem<Personnel[]>('personnel', initialPersonnel);
+    const user = personnel.find(p => 
+      p.LOGIN.toLowerCase() === login.toLowerCase() && 
+      p.MOT_DE_PASSE === password && 
+      p.ACTIF
+    );
     if (user) {
-      const updated = personnel.map(p => p.IDPERSONNEL === user.IDPERSONNEL ? { ...p, DERNIERE_CONNEXION: new Date().toISOString() } : p);
-      set(KEYS.PERSONNEL, updated);
-      set(KEYS.SESSION, user);
+      const updated = personnel.map(p =>
+        p.IDPERSONNEL === user.IDPERSONNEL
+          ? { ...p, DERNIERE_CONNEXION: new Date().toISOString() }
+          : p
+      );
+      setItem('personnel', updated);
+      setItem('session', user);
     }
     return user || null;
   },
 
   // Logout
   logout: () => {
-    localStorage.removeItem(KEYS.SESSION);
+    localStorage.removeItem(STORAGE_PREFIX + 'session');
   },
 
-  // Export toutes les données
-  exportAll: () => {
-    return {
-      societe: get(KEYS.SOCIETE, initSociete),
-      personnel: get(KEYS.PERSONNEL, initPersonnel),
-      familles: get(KEYS.FAMILLES, initFamilles),
-      articles: get(KEYS.ARTICLES, initArticles),
-      tables: get(KEYS.TABLES, initTables),
-      clients: get(KEYS.CLIENTS, initClients),
-      fournisseurs: get(KEYS.FOURNISSEURS, initFournisseurs),
-      ventes: get(KEYS.VENTES, []),
-      lignesVente: get(KEYS.LIGNES_VENTE, []),
-      paiements: get(KEYS.PAIEMENTS, []),
-      mouvements: get(KEYS.MOUVEMENTS, []),
-      achats: get(KEYS.ACHATS, []),
-      lignesAchat: get(KEYS.LIGNES_ACHAT, []),
-      inventaires: get(KEYS.INVENTAIRES, []),
-      lignesInventaire: get(KEYS.LIGNES_INVENTAIRE, []),
-      clotures: get(KEYS.CLOTURES, []),
-      consommations: get(KEYS.CONSOMMATIONS, []),
-    };
-  },
-
-  // Import toutes les données
-  importAll: (data: ReturnType<typeof store.exportAll>) => {
-    if (data.societe) set(KEYS.SOCIETE, data.societe);
-    if (data.personnel) set(KEYS.PERSONNEL, data.personnel);
-    if (data.familles) set(KEYS.FAMILLES, data.familles);
-    if (data.articles) set(KEYS.ARTICLES, data.articles);
-    if (data.tables) set(KEYS.TABLES, data.tables);
-    if (data.clients) set(KEYS.CLIENTS, data.clients);
-    if (data.fournisseurs) set(KEYS.FOURNISSEURS, data.fournisseurs);
-    if (data.ventes) set(KEYS.VENTES, data.ventes);
-    if (data.lignesVente) set(KEYS.LIGNES_VENTE, data.lignesVente);
-    if (data.paiements) set(KEYS.PAIEMENTS, data.paiements);
-    if (data.mouvements) set(KEYS.MOUVEMENTS, data.mouvements);
-    if (data.achats) set(KEYS.ACHATS, data.achats);
-    if (data.lignesAchat) set(KEYS.LIGNES_ACHAT, data.lignesAchat);
-    if (data.inventaires) set(KEYS.INVENTAIRES, data.inventaires);
-    if (data.lignesInventaire) set(KEYS.LIGNES_INVENTAIRE, data.lignesInventaire);
-    if (data.clotures) set(KEYS.CLOTURES, data.clotures);
-    if (data.consommations) set(KEYS.CONSOMMATIONS, data.consommations);
-  },
-
-  // Compteurs pour stats
+  // Stock alerts count
   getStockAlerts: (): number => {
-    const articles = get<Article[]>(KEYS.ARTICLES, initArticles);
+    const articles = getItem<Article[]>('articles', initialArticles);
     return articles.filter(a => a.ACTIF && a.GERE_STOCK && a.STOCK <= a.STOCK_MIN).length;
   },
 
-  getTotalRecords: (): number => {
-    const articles = get<Article[]>(KEYS.ARTICLES, initArticles);
-    const personnel = get<Personnel[]>(KEYS.PERSONNEL, initPersonnel);
-    const familles = get<Famille[]>(KEYS.FAMILLES, initFamilles);
-    const tables = get<TableR[]>(KEYS.TABLES, initTables);
-    const clients = get<Client[]>(KEYS.CLIENTS, initClients);
-    const fournisseurs = get<Fournisseur[]>(KEYS.FOURNISSEURS, initFournisseurs);
-    const ventes = get<Vente[]>(KEYS.VENTES, []);
-    const lignesVente = get<LigneVente[]>(KEYS.LIGNES_VENTE, []);
-    const paiements = get<Paiement[]>(KEYS.PAIEMENTS, []);
-    const mouvements = get<Mouvement[]>(KEYS.MOUVEMENTS, []);
-    const achats = get<Achat[]>(KEYS.ACHATS, []);
-    const lignesAchat = get<LigneAchat[]>(KEYS.LIGNES_ACHAT, []);
-    const inventaires = get<Inventaire[]>(KEYS.INVENTAIRES, []);
-    const lignesInventaire = get<LigneInventaire[]>(KEYS.LIGNES_INVENTAIRE, []);
-    const clotures = get<Cloture[]>(KEYS.CLOTURES, []);
-    const consommations = get<ConsommationTable[]>(KEYS.CONSOMMATIONS, []);
-    return (
-      personnel.length +
-      familles.length +
-      articles.length +
-      tables.length +
-      clients.length +
-      fournisseurs.length +
-      ventes.length +
-      lignesVente.length +
-      paiements.length +
-      mouvements.length +
-      achats.length +
-      lignesAchat.length +
-      inventaires.length +
-      lignesInventaire.length +
-      clotures.length +
-      consommations.length
-    );
+  // Reset complet
+  resetAll: () => {
+    const keys = [
+      'societe', 'personnel', 'familles', 'articles', 'tables', 'clients',
+      'fournisseurs', 'ventes', 'lignes_vente', 'paiements', 'clotures',
+      'mouvements', 'achats', 'lignes_achat', 'inventaires', 'lignes_inventaire', 'consommations'
+    ];
+    keys.forEach(k => localStorage.removeItem(STORAGE_PREFIX + k));
   },
+
+  // Export toutes les données
+  exportAll: () => ({
+    societe: store.getSociete(),
+    personnel: store.getPersonnel(),
+    familles: store.getFamilles(),
+    articles: store.getArticles(),
+    tables: store.getTables(),
+    clients: store.getClients(),
+    fournisseurs: store.getFournisseurs(),
+    ventes: store.getVentes(),
+    lignes_vente: store.getLignesVente(),
+    paiements: store.getPaiements(),
+    clotures: store.getClotures(),
+    mouvements: store.getMouvements(),
+    achats: store.getAchats(),
+    lignes_achat: store.getLignesAchat(),
+    inventaires: store.getInventaires(),
+    lignes_inventaire: store.getLignesInventaire(),
+    consommations: store.getConsommations(),
+  }),
 };

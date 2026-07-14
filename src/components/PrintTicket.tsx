@@ -1,119 +1,71 @@
 import { store } from '../store';
 
-const baseStyles = `
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; padding: 5mm; }
-  .center { text-align: center; }
-  .right { text-align: right; }
-  .bold { font-weight: bold; }
-  .line { border-top: 1px dashed #000; margin: 5px 0; }
-  .double-line { border-top: 2px solid #000; margin: 5px 0; }
-  .row { display: flex; justify-content: space-between; }
-  .small { font-size: 10px; }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { padding: 2px 0; vertical-align: top; }
-  .no-print { display: none; }
-  @media print { .no-print { display: none !important; } }
-`;
-
-// Impression DIRECTE (Caisse POS, Encaissement Table)
-export const printDirect = (content: string) => {
+export const printTicket = (content: string, preview = false) => {
   const societe = store.getSociete();
-  if (!societe.UTILISER_IMPRIMANTE) return;
+  
+  const logoHtml = societe.LOGO_TYPE === 'emoji' 
+    ? `<div style="font-size: 32px; text-align: center; margin-bottom: 8px;">${societe.LOGO_EMOJI}</div>`
+    : societe.LOGO_TYPE === 'image' && societe.LOGO_IMAGE
+    ? `<div style="text-align: center; margin-bottom: 8px;"><img src="${societe.LOGO_IMAGE}" style="max-width: 60px; max-height: 60px;" /></div>`
+    : '';
 
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'absolute';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow?.document;
-  if (!doc) return;
-
-  doc.open();
-  doc.write(`
-    <!DOCTYPE html>
-    <html>
-    <head><style>${baseStyles}</style></head>
-    <body>
-      <div class="center bold">${societe.NOM}</div>
-      <div class="center small">${societe.ADRESSE}</div>
-      <div class="center small">Tél: ${societe.TELEPHONE}</div>
-      <div class="line"></div>
-      ${content}
-      <div class="line"></div>
-      <div class="center small">Merci de votre visite !</div>
-    </body>
-    </html>
-  `);
-  doc.close();
-
-  setTimeout(() => {
-    iframe.contentWindow?.print();
-    setTimeout(() => document.body.removeChild(iframe), 1000);
-  }, 100);
-};
-
-// Impression avec APERÇU (Ventes, Clôture, Stock, etc.)
-export const printTicket = (content: string, title = 'Impression') => {
-  const societe = store.getSociete();
-  if (!societe.UTILISER_IMPRIMANTE) return;
-
-  const win = window.open('', '_blank', 'width=380,height=650');
-  if (!win) return;
-
-  win.document.write(`
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>${title}</title>
+      <meta charset="UTF-8">
+      <title>Ticket</title>
       <style>
-        ${baseStyles}
-        .print-buttons { 
-          position: fixed; 
-          bottom: 10px; 
-          left: 0; 
-          right: 0; 
-          display: flex; 
-          gap: 10px; 
-          padding: 10px;
-          background: #fff;
-          border-top: 1px solid #ddd;
+        @page { margin: 0; size: 80mm auto; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Courier New', monospace;
+          font-size: 12px;
+          width: 80mm;
+          padding: 5mm;
+          line-height: 1.4;
         }
-        .print-btn {
-          flex: 1;
-          padding: 12px;
-          border: none;
-          border-radius: 8px;
-          font-weight: bold;
-          cursor: pointer;
-          font-size: 14px;
-        }
-        .print-btn.primary { background: #0D47A1; color: white; }
-        .print-btn.secondary { background: #f3f4f6; color: #333; }
-        @media print { 
-          .print-buttons { display: none !important; } 
-          body { padding-bottom: 0; }
-        }
-        body { padding-bottom: 70px; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .line { border-top: 1px dashed #000; margin: 8px 0; }
+        .row { display: flex; justify-content: space-between; }
+        .right { text-align: right; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 2px 0; vertical-align: top; }
+        .small { font-size: 10px; }
+        .header { margin-bottom: 10px; }
       </style>
     </head>
     <body>
-      <div class="center bold">${societe.NOM}</div>
-      <div class="center small">${societe.ADRESSE}</div>
-      <div class="center small">Tél: ${societe.TELEPHONE}</div>
+      <div class="header center">
+        ${logoHtml}
+        <div class="bold">${societe.NOM}</div>
+        <div class="small">${societe.ADRESSE}</div>
+        <div class="small">Tél: ${societe.TELEPHONE}</div>
+        ${societe.NIF ? `<div class="small">NIF: ${societe.NIF}</div>` : ''}
+      </div>
       <div class="line"></div>
       ${content}
       <div class="line"></div>
       <div class="center small">Merci de votre visite !</div>
-      
-      <div class="print-buttons no-print">
-        <button class="print-btn secondary" onclick="window.close()">✕ Fermer</button>
-        <button class="print-btn primary" onclick="window.print()">🖨️ Imprimer</button>
-      </div>
     </body>
     </html>
-  `);
-  win.document.close();
+  `;
+
+  const printWindow = window.open('', '_blank', 'width=350,height=600');
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+    
+    if (!preview && societe.UTILISER_IMPRIMANTE) {
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+    }
+  }
+};
+
+export const printPreview = (content: string) => {
+  printTicket(content, true);
 };

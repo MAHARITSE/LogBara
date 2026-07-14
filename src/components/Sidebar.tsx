@@ -122,7 +122,7 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
               .map(item => (
                 <button
                   key={item.id}
-                  onClick={() => { onModuleChange(item.id); onMobileToggle(); }}
+                  onClick={() => { onModuleChange(item.id); if (mobileOpen) onMobileToggle(); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all ${
                     activeModule === item.id
                       ? 'bg-gradient-to-r from-[#0D47A1] to-[#1565C0] text-white shadow-lg shadow-blue-200'
@@ -131,56 +131,39 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
                 >
                   {item.icon}
                   <span className="font-medium">{item.label}</span>
-                  {item.id === 'stock' && stockAlerts > 0 && (
-                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                      {stockAlerts}
-                    </span>
-                  )}
                 </button>
               ))}
           </div>
         ))}
       </nav>
 
-      {/* User Profile */}
+      {/* User Info */}
       <div className="p-4 border-t border-gray-100">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0D47A1] to-[#1976D2] flex items-center justify-center text-white font-bold">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0D47A1] to-[#1976D2] flex items-center justify-center text-white font-semibold">
             {user.PRENOM.charAt(0)}{user.NOM.charAt(0)}
           </div>
-          <div>
-            <p className="font-medium text-gray-900">{user.PRENOM} {user.NOM}</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full uppercase tracking-wider ${roleColors[user.ROLE]}`}>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 truncate">{user.PRENOM} {user.NOM}</p>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${roleColors[user.ROLE]}`}>
               {user.ROLE}
             </span>
           </div>
         </div>
         <button
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-all"
         >
           <LogOut size={18} />
           <span className="font-medium">Déconnexion</span>
         </button>
       </div>
 
-      {/* Developer Signature */}
-      <div className="p-4 bg-gradient-to-r from-gray-50 to-blue-50 border-t">
-        <p className="text-xs text-gray-500 text-center">
-          Développé par <span className="font-medium text-gray-700">MAHARITSE H.B.</span>
-        </p>
-        <p className="text-xs text-gray-400 text-center">📞 038 34 092 61</p>
-      </div>
-
-      {/* Mode Badge */}
-      <div className="px-4 pb-4">
-        <div className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm ${
-          store.isMySQL
-            ? 'bg-green-100 text-green-700'
-            : 'bg-blue-100 text-blue-700'
-        }`}>
-          {store.isMySQL ? '🌐 Mode MySQL' : '💾 Mode Local'}
-        </div>
+      {/* Developer signature */}
+      <div className="p-4 text-center border-t border-gray-100">
+        <p className="text-xs text-gray-400">Développé par</p>
+        <p className="text-xs text-gray-500 font-medium">MAHARITSE H. Bertrand</p>
+        <p className="text-xs text-gray-400">📞 038 34 092 61</p>
       </div>
     </div>
   );
@@ -188,36 +171,40 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-40 flex items-center px-4">
-        <button onClick={onMobileToggle} className="p-2 rounded-xl hover:bg-gray-100">
-          <Menu size={24} />
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-40">
+        <button onClick={onMobileToggle} className="p-2 hover:bg-gray-100 rounded-lg">
+          <Menu size={24} className="text-gray-700" />
         </button>
-        <div className="flex-1 flex items-center justify-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0D47A1] to-[#1976D2] flex items-center justify-center">
-            {renderLogo()}
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{societe.LOGO_TYPE === 'emoji' ? societe.LOGO_EMOJI : '🍺'}</span>
           <span className="font-bold text-gray-900">{societe.NOM}</span>
         </div>
+        <div className="w-10" />
       </div>
 
       {/* Mobile Overlay */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={onMobileToggle} />
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={onMobileToggle}
+        />
       )}
 
-      {/* Sidebar */}
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-gray-100
-        transform transition-transform lg:transform-none
-        ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        {/* Mobile Close */}
-        <button
-          onClick={onMobileToggle}
-          className="lg:hidden absolute top-4 right-4 p-2 rounded-xl hover:bg-gray-100"
-        >
-          <X size={20} />
-        </button>
+      {/* Mobile Sidebar */}
+      <aside className={`lg:hidden fixed top-0 left-0 bottom-0 w-72 bg-white z-50 transform transition-transform duration-300 ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <span className="font-bold text-gray-900">Menu</span>
+          <button onClick={onMobileToggle} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X size={20} className="text-gray-700" />
+          </button>
+        </div>
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:block fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-30">
         {sidebarContent}
       </aside>
     </>

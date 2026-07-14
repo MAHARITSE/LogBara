@@ -1,4 +1,7 @@
-// Types pour l'application POS Bar/Restaurant
+// ============================================
+// TYPES BAR POS v4.2
+// Développeur: MAHARITSE Hiacinthe Bertrand
+// ============================================
 
 export interface Societe {
   NOM: string;
@@ -8,7 +11,7 @@ export interface Societe {
   NIF?: string;
   STAT?: string;
   LOGO_EMOJI: string;
-  LOGO_TYPE?: 'emoji' | 'image' | 'none';
+  LOGO_TYPE: 'emoji' | 'image' | 'none';
   LOGO_IMAGE?: string;
   UTILISER_IMPRIMANTE: boolean;
 }
@@ -63,7 +66,7 @@ export interface Client {
   IDCLIENT: number;
   NOM_CLIENT: string;
   TELEPHONE: string;
-  ADRESSE?: string;
+  ADRESSE: string;
   CREDIT_TOTAL: number;
   DATE_CREATION: string;
 }
@@ -71,8 +74,8 @@ export interface Client {
 export interface Fournisseur {
   IDFOURNISSEUR: number;
   NOM: string;
-  ADRESSE?: string;
-  TELEPHONE?: string;
+  ADRESSE: string;
+  TELEPHONE: string;
   EMAIL?: string;
   NIF?: string;
   STAT?: string;
@@ -106,11 +109,25 @@ export interface Paiement {
   IDPAIEMENT: number;
   DATE_PAIEMENT: string;
   HEURE: string;
-  IDVENTE: number;
+  IDVENTE: number | null;
   IDPERSONNEL: number;
   MONTANT: number;
   MODE_PAIEMENT: 'Espèces' | 'Mobile Money' | 'Crédit';
   IDCLIENT?: number;
+}
+
+export interface Cloture {
+  IDCLOTURE: number;
+  DATE_CLOTURE: string;
+  HEURE: string;
+  IDPERSONNEL: number;
+  TOTAL_VENTES: number;
+  TOTAL_REMISES: number;
+  TOTAL_ESPECES: number;
+  TOTAL_MOBILE: number;
+  TOTAL_CREDIT: number;
+  TOTAL_REMBOURSEMENTS: number;
+  NB_VENTES: number;
 }
 
 export interface Mouvement {
@@ -131,6 +148,9 @@ export interface Achat {
   IDFOURNISSEUR: number;
   TOTAL: number;
   OBSERVATION?: string;
+  IDPERSONNEL?: number;
+  CLOTUREE: boolean;
+  IDCLOTURE?: number;
 }
 
 export interface LigneAchat {
@@ -162,27 +182,7 @@ export interface LigneInventaire {
   CHECKED: boolean;
 }
 
-export interface Cloture {
-  IDCLOTURE: number;
-  DATE_CLOTURE: string;
-  HEURE: string;
-  IDPERSONNEL: number;
-  TOTAL_VENTES: number;
-  TOTAL_ESPECES: number;
-  TOTAL_MOBILE: number;
-  TOTAL_CREDIT: number;
-  FOND_CAISSE: number;
-  ECART: number;
-  NB_VENTES: number;
-}
-
-export interface CartItem {
-  article: Article;
-  quantite: number;
-  prix_unitaire: number;
-}
-
-export interface ConsommationTable {
+export interface Consommation {
   IDCONSOMMATION: number;
   IDTABLE: number;
   IDARTICLE: number;
@@ -191,6 +191,18 @@ export interface ConsommationTable {
   HEURE: string;
   IDPERSONNEL: number;
 }
+
+export interface CartItem {
+  IDARTICLE: number;
+  NOM: string;
+  EMOJI?: string;
+  QUANTITE: number;
+  PRIX_UNITAIRE: number;
+  SAISIE_PRIX_VENTE: boolean;
+}
+
+export type Role = 'Administrateur' | 'Gérant' | 'Caissier' | 'Serveur' | 'Magasinier';
+export type StorageMode = 'local' | 'mysql';
 
 export type ModuleType = 
   | 'dashboard' | 'caisse' | 'tables' | 'ventes' | 'cloture'

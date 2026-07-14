@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, Printer, Search, X, Trash2, Keyboard, Edit2 } from 'lucide-react';
+import { Plus, Printer, Search, X, Trash2, Keyboard, Edit2, UserPlus } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, LigneAchat, Achat } from '../types';
-import { formatAr, today, nowTime, nextId, dateLabel } from '../helpers';
-import { printTicket } from '../components/PrintTicket';
+import { Personnel, LigneAchat, Achat, Fournisseur } from '../types';
+import { formatAr, today, nowTime, nextId, dateLabel, capitalize } from '../helpers';
+import { printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
+import PhoneInput from '../components/PhoneInput';
 
 interface Props { user: Personnel }
 
@@ -27,6 +28,8 @@ export default function AchatsModule({ user }: Props) {
   const [suggestionIdx, setSuggestionIdx] = useState(0);
   const [confirmDel, setConfirmDel] = useState<{ id: number; ref: string } | null>(null);
   const [toast, setToast] = useState('');
+  const [showNewFournisseur, setShowNewFournisseur] = useState(false);
+  const [newFournisseurForm, setNewFournisseurForm] = useState({ NOM: '', ADRESSE: '', TELEPHONE: '' });
 
   const searchRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -38,8 +41,38 @@ export default function AchatsModule({ user }: Props) {
   const articles = store.getArticles();
   const fournisseurs = store.getFournisseurs();
   const lignesAchat = store.getLignesAchat();
+  const clotures = store.getClotures();
 
+  const userCloture = clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL);
+  
   const refresh = () => setAchats(store.getAchats());
+  
+  // Achats visibles (non clôturés)
+  const visibleAchats = achats.filter(a => {
+    if (isAdmin || user.ROLE === 'Gérant') return true;
+    if (userCloture && a.DATE_ACHAT === today()) return false;
+    return true;
+  });
+
+  // Créer un nouveau fournisseur
+  const handleCreateFournisseur = () => {
+    if (!newFournisseurForm.NOM.trim()) {
+      showMsg('Nom du fournisseur obligatoire');
+      return;
+    }
+    const list = store.getFournisseurs();
+    const newFourn: Fournisseur = {
+      IDFOURNISSEUR: nextId(list, 'IDFOURNISSEUR'),
+      NOM: capitalize(newFournisseurForm.NOM.trim()),
+      ADRESSE: newFournisseurForm.ADRESSE,
+      TELEPHONE: newFournisseurForm.TELEPHONE,
+    };
+    store.setFournisseurs([...list, newFourn]);
+    setFournisseur(newFourn.IDFOURNISSEUR);
+    setShowNewFournisseur(false);
+    setNewFournisseurForm({ NOM: '', ADRESSE: '', TELEPHONE: '' });
+    showMsg('Fournisseur créé');
+  };
 
   const filteredArt = articles.filter(a =>
     a.ACTIF &&
@@ -239,10 +272,8 @@ export default function AchatsModule({ user }: Props) {
     const mvts = store.getMouvements();
 
     if (editAchat) {
-      // Mode édition - annuler l'ancien puis recréer
       const oldLignes = lignesList.filter(l => l.IDACHAT === editAchat.IDACHAT);
       
-      // Restaurer le stock des anciennes lignes
       let updatedArts = [...artList];
       oldLignes.forEach(ol => {
         const idx = updatedArts.findIndex(a => a.IDARTICLE === ol.IDARTICLE);
@@ -251,10 +282,8 @@ export default function AchatsModule({ user }: Props) {
         }
       });
 
-      // Supprimer les anciennes lignes
       const newLignesList = lignesList.filter(l => l.IDACHAT !== editAchat.IDACHAT);
 
-      // Ajouter les nouvelles lignes et mettre à jour le stock
       let ligneIdBase = nextId(newLignesList, 'IDLIGNEACHAT');
       let mvtIdBase = nextId(mvts, 'IDMOUVEMENT');
       const newLignes: LigneAchat[] = [];
@@ -293,7 +322,6 @@ export default function AchatsModule({ user }: Props) {
         });
       });
 
-      // Mettre à jour l'achat
       const updatedAchats = achatsList.map(a =>
         a.IDACHAT === editAchat.IDACHAT
           ? { ...a, IDFOURNISSEUR: fournisseur, TOTAL: total, OBSERVATION: observation }
@@ -307,17 +335,18 @@ export default function AchatsModule({ user }: Props) {
 
       showMsg('Achat modifié avec succès !');
     } else {
-      // Nouveau achat
       const idAchat = nextId(achatsList, 'IDACHAT');
       const ref = `ACH-${today().replace(/-/g, '')}-${String(idAchat).padStart(4, '0')}`;
 
-      const newAchat = {
+      const newAchat: Achat = {
         IDACHAT: idAchat,
         DATE_ACHAT: today(),
         REFERENCE: ref,
         IDFOURNISSEUR: fournisseur,
         TOTAL: total,
         OBSERVATION: observation,
+        IDPERSONNEL: user.IDPERSONNEL,
+        CLOTUREE: false,
       };
 
       let ligneIdBase = nextId(lignesList, 'IDLIGNEACHAT');
@@ -396,7 +425,7 @@ export default function AchatsModule({ user }: Props) {
       return `<tr><td>${art?.NOM || '-'}</td><td style="text-align:right">${l.QUANTITE}</td><td style="text-align:right">${formatAr(l.PRIX_ACHAT)}</td><td style="text-align:right">${formatAr(l.MONTANT)}</td></tr>`;
     }).join('');
 
-    printTicket(`
+    printPreview(`
       <div class="center bold">BON D'ACHAT</div>
       <div class="center">${achat.REFERENCE}</div>
       <div class="row"><span>${achat.DATE_ACHAT}</span></div>
@@ -436,7 +465,7 @@ export default function AchatsModule({ user }: Props) {
               </tr>
             </thead>
             <tbody>
-              {achats.sort((a, b) => b.IDACHAT - a.IDACHAT).map(a => {
+              {visibleAchats.sort((a, b) => b.IDACHAT - a.IDACHAT).map(a => {
                 const fourn = fournisseurs.find(f => f.IDFOURNISSEUR === a.IDFOURNISSEUR);
                 return (
                   <tr key={a.IDACHAT} className="border-t border-gray-50 hover:bg-gray-50">
@@ -462,7 +491,7 @@ export default function AchatsModule({ user }: Props) {
                   </tr>
                 );
               })}
-              {achats.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-gray-400">Aucun achat</td></tr>}
+              {visibleAchats.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-gray-400">Aucun achat</td></tr>}
             </tbody>
           </table>
         </div>
@@ -477,7 +506,7 @@ export default function AchatsModule({ user }: Props) {
                 🛒 {editAchat ? 'Modifier' : 'Nouvel'} achat
               </h3>
               <div className="flex items-center gap-3">
-                <span className="text-xs bg-white/20 px-3 py-1 rounded-full flex items-center gap-1"><Keyboard size={12} /> ↑↓ Enter Tab</span>
+                <span className="text-xs bg-white/20 px-3 py-1 rounded-full flex items-center gap-1"><Keyboard size={12} /> ↑↓ Enter Tab | Clic souris</span>
                 <button onClick={() => setShowForm(false)}><X size={20} /></button>
               </div>
             </div>
@@ -487,10 +516,55 @@ export default function AchatsModule({ user }: Props) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Fournisseur *</label>
-                  <select value={fournisseur || ''} onChange={e => setFournisseur(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border mt-1 focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent">
-                    <option value="">-- Sélectionner un fournisseur --</option>
-                    {fournisseurs.map(f => <option key={f.IDFOURNISSEUR} value={f.IDFOURNISSEUR}>{f.NOM}</option>)}
-                  </select>
+                  <div className="flex gap-2 mt-1">
+                    <select value={fournisseur || ''} onChange={e => setFournisseur(Number(e.target.value))} className="flex-1 px-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent">
+                      <option value="">-- Sélectionner --</option>
+                      {fournisseurs.map(f => <option key={f.IDFOURNISSEUR} value={f.IDFOURNISSEUR}>{f.NOM}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewFournisseur(!showNewFournisseur)}
+                      className={`p-2.5 rounded-xl border transition-all ${showNewFournisseur ? 'bg-green-50 border-green-500 text-green-600' : 'hover:bg-gray-50'}`}
+                      title="Nouveau fournisseur"
+                    >
+                      <UserPlus size={18} />
+                    </button>
+                  </div>
+                  
+                  {showNewFournisseur && (
+                    <div className="mt-3 p-4 bg-green-50 rounded-xl border border-green-200 space-y-3">
+                      <p className="text-sm font-medium text-green-700 flex items-center gap-2">
+                        <UserPlus size={16} /> Nouveau fournisseur
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Nom du fournisseur *"
+                        value={newFournisseurForm.NOM}
+                        onChange={e => setNewFournisseurForm({ ...newFournisseurForm, NOM: capitalize(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Adresse"
+                        value={newFournisseurForm.ADRESSE}
+                        onChange={e => setNewFournisseurForm({ ...newFournisseurForm, ADRESSE: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border text-sm"
+                      />
+                      <PhoneInput
+                        value={newFournisseurForm.TELEPHONE}
+                        onChange={v => setNewFournisseurForm({ ...newFournisseurForm, TELEPHONE: v })}
+                        placeholder="034 00 000 00"
+                        className="text-sm py-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreateFournisseur}
+                        className="w-full bg-green-500 text-white py-2 rounded-lg font-medium text-sm hover:bg-green-600"
+                      >
+                        Créer le fournisseur
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">Observation</label>
@@ -501,7 +575,7 @@ export default function AchatsModule({ user }: Props) {
               {/* Recherche article */}
               <div className="relative">
                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Search size={14} /> Rechercher et ajouter un article
+                  <Search size={14} /> Rechercher et ajouter un article (clavier ou souris)
                 </label>
                 <input
                   ref={searchRef}
@@ -510,7 +584,7 @@ export default function AchatsModule({ user }: Props) {
                   onFocus={() => { if (searchArt) setShowSuggestions(true); }}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   onKeyDown={handleSearchKeyDown}
-                  placeholder="Tapez le nom de l'article puis ↓ et Entrée..."
+                  placeholder="Tapez le nom de l'article..."
                   className="w-full px-4 py-3 rounded-xl border mt-1 focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent text-sm"
                   autoComplete="off"
                 />
@@ -522,6 +596,7 @@ export default function AchatsModule({ user }: Props) {
                       return (
                         <button
                           key={a.IDARTICLE}
+                          type="button"
                           onClick={() => addLigne(a.IDARTICLE)}
                           onMouseEnter={() => setSuggestionIdx(idx)}
                           className={`w-full text-left px-4 py-3 flex items-center justify-between text-sm transition ${
@@ -545,7 +620,7 @@ export default function AchatsModule({ user }: Props) {
                       );
                     })}
                     <div className="px-4 py-2 text-xs border-t text-gray-400 bg-gray-50">
-                      ↑↓ naviguer • Entrée sélectionner • Échap fermer
+                      ↑↓ naviguer • Entrée/Clic sélectionner • Échap fermer
                     </div>
                   </div>
                 )}
@@ -646,16 +721,16 @@ export default function AchatsModule({ user }: Props) {
                 <div className="bg-gray-50 rounded-xl p-8 text-center">
                   <Search size={40} className="mx-auto mb-3 text-gray-300" />
                   <p className="text-gray-500">Tapez le nom d'un article ci-dessus pour commencer</p>
-                  <p className="text-xs text-gray-400 mt-1">Utilisez ↑↓ pour naviguer et Entrée pour sélectionner</p>
+                  <p className="text-xs text-gray-400 mt-1">Utilisez ↑↓ ou cliquez pour sélectionner</p>
                 </div>
               )}
 
               {/* Raccourcis clavier */}
               <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
-                <p className="text-xs text-blue-700 font-medium mb-1">⌨️ Raccourcis clavier</p>
+                <p className="text-xs text-blue-700 font-medium mb-1">⌨️ Raccourcis clavier & souris</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-blue-600">
                   <span>↑↓ Naviguer suggestions</span>
-                  <span>Entrée: Sélectionner / Ligne suivante</span>
+                  <span>Entrée/Clic: Sélectionner</span>
                   <span>Tab: Colonne suivante</span>
                   <span>Ctrl+Suppr: Supprimer ligne</span>
                 </div>
