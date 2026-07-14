@@ -3,6 +3,7 @@ import { CreditCard, Wallet, CheckCircle2, Search, X } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 import { formatAr, nextId, nowTime, today } from '../helpers';
+import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface Props { user: Personnel }
@@ -64,6 +65,22 @@ export default function CreditsModule({ user }: Props) {
 
     store.setClients(updatedClients);
     store.setPaiements([...paiements, newPaiement]);
+
+    // Imprimer le ticket de remboursement
+    const resteApres = Math.max(0, selected.CREDIT_TOTAL - montantNum);
+    printTicket(`
+      <div class="center bold">TICKET DE REMBOURSEMENT</div>
+      <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
+      <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
+      <div class="line"></div>
+      <div class="row"><span>Client</span><span>${selected.NOM_CLIENT}</span></div>
+      <div class="row"><span>Mode</span><span>${modePaiement}</span></div>
+      <div class="line"></div>
+      <div class="row"><span>Credit avant</span><span>${formatAr(selected.CREDIT_TOTAL)}</span></div>
+      <div class="row bold"><span>Montant rembourse</span><span>${formatAr(montantNum)}</span></div>
+      <div class="row"><span>Reste</span><span>${formatAr(resteApres)}</span></div>
+    `);
+
     setShowConfirm(false);
     setSelectedClient(null);
     setMontant('');

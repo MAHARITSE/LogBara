@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Send, X, Search, Edit2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ShoppingCart, Minus, Plus, Trash2, CreditCard, Send, X, Search, Edit2, UserPlus } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, CartItem, TableR } from '../types';
-import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
+import { Personnel, CartItem, TableR, Client } from '../types';
+import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
+import PhoneInput from '../components/PhoneInput';
 
 interface Props { user: Personnel }
 type PaymentMode = 'Espèces' | 'Mobile Money' | 'Crédit' | 'Mixte';
@@ -24,34 +25,22 @@ export default function CaisseModule({ user }: Props) {
   const [mixteMobile, setMixteMobile] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
   const [toast, setToast] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [rk, setRk] = useState(0);
+  // Ajout client inline
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({ NOM_CLIENT: '', TELEPHONE: '' });
 
   const familles = store.getFamilles();
   const articles = store.getArticles();
-  const clients = store.getClients();
-
-  // Re-read live data each render for tables/consommations
-  const tables = useMemo(() => store.getTables(), [refreshKey]);
-  void useMemo(() => store.getConsommations(), [refreshKey]); // trigger re-read
+  const clients = useMemo(() => store.getClients(), [rk]);
+  const tables = useMemo(() => store.getTables(), [rk]);
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
-  // Charger les consommations de la table sélectionnée
-  useEffect(() => {
-    if (selectedTable && mode === 'table') {
-      const tc = store.getConsommations().filter(c => c.IDTABLE === selectedTable.IDTABLE);
-      const items: CartItem[] = [];
-      tc.forEach(c => {
-        const art = articles.find(a => a.IDARTICLE === c.IDARTICLE);
-        if (art) {
-          const ex = items.find(ci => ci.IDARTICLE === c.IDARTICLE);
-          if (ex) { ex.QUANTITE += c.QUANTITE; }
-          else { items.push({ IDARTICLE: c.IDARTICLE, NOM: art.NOM, EMOJI: art.EMOJI, QUANTITE: c.QUANTITE, PRIX_UNITAIRE: c.PRIX_UNITAIRE, SAISIE_PRIX_VENTE: art.SAISIE_PRIX_VENTE }); }
-        }
-      });
-      setCart(items);
-    }
-  }, [selectedTable, refreshKey, mode, articles]);
+  // === RÈGLE 1 : Pas de chargement auto des consommations.
+  //     L'utilisateur choisit les articles AVANT de sélectionner la table.
+  //     Quand il passe en mode table, le panier n'est PAS vidé.
+  //     Quand il sélectionne une table occupée, le panier n'est PAS remplacé.
 
   const filteredArticles = useMemo(() => {
     return articles.filter(a => {
@@ -70,6 +59,11 @@ export default function CaisseModule({ user }: Props) {
       return false;
     });
   }, [tables, user]);
+
+  // Total de la table occupée (consommations déjà envoyées)
+  const getTableTotal = (tableId: number) => {
+    return store.getConsommations().filter(c => c.IDTABLE === tableId).reduce((s, c) => s + c.QUANTITE * c.PRIX_UNITAIRE, 0);
+  };
 
   const total = cart.reduce((s, i) => s + i.QUANTITE * i.PRIX_UNITAIRE, 0);
   const netAPayer = total - remise;
@@ -103,14 +97,11 @@ export default function CaisseModule({ user }: Props) {
   const removeFromCart = (artId: number) => { setCart(cart.filter(c => c.IDARTICLE !== artId)); };
   const clearCart = () => { setCart([]); setRemise(0); setConfirmClear(false); };
 
-  // ===== FIX: Envoyer à la table =====
+  // === RÈGLE 2 : Envoyer = AJOUTER à la table (pas remplacer) ===
   const handleSendToTable = () => {
     if (!selectedTable || cart.length === 0) return;
 
-    // Lire les consommations FRAÎCHES
     const allConso = store.getConsommations();
-    const otherConso = allConso.filter(c => c.IDTABLE !== selectedTable.IDTABLE);
-
     let idBase = nextId(allConso, 'IDCONSOMMATION');
     const newConsommations = cart.map(c => ({
       IDCONSOMMATION: idBase++,
@@ -122,27 +113,64 @@ export default function CaisseModule({ user }: Props) {
       IDPERSONNEL: user.IDPERSONNEL,
     }));
 
-    store.setConsommations([...otherConso, ...newConsommations]);
+    // On AJOUTE les consommations (pas remplacement)
+    store.setConsommations([...allConso, ...newConsommations]);
 
-    // Mettre à jour l'état de la table
     const freshTables = store.getTables();
-    const updatedTables = freshTables.map(t =>
+    store.setTables(freshTables.map(t =>
       t.IDTABLE === selectedTable.IDTABLE
         ? { ...t, ETAT: 'Occupée' as const, IDCAISSIER: user.IDPERSONNEL }
         : t
-    );
-    store.setTables(updatedTables);
+    ));
 
-    showMsg('Commande envoyée à la table !');
+    showMsg(`${cart.length} article(s) envoyé(s) à ${selectedTable.DESCRIPTION}`);
     setCart([]);
-    setSelectedTable(null);
-    setMode('comptoir');
-    setRefreshKey(k => k + 1);
+    setRefreshKey();
   };
 
-  // ===== Payer avec montant reçu pré-rempli =====
+  const setRefreshKey = () => setRk(k => k + 1);
+
+  // === Payer une table occupée depuis les consommations ===
+  const payTableDirect = (table: TableR) => {
+    const consos = store.getConsommations().filter(c => c.IDTABLE === table.IDTABLE);
+    if (consos.length === 0) return;
+    const items: CartItem[] = [];
+    consos.forEach(c => {
+      const art = articles.find(a => a.IDARTICLE === c.IDARTICLE);
+      if (!art) return;
+      const ex = items.find(ci => ci.IDARTICLE === c.IDARTICLE);
+      if (ex) { ex.QUANTITE += c.QUANTITE; }
+      else { items.push({ IDARTICLE: c.IDARTICLE, NOM: art.NOM, EMOJI: art.EMOJI, QUANTITE: c.QUANTITE, PRIX_UNITAIRE: c.PRIX_UNITAIRE, SAISIE_PRIX_VENTE: art.SAISIE_PRIX_VENTE }); }
+    });
+    setCart(items);
+    setMode('table');
+    setSelectedTable(table);
+    setRemise(0);
+    openPayment();
+  };
+
+  // Ajout client inline
+  const handleCreateClient = () => {
+    if (!newClientForm.NOM_CLIENT.trim()) { showMsg('Nom obligatoire'); return; }
+    const list = store.getClients();
+    const newC: Client = {
+      IDCLIENT: nextId(list, 'IDCLIENT'),
+      NOM_CLIENT: capitalize(newClientForm.NOM_CLIENT.trim()),
+      TELEPHONE: newClientForm.TELEPHONE,
+      ADRESSE: '',
+      CREDIT_TOTAL: 0,
+      DATE_CREATION: today(),
+    };
+    store.setClients([...list, newC]);
+    setSelectedClient(newC.IDCLIENT);
+    setShowNewClient(false);
+    setNewClientForm({ NOM_CLIENT: '', TELEPHONE: '' });
+    setRefreshKey();
+    showMsg('Client créé');
+  };
+
   const openPayment = () => {
-    setMontantRecu(String(netAPayer));
+    setMontantRecu(String(Math.max(0, total - remise)));
     setShowPayment(true);
   };
 
@@ -168,21 +196,22 @@ export default function CaisseModule({ user }: Props) {
 
     let idPaiement = nextId(paiements, 'IDPAIEMENT');
     const newPaiements: typeof paiements = [];
+    const nap = total - remise;
 
     if (paymentMode === 'Mixte') {
       if (mixteEspeces > 0) newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: mixteEspeces, MODE_PAIEMENT: 'Espèces' });
       if (mixteMobile > 0) newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: mixteMobile, MODE_PAIEMENT: 'Mobile Money' });
-      const reste = netAPayer - mixteEspeces - mixteMobile;
+      const reste = nap - mixteEspeces - mixteMobile;
       if (reste > 0 && selectedClient) {
         newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: reste, MODE_PAIEMENT: 'Crédit', IDCLIENT: selectedClient });
         const cl = store.getClients();
         store.setClients(cl.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + reste } : c));
       }
     } else {
-      newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: netAPayer, MODE_PAIEMENT: paymentMode === 'Crédit' ? 'Crédit' : paymentMode, IDCLIENT: paymentMode === 'Crédit' ? selectedClient || undefined : undefined });
+      newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: nap, MODE_PAIEMENT: paymentMode === 'Crédit' ? 'Crédit' : paymentMode, IDCLIENT: paymentMode === 'Crédit' ? selectedClient || undefined : undefined });
       if (paymentMode === 'Crédit' && selectedClient) {
         const cl = store.getClients();
-        store.setClients(cl.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + netAPayer } : c));
+        store.setClients(cl.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + nap } : c));
       }
     }
 
@@ -196,8 +225,7 @@ export default function CaisseModule({ user }: Props) {
     if (selectedTable) {
       const ft = store.getTables();
       store.setTables(ft.map(t => t.IDTABLE === selectedTable.IDTABLE ? { ...t, ETAT: 'Libre' as const, IDCAISSIER: undefined } : t));
-      const fc = store.getConsommations();
-      store.setConsommations(fc.filter(c => c.IDTABLE !== selectedTable.IDTABLE));
+      store.setConsommations(store.getConsommations().filter(c => c.IDTABLE !== selectedTable.IDTABLE));
     }
 
     const rows = cart.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
@@ -210,16 +238,20 @@ export default function CaisseModule({ user }: Props) {
       <div class="line"></div>
       <table><tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
-      <div class="row"><span>Sous-total</span><span>${formatAr(total)}</span></div>
       ${remise > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(remise)}</span></div>` : ''}
-      <div class="row bold"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
+      <div class="row bold"><span>TOTAL</span><span>${formatAr(nap)}</span></div>
       <div class="line"></div>
       <div class="row"><span>Mode</span><span>${paymentMode}</span></div>
-      ${paymentMode === 'Espèces' && Number(montantRecu) > netAPayer ? `<div class="row"><span>Reçu</span><span>${formatAr(Number(montantRecu))}</span></div><div class="row"><span>Monnaie</span><span>${formatAr(monnaie)}</span></div>` : ''}
+      ${paymentMode === 'Espèces' && Number(montantRecu) > nap ? `<div class="row"><span>Reçu</span><span>${formatAr(Number(montantRecu))}</span></div><div class="row"><span>Monnaie</span><span>${formatAr(monnaie)}</span></div>` : ''}
     `);
 
-    setCart([]); setRemise(0); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setSelectedClient(null); setMixteEspeces(0); setMixteMobile(0); setSelectedTable(null); setMode('comptoir'); setRefreshKey(k => k + 1); showMsg('Vente enregistrée !');
+    setCart([]); setRemise(0); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setSelectedClient(null); setMixteEspeces(0); setMixteMobile(0); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); showMsg('Vente enregistrée !');
   };
+
+  // === RÈGLE 3 : Tables occupées avec total + bouton payer direct ===
+  const occupiedTables = useMemo(() => {
+    return tables.filter(t => t.ETAT === 'Occupée' && (user.ROLE === 'Gérant' || t.IDCAISSIER === user.IDPERSONNEL));
+  }, [tables, user, rk]);
 
   return (
     <div className="flex h-[calc(100vh-80px)] gap-4">
@@ -236,15 +268,35 @@ export default function CaisseModule({ user }: Props) {
             </div>
             {cart.length > 0 && <button onClick={() => setConfirmClear(true)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={16} /></button>}
           </div>
+          {/* Mode : ne PAS vider le panier au basculement */}
           <div className="flex gap-2 mb-3">
-            <button onClick={() => { setMode('comptoir'); setSelectedTable(null); setCart([]); }} className={`flex-1 py-2 rounded-lg text-sm font-medium ${mode === 'comptoir' ? 'bg-[#0D47A1] text-white' : 'bg-gray-100 text-gray-600'}`}>Comptoir</button>
+            <button onClick={() => { setMode('comptoir'); setSelectedTable(null); }} className={`flex-1 py-2 rounded-lg text-sm font-medium ${mode === 'comptoir' ? 'bg-[#0D47A1] text-white' : 'bg-gray-100 text-gray-600'}`}>Comptoir</button>
             <button onClick={() => setMode('table')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${mode === 'table' ? 'bg-[#0D47A1] text-white' : 'bg-gray-100 text-gray-600'}`}>Table</button>
           </div>
           {mode === 'table' && (
-            <select value={selectedTable?.IDTABLE || ''} onChange={e => { const t = availableTables.find(t => t.IDTABLE === Number(e.target.value)); setSelectedTable(t || null); if (!t) setCart([]); }} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+            <select value={selectedTable?.IDTABLE || ''} onChange={e => { const t = availableTables.find(t => t.IDTABLE === Number(e.target.value)); setSelectedTable(t || null); }} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
               <option value="">-- Choisir une table --</option>
               {availableTables.map(t => <option key={t.IDTABLE} value={t.IDTABLE}>Table {t.NUMERO} - {t.DESCRIPTION} {t.ETAT === 'Occupée' ? '(Occupée)' : ''}</option>)}
             </select>
+          )}
+
+          {/* Tables occupées avec total + payer direct */}
+          {occupiedTables.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-400 uppercase">Tables occupées</p>
+              {occupiedTables.map(t => {
+                const tTotal = getTableTotal(t.IDTABLE);
+                return (
+                  <div key={t.IDTABLE} className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-sm font-bold">T{t.NUMERO} {t.DESCRIPTION}</p>
+                      <p className="text-xs text-red-600 font-semibold">{formatAr(tTotal)}</p>
+                    </div>
+                    <button onClick={() => payTableDirect(t)} className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-600">Payer</button>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -285,7 +337,7 @@ export default function CaisseModule({ user }: Props) {
         </div>
       </div>
 
-      {/* Grille articles - AGRANDIE avec emoji */}
+      {/* Grille articles */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
           <div className="flex gap-4 items-center">
@@ -319,10 +371,10 @@ export default function CaisseModule({ user }: Props) {
         </div>
       </div>
 
-      {/* Modal Paiement */}
+      {/* Modal Paiement avec ajout client inline */}
       {showPayment && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowPayment(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between"><h3 className="font-bold text-lg">💳 Encaissement</h3><button onClick={() => setShowPayment(false)}><X size={20} /></button></div>
             <div className="p-6 space-y-4">
               <div className="bg-gray-50 rounded-xl p-4 text-center"><p className="text-sm text-gray-500">Net à payer</p><p className="text-3xl font-bold text-[#0D47A1]">{formatAr(netAPayer)}</p></div>
@@ -337,7 +389,21 @@ export default function CaisseModule({ user }: Props) {
               )}
               {paymentMode === 'Mixte' && <div><label className="text-sm font-medium text-gray-700 mb-2 block">Montant Mobile Money</label><input type="number" value={mixteMobile || ''} onChange={e => setMixteMobile(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border text-lg font-bold text-center" placeholder="0" /></div>}
               {(paymentMode === 'Crédit' || (paymentMode === 'Mixte' && mixteEspeces + mixteMobile < netAPayer)) && (
-                <div><label className="text-sm font-medium text-gray-700 mb-2 block">Client (crédit)</label><select value={selectedClient || ''} onChange={e => setSelectedClient(Number(e.target.value) || null)} className="w-full px-4 py-3 rounded-xl border"><option value="">-- Sélectionner un client --</option>{clients.map(c => <option key={c.IDCLIENT} value={c.IDCLIENT}>{c.NOM_CLIENT} ({formatAr(c.CREDIT_TOTAL)})</option>)}</select></div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Client (crédit)</label>
+                  <div className="flex gap-2">
+                    <select value={selectedClient || ''} onChange={e => setSelectedClient(Number(e.target.value) || null)} className="flex-1 px-4 py-2.5 rounded-xl border"><option value="">-- Sélectionner --</option>{clients.map(c => <option key={c.IDCLIENT} value={c.IDCLIENT}>{c.NOM_CLIENT} ({formatAr(c.CREDIT_TOTAL)})</option>)}</select>
+                    <button type="button" onClick={() => setShowNewClient(!showNewClient)} className={`p-2.5 rounded-xl border ${showNewClient ? 'bg-green-50 border-green-500 text-green-600' : 'hover:bg-gray-50'}`} title="Nouveau client"><UserPlus size={18} /></button>
+                  </div>
+                  {showNewClient && (
+                    <div className="mt-3 p-4 bg-green-50 rounded-xl border border-green-200 space-y-3">
+                      <p className="text-sm font-medium text-green-700 flex items-center gap-2"><UserPlus size={16} /> Nouveau client</p>
+                      <input type="text" placeholder="Nom du client *" value={newClientForm.NOM_CLIENT} onChange={e => setNewClientForm({ ...newClientForm, NOM_CLIENT: capitalize(e.target.value) })} className="w-full px-3 py-2 rounded-lg border text-sm" />
+                      <PhoneInput value={newClientForm.TELEPHONE} onChange={v => setNewClientForm({ ...newClientForm, TELEPHONE: v })} placeholder="034 00 000 00" className="text-sm py-2" />
+                      <button type="button" onClick={handleCreateClient} className="w-full bg-green-500 text-white py-2 rounded-lg font-medium text-sm hover:bg-green-600">Créer le client</button>
+                    </div>
+                  )}
+                </div>
               )}
               <button onClick={handlePayment} disabled={(paymentMode === 'Crédit' && !selectedClient) || (paymentMode === 'Espèces' && Number(montantRecu) < netAPayer)} className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed">✅ Valider le paiement</button>
             </div>
