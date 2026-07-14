@@ -157,8 +157,53 @@ export default function ClotureModule({ user }: Props) {
     setShowConfirm(false);
     showMsg('Caisse clôturée avec succès !');
 
-    // Imprimer
+    // Imprimer la clôture
     printCloture(newCloture);
+
+    // Imprimer le ticket TCD des ventes du jour
+    setTimeout(() => printVentesTCD(), 1000);
+  };
+
+  // Ticket TCD (Tableau Croisé Dynamique) des ventes du jour
+  const printVentesTCD = () => {
+    const allArticles = store.getArticles();
+    const allLignes = store.getLignesVente();
+    const ventesJour = ventes.filter(
+      v => v.DATE_VENTE === today() && v.IDPERSONNEL === user.IDPERSONNEL && v.STATUT === 'Payée'
+    );
+    const lignesJour = allLignes.filter(l => ventesJour.some(v => v.IDVENTE === l.IDVENTE));
+
+    // Regrouper par article
+    const tcd: Record<number, { nom: string; qte: number; montant: number }> = {};
+    lignesJour.forEach(l => {
+      const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
+      if (!tcd[l.IDARTICLE]) tcd[l.IDARTICLE] = { nom: art?.NOM || '-', qte: 0, montant: 0 };
+      tcd[l.IDARTICLE].qte += l.QUANTITE;
+      tcd[l.IDARTICLE].montant += l.MONTANT;
+    });
+
+    const rows = Object.values(tcd)
+      .sort((a, b) => b.montant - a.montant)
+      .map(r => `<tr><td>${r.nom}</td><td class="right">${r.qte}</td><td class="right">${formatAr(r.montant)}</td></tr>`)
+      .join('');
+
+    const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
+    const totalQte = Object.values(tcd).reduce((s, r) => s + r.qte, 0);
+
+    printPreview(`
+      <div class="center bold">RECAP VENTES DU JOUR</div>
+      <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
+      <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
+      <div class="row"><span>Nb ventes:</span><span>${ventesJour.length}</span></div>
+      <div class="line"></div>
+      <table>
+        <tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">Montant</td></tr>
+        ${rows}
+      </table>
+      <div class="line"></div>
+      <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
+      <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
+    `);
   };
 
   // Imprimer la clôture
