@@ -133,6 +133,15 @@ Page du GitHub conservée. Signature développeur affichée.
 - Serveur : lecture seule
 - **Ajout client inline** lors du paiement à crédit (bouton + à côté du select client)
 
+**Retour d'articles (bouton séparé sur la carte table)** :
+- Bouton orange **↩** sur chaque table occupée, à côté de 👁️ et Payer
+- Ouvre un **modal dédié** (séparé du paiement) avec la liste des articles servis
+- Boutons +/- pour sélectionner la quantité à retourner par article
+- Résumé des retours affiché avant confirmation
+- La confirmation retire les consommations de la table
+- Si tous les articles sont retournés, la table revient à "Libre"
+- Le modal de paiement reste **simple** (liste, remise, total, mode)
+
 ### 5. Ventes
 - Stats par caissier
 - Annulation (Admin uniquement)

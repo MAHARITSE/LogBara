@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Users, Trash2, CreditCard, X, Eye, UserPlus } from 'lucide-react';
+import { Plus, Users, Trash2, CreditCard, X, Eye, UserPlus, Minus, RotateCcw } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, TableR, CartItem, Client } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
@@ -9,12 +9,23 @@ import PhoneInput from '../components/PhoneInput';
 
 interface Props { user: Personnel }
 
+interface ReturnItem {
+  IDARTICLE: number;
+  NOM: string;
+  EMOJI?: string;
+  QUANTITE_ACTUELLE: number;
+  QUANTITE_RETOUR: number;
+}
+
 export default function TablesModule({ user }: Props) {
   const [rk, setRk] = useState(0);
   const tables = useMemo(() => store.getTables(), [rk]);
   const [selectedTable, setSelectedTable] = useState<TableR | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showReturn, setShowReturn] = useState(false);
+  const [returnTable, setReturnTable] = useState<TableR | null>(null);
+  const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<TableR | null>(null);
   const [toast, setToast] = useState('');
 
@@ -26,7 +37,6 @@ export default function TablesModule({ user }: Props) {
   const [selectedClient, setSelectedClient] = useState<number | null>(null);
   const [remise, setRemise] = useState(0);
 
-  // Ajout client inline
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClientForm, setNewClientForm] = useState({ NOM_CLIENT: '', TELEPHONE: '' });
 
@@ -57,6 +67,65 @@ export default function TablesModule({ user }: Props) {
 
   const getTableTotal = (tableId: number): number => getTableItems(tableId).reduce((s, i) => s + i.QUANTITE * i.PRIX_UNITAIRE, 0);
 
+  // ========= RETOUR D'ARTICLES =========
+  const openReturn = (table: TableR) => {
+    const items = getTableItems(table.IDTABLE);
+    setReturnItems(items.map(i => ({
+      IDARTICLE: i.IDARTICLE, NOM: i.NOM, EMOJI: i.EMOJI,
+      QUANTITE_ACTUELLE: i.QUANTITE, QUANTITE_RETOUR: 0,
+    })));
+    setReturnTable(table);
+    setShowReturn(true);
+  };
+
+  const updateReturnQty = (artId: number, delta: number) => {
+    setReturnItems(prev => prev.map(i => {
+      if (i.IDARTICLE !== artId) return i;
+      const nq = Math.max(0, Math.min(i.QUANTITE_ACTUELLE, i.QUANTITE_RETOUR + delta));
+      return { ...i, QUANTITE_RETOUR: nq };
+    }));
+  };
+
+  const confirmReturn = () => {
+    if (!returnTable) return;
+    const toReturn = returnItems.filter(i => i.QUANTITE_RETOUR > 0);
+    if (toReturn.length === 0) { showMsg('Aucun retour sélectionné'); return; }
+
+    // Mettre à jour les consommations : réduire les quantités
+    let allConso = store.getConsommations();
+    toReturn.forEach(ret => {
+      let remaining = ret.QUANTITE_RETOUR;
+      // Parcourir les consommations de cette table pour cet article et déduire
+      allConso = allConso.map(c => {
+        if (c.IDTABLE !== returnTable.IDTABLE || c.IDARTICLE !== ret.IDARTICLE || remaining <= 0) return c;
+        const deduct = Math.min(c.QUANTITE, remaining);
+        remaining -= deduct;
+        return { ...c, QUANTITE: c.QUANTITE - deduct };
+      }).filter(c => c.QUANTITE > 0); // supprimer les lignes à 0
+    });
+    store.setConsommations(allConso);
+
+    // Si la table n'a plus de consommations, la libérer
+    const remaining = allConso.filter(c => c.IDTABLE === returnTable.IDTABLE);
+    if (remaining.length === 0) {
+      store.setTables(store.getTables().map(t =>
+        t.IDTABLE === returnTable.IDTABLE ? { ...t, ETAT: 'Libre' as const, IDCAISSIER: undefined } : t
+      ));
+    }
+
+    const detail = toReturn.map(i => `${i.QUANTITE_RETOUR}x ${i.NOM}`).join(', ');
+    setShowReturn(false); setReturnTable(null); setReturnItems([]);
+    refresh();
+    showMsg(`Retour effectué : ${detail}`);
+  };
+
+  // ========= PAIEMENT (simple, sans retour) =========
+  const openPayment = (table: TableR) => {
+    setSelectedTable(table);
+    setRemise(0); setPaymentMode('Espèces'); setSelectedClient(null); setShowNewClient(false);
+    setShowPayment(true);
+  };
+
   const handleCreateTable = () => {
     if (!formDescription.trim()) { showMsg('Description obligatoire'); return; }
     const newTable: TableR = {
@@ -75,7 +144,6 @@ export default function TablesModule({ user }: Props) {
     setConfirmDelete(null); refresh(); showMsg('Table supprimée');
   };
 
-  // Ajout client inline
   const handleCreateClient = () => {
     if (!newClientForm.NOM_CLIENT.trim()) { showMsg('Nom obligatoire'); return; }
     const list = store.getClients();
@@ -86,15 +154,14 @@ export default function TablesModule({ user }: Props) {
     };
     store.setClients([...list, newC]);
     setSelectedClient(newC.IDCLIENT);
-    setShowNewClient(false);
-    setNewClientForm({ NOM_CLIENT: '', TELEPHONE: '' });
+    setShowNewClient(false); setNewClientForm({ NOM_CLIENT: '', TELEPHONE: '' });
     refresh(); showMsg('Client créé');
   };
 
   const handlePayment = () => {
     if (!selectedTable) return;
     const items = getTableItems(selectedTable.IDTABLE);
-    if (items.length === 0) return;
+    if (items.length === 0) { showMsg('Aucun article à payer'); return; }
 
     const total = getTableTotal(selectedTable.IDTABLE);
     const netAPayer = total - remise;
@@ -151,7 +218,7 @@ export default function TablesModule({ user }: Props) {
       <div>Table: ${selectedTable.DESCRIPTION}</div>
       <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
       <div class="line"></div>
-      <table><tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
+      <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
       ${remise > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(remise)}</span></div>` : ''}
       <div class="row bold"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
@@ -172,7 +239,7 @@ export default function TablesModule({ user }: Props) {
       <div>Table: ${table.DESCRIPTION}</div>
       ${caissier ? `<div>Serveur: ${caissier.PRENOM}</div>` : ''}
       <div class="line"></div>
-      <table><tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
+      <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(total)}</span></div>
     `);
@@ -196,6 +263,7 @@ export default function TablesModule({ user }: Props) {
         )}
       </div>
 
+      {/* Grille des tables */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {visibleTables.map(table => {
           const total = getTableTotal(table.IDTABLE);
@@ -217,15 +285,31 @@ export default function TablesModule({ user }: Props) {
                 {isOccupied && (
                   <>
                     <p className="text-xl font-bold text-[#0D47A1] mb-2">{formatAr(total)}</p>
-                    {caissier && <p className="text-xs text-gray-400">Par: {caissier.PRENOM}</p>}
+                    {caissier && <p className="text-xs text-gray-400 mb-2">Par: {caissier.PRENOM}</p>}
                   </>
                 )}
-                <div className="flex gap-2 mt-3">
-                  {isOccupied && <button onClick={() => printTablePreview(table)} className="flex-1 py-2 px-3 rounded-lg bg-gray-100 text-gray-600 text-sm hover:bg-gray-200 flex items-center justify-center gap-1"><Eye size={14} /></button>}
-                  {isOccupied && canManage && (
-                    <button onClick={() => { setSelectedTable(table); setRemise(0); setPaymentMode('Espèces'); setSelectedClient(null); setShowNewClient(false); setShowPayment(true); }} className="flex-1 py-2 px-3 rounded-lg bg-green-500 text-white text-sm hover:bg-green-600 flex items-center justify-center gap-1"><CreditCard size={14} /> Payer</button>
+                <div className="flex gap-2 mt-2">
+                  {isOccupied && (
+                    <button onClick={() => printTablePreview(table)} className="py-2 px-3 rounded-lg bg-gray-100 text-gray-600 text-sm hover:bg-gray-200 flex items-center justify-center" title="Aperçu">
+                      <Eye size={14} />
+                    </button>
                   )}
-                  {isAdmin && !isOccupied && <button onClick={() => setConfirmDelete(table)} className="flex-1 py-2 px-3 rounded-lg bg-red-100 text-red-600 text-sm hover:bg-red-200 flex items-center justify-center gap-1"><Trash2 size={14} /></button>}
+                  {/* Bouton RETOUR sur la carte de table */}
+                  {isOccupied && canManage && (
+                    <button onClick={() => openReturn(table)} className="py-2 px-3 rounded-lg bg-orange-100 text-orange-600 text-sm hover:bg-orange-200 flex items-center justify-center gap-1" title="Retour articles">
+                      <RotateCcw size={14} />
+                    </button>
+                  )}
+                  {isOccupied && canManage && (
+                    <button onClick={() => openPayment(table)} className="flex-1 py-2 px-3 rounded-lg bg-green-500 text-white text-sm hover:bg-green-600 flex items-center justify-center gap-1">
+                      <CreditCard size={14} /> Payer
+                    </button>
+                  )}
+                  {isAdmin && !isOccupied && (
+                    <button onClick={() => setConfirmDelete(table)} className="flex-1 py-2 px-3 rounded-lg bg-red-100 text-red-600 text-sm hover:bg-red-200 flex items-center justify-center gap-1">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -234,7 +318,58 @@ export default function TablesModule({ user }: Props) {
       </div>
       {visibleTables.length === 0 && <div className="text-center py-12 text-gray-400">Aucune table</div>}
 
-      {/* Modal création table */}
+      {/* ===== MODAL RETOUR D'ARTICLES ===== */}
+      {showReturn && returnTable && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowReturn(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-orange-500 text-white px-6 py-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2"><RotateCcw size={20} /> Retour — {returnTable.DESCRIPTION}</h3>
+              <button onClick={() => setShowReturn(false)}><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">Sélectionnez les articles à retourner. Le stock ne sera pas affecté (les articles n'avaient pas encore été facturés).</p>
+              <div className="space-y-3">
+                {returnItems.map(item => (
+                  <div key={item.IDARTICLE} className={`flex items-center justify-between p-3 rounded-xl border ${item.QUANTITE_RETOUR > 0 ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-xl">{item.EMOJI || '📦'}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{item.NOM}</p>
+                        <p className="text-xs text-gray-400">Servi: {item.QUANTITE_ACTUELLE}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => updateReturnQty(item.IDARTICLE, -1)} disabled={item.QUANTITE_RETOUR === 0} className="w-8 h-8 rounded-lg border flex items-center justify-center hover:bg-gray-100 disabled:opacity-30"><Minus size={14} /></button>
+                      <span className={`font-bold w-8 text-center text-lg ${item.QUANTITE_RETOUR > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{item.QUANTITE_RETOUR}</span>
+                      <button onClick={() => updateReturnQty(item.IDARTICLE, 1)} disabled={item.QUANTITE_RETOUR >= item.QUANTITE_ACTUELLE} className="w-8 h-8 rounded-lg border flex items-center justify-center hover:bg-gray-100 disabled:opacity-30"><Plus size={14} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {returnItems.some(i => i.QUANTITE_RETOUR > 0) && (
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
+                  <p className="text-sm font-semibold text-orange-700 mb-1">Résumé des retours :</p>
+                  {returnItems.filter(i => i.QUANTITE_RETOUR > 0).map(i => (
+                    <p key={i.IDARTICLE} className="text-sm text-orange-600">↩ {i.QUANTITE_RETOUR}x {i.NOM}</p>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={confirmReturn}
+                disabled={!returnItems.some(i => i.QUANTITE_RETOUR > 0)}
+                className="w-full bg-orange-500 text-white py-3.5 rounded-xl font-bold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <RotateCcw size={18} />
+                Confirmer le retour
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL CRÉATION TABLE ===== */}
       {showForm && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -249,7 +384,7 @@ export default function TablesModule({ user }: Props) {
         </div>
       )}
 
-      {/* Modal paiement avec ajout client inline */}
+      {/* ===== MODAL PAIEMENT (simple) + ajout client ===== */}
       {showPayment && selectedTable && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowPayment(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -258,13 +393,12 @@ export default function TablesModule({ user }: Props) {
               <button onClick={() => setShowPayment(false)}><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
-              {/* Consommations */}
               <div className="bg-gray-50 rounded-xl p-4">
                 <h4 className="font-medium mb-3">Consommations</h4>
                 <div className="space-y-2">
                   {getTableItems(selectedTable.IDTABLE).map(item => (
                     <div key={item.IDARTICLE} className="flex justify-between text-sm">
-                      <span>{item.QUANTITE}x {item.NOM}</span>
+                      <span>{item.EMOJI} {item.QUANTITE}x {item.NOM}</span>
                       <span className="font-medium">{formatAr(item.QUANTITE * item.PRIX_UNITAIRE)}</span>
                     </div>
                   ))}
@@ -287,7 +421,6 @@ export default function TablesModule({ user }: Props) {
                 </div>
               </div>
 
-              {/* Client (Crédit) avec ajout inline */}
               {paymentMode === 'Crédit' && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Client</label>
@@ -309,7 +442,7 @@ export default function TablesModule({ user }: Props) {
                 </div>
               )}
 
-              <button onClick={handlePayment} disabled={paymentMode === 'Crédit' && !selectedClient} className="w-full bg-green-500 text-white py-4 rounded-xl font-bold hover:bg-green-600 disabled:opacity-50">✅ Valider le paiement</button>
+              <button onClick={handlePayment} disabled={(paymentMode === 'Crédit' && !selectedClient)} className="w-full bg-green-500 text-white py-4 rounded-xl font-bold hover:bg-green-600 disabled:opacity-50">✅ Valider le paiement</button>
             </div>
           </div>
         </div>
