@@ -1,0 +1,9 @@
+Bar POS v4.2 — Package WAMP
+Généré le 2026-07-15T06:06:29.207Z
+
+INSTALLATION.md
+api/.htaccess
+api/config.php
+api/index.php
+index.html
+sql/barpos.sql
