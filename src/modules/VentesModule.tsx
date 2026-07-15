@@ -119,9 +119,8 @@ export default function VentesModule({ user }: Props) {
         ${rows}
       </table>
       <div class="line"></div>
-      <div class="row"><span>Sous-total</span><span>${formatAr(vente.TOTAL)}</span></div>
       ${vente.REMISE > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(vente.REMISE)}</span></div>` : ''}
-      <div class="row bold"><span>NET À PAYER</span><span>${formatAr(vente.TOTAL - vente.REMISE)}</span></div>
+      <div class="row bold"><span>TOTAL</span><span>${formatAr(vente.TOTAL - vente.REMISE)}</span></div>
     `);
   };
 
@@ -296,10 +295,6 @@ export default function VentesModule({ user }: Props) {
               </div>
 
               <div className="border-t pt-4 space-y-2">
-                <div className="flex justify-between">
-                  <span>Sous-total</span>
-                  <span className="font-medium">{formatAr(selectedVente.TOTAL)}</span>
-                </div>
                 {selectedVente.REMISE > 0 && (
                   <div className="flex justify-between text-red-500">
                     <span>Remise</span>

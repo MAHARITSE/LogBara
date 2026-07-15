@@ -289,9 +289,8 @@ export default function CaisseModule({ user }: Props) {
         <div className="p-4 border-t border-gray-100 space-y-3">
           <div className="flex items-center gap-2"><span className="text-sm text-gray-500">Remise:</span><input type="number" value={remise || ''} onChange={e => setRemise(Math.max(0, Math.min(total, Number(e.target.value))))} className="flex-1 px-3 py-2 rounded-lg border text-sm" placeholder="0" /><span className="text-sm text-gray-400">Ar</span></div>
           <div className="bg-[#0D47A1] text-white rounded-xl p-4">
-            <div className="flex justify-between text-sm opacity-80"><span>Sous-total</span><span>{formatAr(total)}</span></div>
             {remise > 0 && <div className="flex justify-between text-sm opacity-80"><span>Remise</span><span>-{formatAr(remise)}</span></div>}
-            <div className="flex justify-between text-xl font-bold mt-1"><span>Total</span><span>{formatAr(netAPayer)}</span></div>
+            <div className="flex justify-between text-xl font-bold"><span>Total</span><span>{formatAr(netAPayer)}</span></div>
           </div>
           <div className="flex gap-2">
             {mode === 'table' && selectedTable && <button onClick={handleSendToTable} disabled={cart.length === 0} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50"><Send size={18} />Envoyer</button>}
