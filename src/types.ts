@@ -202,7 +202,6 @@ export interface CartItem {
 }
 
 export type Role = 'Administrateur' | 'Gérant' | 'Caissier' | 'Serveur' | 'Magasinier';
-export type StorageMode = 'local' | 'mysql';
 
 export type ModuleType = 
   | 'dashboard' | 'caisse' | 'tables' | 'ventes' | 'cloture'
