@@ -3,7 +3,7 @@ import { Lock, AlertTriangle, Printer, Check } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 import { formatAr, today, nowTime, nextId } from '../helpers';
-import { printPreview } from '../components/PrintTicket';
+import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface Props {
@@ -157,16 +157,13 @@ export default function ClotureModule({ user }: Props) {
     setShowConfirm(false);
     showMsg('Caisse clôturée avec succès !');
 
-    // Imprimer la clôture
-    printCloture(newCloture);
-
-    // Imprimer le ticket TCD des ventes du jour
-    setTimeout(() => printVentesTCD(), 1000);
+    // Imprimer un seul ticket : clôture + récap par article
+    printClotureComplete(newCloture);
   };
 
-  // Ticket TCD (Tableau Croisé Dynamique) des ventes du jour
-  const printVentesTCD = () => {
-    // Relire les données FRAICHES depuis le store (pas le useState)
+  // Ticket unique : clôture + récap ventes par article
+  const printClotureComplete = (cloture: typeof clotures[0]) => {
+    // Récap par article
     const freshVentes = store.getVentes();
     const allArticles = store.getArticles();
     const allLignes = store.getLignesVente();
@@ -175,7 +172,6 @@ export default function ClotureModule({ user }: Props) {
     );
     const lignesJour = allLignes.filter(l => ventesJour.some(v => v.IDVENTE === l.IDVENTE));
 
-    // Regrouper par article
     const tcd: Record<number, { nom: string; qte: number; montant: number }> = {};
     lignesJour.forEach(l => {
       const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
@@ -184,23 +180,40 @@ export default function ClotureModule({ user }: Props) {
       tcd[l.IDARTICLE].montant += l.MONTANT;
     });
 
-    const rows = Object.values(tcd)
+    const artRows = Object.values(tcd)
       .sort((a, b) => b.montant - a.montant)
       .map(r => `<tr><td>${r.nom}</td><td class="right">${r.qte}</td><td class="right">${formatAr(r.montant)}</td></tr>`)
       .join('');
-
-    const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
     const totalQte = Object.values(tcd).reduce((s, r) => s + r.qte, 0);
+    const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
 
-    printPreview(`
-      <div class="center bold">RECAP VENTES DU JOUR</div>
-      <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
+    printTicket(`
+      <div class="center bold">CLOTURE DE CAISSE</div>
+      <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
       <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
-      <div class="row"><span>Nb ventes:</span><span>${ventesJour.length}</span></div>
+      <div class="line"></div>
+
+      <div class="row"><span>Nombre de ventes</span><span>${cloture.NB_VENTES}</span></div>
+      <div class="row"><span>Total ventes</span><span>${formatAr(cloture.TOTAL_VENTES)}</span></div>
+      <div class="row"><span>Remises accordees</span><span>-${formatAr(cloture.TOTAL_REMISES)}</span></div>
+      <div class="line"></div>
+
+      <div class="bold">Detail des paiements:</div>
+      <div class="row"><span>Especes</span><span>${formatAr(cloture.TOTAL_ESPECES)}</span></div>
+      <div class="row"><span>Mobile Money</span><span>${formatAr(cloture.TOTAL_MOBILE)}</span></div>
+      <div class="row"><span>Credits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>
+      ${cloture.TOTAL_REMBOURSEMENTS > 0 ? `<div class="row"><span>Remboursements</span><span>${formatAr(cloture.TOTAL_REMBOURSEMENTS)}</span></div>` : ''}
+      <div class="line"></div>
+
+      <div class="row bold"><span>ESPECES ATTENDUES</span><span>${formatAr(cloture.TOTAL_ESPECES + cloture.TOTAL_REMBOURSEMENTS)}</span></div>
+      <div class="line"></div>
+      <br/>
+
+      <div class="center bold">RECAP VENTES PAR ARTICLE</div>
       <div class="line"></div>
       <table>
-        <tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">Montant</td></tr>
-        ${rows}
+        <tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">Montant</td></tr>
+        ${artRows}
       </table>
       <div class="line"></div>
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
@@ -208,28 +221,9 @@ export default function ClotureModule({ user }: Props) {
     `);
   };
 
-  // Imprimer la clôture
+  // Réutilisé par l'historique admin
   const printCloture = (cloture: typeof clotures[0]) => {
-    printPreview(`
-      <div class="center bold">CLÔTURE DE CAISSE</div>
-      <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
-      <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
-      <div class="line"></div>
-      
-      <div class="row"><span>Nombre de ventes</span><span>${cloture.NB_VENTES}</span></div>
-      <div class="row"><span>Total ventes</span><span>${formatAr(cloture.TOTAL_VENTES)}</span></div>
-      <div class="row"><span>Remises accordées</span><span>-${formatAr(cloture.TOTAL_REMISES)}</span></div>
-      <div class="line"></div>
-      
-      <div class="bold">Détail des paiements:</div>
-      <div class="row"><span>Espèces</span><span>${formatAr(cloture.TOTAL_ESPECES)}</span></div>
-      <div class="row"><span>Mobile Money</span><span>${formatAr(cloture.TOTAL_MOBILE)}</span></div>
-      <div class="row"><span>Crédits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>
-      ${cloture.TOTAL_REMBOURSEMENTS > 0 ? `<div class="row"><span>Remboursements</span><span>${formatAr(cloture.TOTAL_REMBOURSEMENTS)}</span></div>` : ''}
-      <div class="line"></div>
-      
-      <div class="row bold"><span>ESPÈCES ATTENDUES</span><span>${formatAr(cloture.TOTAL_ESPECES + cloture.TOTAL_REMBOURSEMENTS)}</span></div>
-    `);
+    printClotureComplete(cloture);
   };
 
   // Admin: Historique des clôtures
@@ -416,6 +410,58 @@ export default function ClotureModule({ user }: Props) {
             <Lock size={24} />
             Clôturer la caisse
           </button>
+
+          {/* Récap ventes par article */}
+          {stats.ventesJour.length > 0 && (() => {
+            const allArticles = store.getArticles();
+            const allLignes = store.getLignesVente();
+            const lignesJour = allLignes.filter(l => stats.ventesJour.some(v => v.IDVENTE === l.IDVENTE));
+            const tcd: Record<number, { nom: string; emoji: string; qte: number; montant: number }> = {};
+            lignesJour.forEach(l => {
+              const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
+              if (!tcd[l.IDARTICLE]) tcd[l.IDARTICLE] = { nom: art?.NOM || '-', emoji: art?.EMOJI || '📦', qte: 0, montant: 0 };
+              tcd[l.IDARTICLE].qte += l.QUANTITE;
+              tcd[l.IDARTICLE].montant += l.MONTANT;
+            });
+            const sorted = Object.values(tcd).sort((a, b) => b.montant - a.montant);
+            const totalQte = sorted.reduce((s, r) => s + r.qte, 0);
+            const totalMontant = sorted.reduce((s, r) => s + r.montant, 0);
+
+            return (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="font-bold text-gray-900">🧾 Récap ventes par article ({stats.nbVentes} vente{stats.nbVentes > 1 ? 's' : ''})</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Article</th>
+                        <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500 w-24">Qté vendue</th>
+                        <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500 w-32">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((r, i) => (
+                        <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                          <td className="px-4 py-2.5 text-sm font-medium">{r.emoji} {r.nom}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold">{r.qte}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-[#0D47A1]">{formatAr(r.montant)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50">
+                      <tr className="border-t-2 border-gray-200">
+                        <td className="px-4 py-3 font-bold text-sm">TOTAL</td>
+                        <td className="px-4 py-3 text-center font-bold">{totalQte}</td>
+                        <td className="px-4 py-3 text-right font-bold text-[#0D47A1] text-lg">{formatAr(totalMontant)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
