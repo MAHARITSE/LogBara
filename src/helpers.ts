@@ -87,16 +87,3 @@ export const hasAccess = (role: string, module: string): boolean => {
   };
   return permissions[role]?.includes(module) || false;
 };
-
-// Mode de stockage
-export const getStorageMode = (): 'local' | 'mysql' => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlMode = urlParams.get('mode');
-  
-  if (urlMode === 'mysql' || urlMode === 'local') {
-    localStorage.setItem('pos_mode', urlMode);
-    return urlMode;
-  }
-  
-  return (localStorage.getItem('pos_mode') as 'local' | 'mysql') || 'local';
-};

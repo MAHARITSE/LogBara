@@ -9,7 +9,7 @@ interface Props {
   user: Personnel;
 }
 
-export default function SauvegardeModule({ user: _user }: Props) {
+export default function SauvegardeModule({ user }: Props) {
   const [toast, setToast] = useState('');
   const [resetStep, setResetStep] = useState(0); // 0=off, 1=step1, 2=step2, 3=step3
 
@@ -23,8 +23,10 @@ export default function SauvegardeModule({ user: _user }: Props) {
     const wb = XLSX.utils.book_new();
 
     Object.entries(data).forEach(([sheetName, value]) => {
-      const rows = Array.isArray(value) ? value : [value];
-      const ws = XLSX.utils.json_to_sheet(rows as unknown as Record<string, unknown>[]);
+      const rows = (Array.isArray(value) ? value : [value]) as unknown as Record<string, unknown>[];
+      const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+      const cells = [headers, ...rows.map(row => headers.map(header => row[header]))];
+      const ws = XLSX.utils.aoa_to_sheet(cells);
       XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
     });
 
@@ -32,84 +34,28 @@ export default function SauvegardeModule({ user: _user }: Props) {
     showMsg('Export Excel généré');
   };
 
-  const sqlValue = (value: unknown) => {
-    if (value === null || value === undefined || value === '') return 'NULL';
-    if (typeof value === 'number' || typeof value === 'boolean') return Number(value).toString();
-    return `'${String(value).replace(/'/g, "''")}'`;
-  };
-
-  const buildInsert = (table: string, rows: Record<string, unknown>[]) => {
-    if (!rows.length) return '';
-    const columns = Object.keys(rows[0]);
-    const values = rows.map(row => `(${columns.map(col => sqlValue(row[col])).join(', ')})`).join(',\n');
-    return `INSERT INTO ${table} (${columns.join(', ')}) VALUES\n${values};\n\n`;
-  };
-
   const exportSQL = () => {
-    const data = store.exportAll();
-    const sql = [
-      '-- ============================================',
-      '-- SAUVEGARDE SQL BAR POS',
-      '-- Généré depuis l\'application',
-      '-- ============================================',
-      'SET NAMES utf8mb4;',
-      'SET FOREIGN_KEY_CHECKS = 0;',
-      '',
-      'USE barpos_db;',
-      '',
-      'TRUNCATE TABLE consommations;',
-      'TRUNCATE TABLE lignes_inventaire;',
-      'TRUNCATE TABLE inventaires;',
-      'TRUNCATE TABLE lignes_achat;',
-      'TRUNCATE TABLE achats;',
-      'TRUNCATE TABLE mouvements;',
-      'TRUNCATE TABLE paiements;',
-      'TRUNCATE TABLE lignes_vente;',
-      'TRUNCATE TABLE ventes;',
-      'TRUNCATE TABLE clotures;',
-      'TRUNCATE TABLE clients;',
-      'TRUNCATE TABLE fournisseurs;',
-      'TRUNCATE TABLE tables_resto;',
-      'TRUNCATE TABLE articles;',
-      'TRUNCATE TABLE familles;',
-      'TRUNCATE TABLE personnel;',
-      'TRUNCATE TABLE societe;',
-      '',
-      buildInsert('societe', [data.societe as unknown as Record<string, unknown>]),
-      buildInsert('personnel', data.personnel as unknown as Record<string, unknown>[]),
-      buildInsert('familles', data.familles as unknown as Record<string, unknown>[]),
-      buildInsert('articles', data.articles as unknown as Record<string, unknown>[]),
-      buildInsert('tables_resto', data.tables as unknown as Record<string, unknown>[]),
-      buildInsert('clients', data.clients as unknown as Record<string, unknown>[]),
-      buildInsert('fournisseurs', data.fournisseurs as unknown as Record<string, unknown>[]),
-      buildInsert('clotures', data.clotures as unknown as Record<string, unknown>[]),
-      buildInsert('ventes', data.ventes as unknown as Record<string, unknown>[]),
-      buildInsert('lignes_vente', data.lignes_vente as unknown as Record<string, unknown>[]),
-      buildInsert('paiements', data.paiements as unknown as Record<string, unknown>[]),
-      buildInsert('mouvements', data.mouvements as unknown as Record<string, unknown>[]),
-      buildInsert('achats', data.achats as unknown as Record<string, unknown>[]),
-      buildInsert('lignes_achat', data.lignes_achat as unknown as Record<string, unknown>[]),
-      buildInsert('inventaires', data.inventaires as unknown as Record<string, unknown>[]),
-      buildInsert('lignes_inventaire', data.lignes_inventaire as unknown as Record<string, unknown>[]),
-      buildInsert('consommations', data.consommations as unknown as Record<string, unknown>[]),
-      'SET FOREIGN_KEY_CHECKS = 1;',
-      '-- FIN SAUVEGARDE',
-    ].join('\n');
-
-    const blob = new Blob([sql], { type: 'application/sql;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `barpos-sauvegarde-${new Date().toISOString().slice(0, 10)}.sql`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showMsg('Export SQL généré');
+    try {
+      // La sauvegarde est produite côté PHP directement depuis les tables MySQL.
+      // Elle conserve notamment les mots de passe hachés et les vraies colonnes SQL.
+      const sql = store.exportSQL();
+      const blob = new Blob([sql], { type: 'application/sql;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `barpos-sauvegarde-${new Date().toISOString().slice(0, 10)}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showMsg('Sauvegarde MySQL générée');
+    } catch (error) {
+      showMsg(error instanceof Error ? error.message : 'Sauvegarde MySQL impossible');
+    }
   };
 
   const resetData = () => {
     store.resetAll();
     setResetStep(0);
-    showMsg('Toutes les données ont été supprimées');
+    showMsg('Les données d’exploitation MySQL ont été réinitialisées');
     setTimeout(() => window.location.reload(), 500);
   };
 
@@ -166,13 +112,19 @@ export default function SauvegardeModule({ user: _user }: Props) {
             <Database size={18} /> Export SQL
           </button>
 
-          <button onClick={() => setResetStep(1)} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 flex items-center justify-center gap-2">
-            <RotateCcw size={18} /> Réinitialiser les données locales
-          </button>
+          {user.ROLE === 'Administrateur' ? (
+            <button onClick={() => setResetStep(1)} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 flex items-center justify-center gap-2">
+              <RotateCcw size={18} /> Réinitialiser les données MySQL
+            </button>
+          ) : (
+            <div className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl text-center text-sm font-medium">
+              Réinitialisation réservée à l’administrateur
+            </div>
+          )}
 
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
-            <p className="font-semibold mb-1">Recommandation</p>
-            <p>Pour WAMP/phpMyAdmin, utilisez prioritairement l’export SQL. Le JSON n’est pas proposé ici, conformément à votre consigne.</p>
+            <p className="font-semibold mb-1">Stockage MySQL exclusif</p>
+            <p>Toutes les données de l’application et les sessions sont conservées dans MySQL. Utilisez l’export SQL pour une sauvegarde complète.</p>
           </div>
         </div>
 
@@ -205,8 +157,8 @@ export default function SauvegardeModule({ user: _user }: Props) {
       <ConfirmModal
         open={resetStep === 1}
         type="warning"
-        title="Réinitialiser les données"
-        message="Cette action supprime toutes les données locales de l’application. Voulez-vous continuer ?"
+        title="Réinitialiser les données MySQL"
+        message="Cette action supprime les opérations et remet les stocks et crédits à zéro dans MySQL. Voulez-vous continuer ?"
         confirmText="Oui, réinitialiser"
         cancelText="Annuler"
         onConfirm={() => setResetStep(2)}

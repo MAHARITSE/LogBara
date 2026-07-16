@@ -1,94 +1,50 @@
-# 📦 Guide d'installation — Bar POS v4.2
+# Installation WAMP — Bar POS v4.2 (MySQL uniquement)
 
-**Développeur** : MAHARITSE Hiacinthe Bertrand — 📞 038 34 092 61
+**Développeur** : MAHARITSE Hiacinthe Bertrand — 038 34 092 61
 
----
+Cette version ne possède aucun mode de stockage navigateur. Les articles, ventes, achats, stocks, paramètres et sessions sont enregistrés dans **MySQL** par l’API PHP fournie. L’API utilise XML pour les échanges HTTP : aucun fichier de données JSON n’est utilisé.
 
 ## Prérequis
 
-| Composant | Version minimum |
-|-----------|----------------|
-| WAMP Server | 3.x 64-bit |
-| PHP | 8.0+ |
-| MySQL | 8.0+ |
-| Navigateur | Chrome / Firefox / Edge |
+| Composant | Version minimale |
+|---|---:|
+| WampServer 64 bits | 3.x |
+| Apache | 2.4 |
+| PHP | 8.0 |
+| MySQL | 8.0 |
+| Extensions PHP | PDO, pdo_mysql, SimpleXML |
 
----
+## Installation rapide
 
-## Installation pas à pas
+1. Démarrer WAMP et attendre que son icône devienne verte.
+2. Copier le dossier prêt à déployer :
 
-### Étape 1 — WAMP Server
-Installer WAMP depuis [wampserver.com](https://www.wampserver.com/).
-Démarrer WAMP (icône verte dans la barre des tâches).
+   ```text
+   wamp_deploy  ->  C:\wamp64\www\barpos
+   ```
 
-### Étape 2 — Dossier du projet
-Créer le dossier :
-```
-C:\wamp64\www\barpos\
-```
+3. Ouvrir <http://localhost/phpmyadmin>.
+4. Choisir **Importer**, puis sélectionner :
 
-### Étape 3 — Copier les fichiers
-Copier le contenu du build (`dist/`) dans le dossier `barpos` :
-```
-C:\wamp64\www\barpos\
-├── index.html
-└── assets\
-    ├── index-xxxxx.js
-    └── index-xxxxx.css
-```
+   ```text
+   C:\wamp64\www\barpos\sql\barpos.sql
+   ```
 
-### Étape 4 — Base de données (Mode MySQL)
-1. Ouvrir phpMyAdmin : http://localhost/phpmyadmin
-2. Importer le fichier `sql/barpos.sql`
-3. La base `barpos_db` sera créée automatiquement
+   Attention : le script recrée entièrement la base `barpos_db`. Sauvegardez une base existante avant de le réimporter.
 
-### Étape 5 — Configuration API PHP (optionnel)
-Créer `api/config.php` :
-```php
-<?php
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'barpos_db');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_CHARSET', 'utf8mb4');
-```
+5. Avec l’installation WAMP standard (`root` sans mot de passe), aucune modification n’est nécessaire. Sinon, modifier :
 
-### Étape 6 — Accéder
-```
-http://localhost/barpos/
-```
+   ```text
+   C:\wamp64\www\barpos\api\config.php
+   ```
 
----
+6. Tester MySQL avec <http://localhost/barpos/api/diagnostic.php>.
+7. Ouvrir l’application : <http://localhost/barpos/>.
 
-## Modes de fonctionnement
-
-### Mode Local (par défaut)
-```
-http://localhost/barpos/
-```
-Les données sont stockées dans le navigateur (localStorage).
-Fonctionne sans MySQL, sans serveur PHP.
-
-### Mode MySQL
-```
-http://localhost/barpos/?mode=mysql
-```
-Les données sont stockées dans MySQL via l'API PHP.
-Nécessite WAMP en fonctionnement + base importée.
-
-### Basculer
-```
-http://localhost/barpos/?mode=local    → Revenir en mode local
-http://localhost/barpos/?mode=mysql    → Passer en mode MySQL
-```
-Le choix est mémorisé automatiquement.
-
----
-
-## Comptes de démonstration
+## Comptes initiaux
 
 | Login | Mot de passe | Rôle |
-|-------|-------------|------|
+|---|---|---|
 | admin | admin123 | Administrateur |
 | gerant | gerant123 | Gérant |
 | caisse1 | 1234 | Caissier |
@@ -96,52 +52,59 @@ Le choix est mémorisé automatiquement.
 | magasin | 1234 | Magasinier |
 | serveur | 1234 | Serveur |
 
----
+Les mots de passe sont hachés dans MySQL. Il est recommandé de les modifier après la première connexion.
 
-## Impression
+## Structure du dossier livré
 
-### Imprimante thermique 80mm
-1. Installer le driver de l'imprimante
-2. La définir comme imprimante par défaut
-3. Activer "Utiliser l'imprimante" dans le module Société
-4. Autoriser les popups dans le navigateur
+```text
+wamp_deploy/
+├── index.html                 application compilée, autonome
+├── .htaccess                  protections Apache
+├── api/
+│   ├── index.php              API PHP/XML
+│   ├── config.php             paramètres MySQL
+│   ├── database.php           connexion PDO
+│   ├── mappings.php           correspondance interface/tables
+│   └── diagnostic.php         contrôle d’installation
+├── sql/
+│   └── barpos.sql             schéma et données initiales
+└── README_INSTALLATION.txt
+```
 
-### Format
-- Largeur : 80mm
-- Police : Courier New 12px
-- Mode direct pour les tickets de caisse
-- Mode aperçu pour les factures et rapports
+## Fonctionnement MySQL exclusif
 
----
+- aucun basculement de mode ;
+- aucune persistance métier dans `localStorage` ou `sessionStorage` ;
+- sessions applicatives dans la table `app_sessions` ;
+- cookie navigateur limité à un jeton opaque `HttpOnly` ;
+- écritures SQL préparées avec PDO ;
+- mots de passe hachés ;
+- export SQL construit directement à partir des tables MySQL.
 
-## Sauvegarde et restauration
+## Sauvegarde
 
-### Export
-- **Excel** : Fichier multi-onglets (.xlsx)
-- **SQL** : Script d'insertion pour phpMyAdmin
+Dans le module **Sauvegarde**, utiliser **Export SQL**. Le fichier obtenu contient les vraies colonnes MySQL et les mots de passe hachés. Pour le restaurer, l’importer dans phpMyAdmin après avoir installé le schéma `sql/barpos.sql`.
 
-### Restauration
-Importer le fichier `.sql` dans phpMyAdmin.
-
-### Réinitialisation
-Accessible dans le module Sauvegarde.
-**3 confirmations requises** avant suppression.
-Supprime : ventes, achats, mouvements, stock, inventaires, clôtures, paiements, consommations.
-
----
+La réinitialisation est réservée à l’administrateur. Elle efface les opérations (ventes, achats, paiements, mouvements, inventaires, clôtures et consommations), remet stocks et crédits à zéro et conserve les comptes et référentiels.
 
 ## Dépannage
 
-| Problème | Solution |
-|----------|----------|
-| Page blanche | Vérifier WAMP démarré + URL correcte |
-| MySQL ne fonctionne pas | Vérifier phpMyAdmin + config.php |
-| Impression échoue | Autoriser les popups + vérifier imprimante par défaut |
-| Données perdues | Restaurer depuis sauvegarde SQL |
-| Page de connexion en boucle | Vider le cache navigateur |
+| Symptôme | Vérification |
+|---|---|
+| « API PHP inaccessible » | WAMP vert, Apache démarré, URL sous `http://localhost` |
+| « Erreur MySQL » | importer `sql/barpos.sql`, puis vérifier `api/config.php` |
+| SimpleXML absent | activer l’extension PHP `simplexml` dans WAMP |
+| Connexion PDO impossible | activer `pdo_mysql` et vérifier le port MySQL |
+| Page blanche | consulter les journaux Apache/PHP de WAMP |
+| Diagnostic OK mais login refusé | utiliser un compte initial ou réimporter la base après sauvegarde |
 
----
+## Développement et reconstruction
 
-## Support
-**MAHARITSE Hiacinthe Bertrand**
-📞 038 34 092 61
+Le dossier `wamp_deploy` est déjà compilé. Pour reconstruire `index.html` après modification des sources :
+
+```bash
+npm ci
+npm run build
+```
+
+Copier ensuite le `dist/index.html` généré vers `wamp_deploy/index.html`. Les fichiers PHP et SQL restent ceux du dossier `wamp_deploy`.

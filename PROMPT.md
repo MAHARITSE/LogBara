@@ -16,36 +16,34 @@
 | Charts | Recharts |
 | Icônes | Lucide React |
 | Export | SheetJS (xlsx) |
-| Backend cible | API PHP REST (WAMP) |
-| Base de données | MySQL 8 ou localStorage |
+| Backend cible | API PHP/XML (WAMP) |
+| Base de données | MySQL 8 exclusivement |
 
 ---
 
-## Architecture & modes
+## Architecture MySQL unique
 
 ### Structure cible WAMP
 ```
 C:\wamp64\www\barpos\
 ├── index.html
-├── assets\
+├── .htaccess
 ├── api\
 │   ├── config.php
-│   ├── index.php
-│   ├── auth.php
-│   ├── articles.php
-│   ├── ventes.php
-│   └── ...
+│   ├── database.php
+│   ├── mappings.php
+│   ├── diagnostic.php
+│   └── index.php
 └── sql\
     └── barpos.sql
 ```
 
-### Basculement
+### Accès
 ```
-http://localhost/barpos/              → Mode Local (défaut)
-http://localhost/barpos/?mode=mysql   → Mode MySQL
-http://localhost/barpos/?mode=local   → Revenir
+http://localhost/barpos/                       → Application MySQL
+http://localhost/barpos/api/diagnostic.php     → Diagnostic MySQL
 ```
-Le choix est mémorisé dans `localStorage` (clé: `pos_mode`).
+Il n’existe aucun mode local : toutes les données persistantes et les sessions sont enregistrées dans MySQL.
 
 ---
 

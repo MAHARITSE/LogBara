@@ -12,9 +12,8 @@ export default function LoginPage({ onLogin }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const societe = store.getSociete();
+  const [societe] = useState(() => store.getSociete());
+  const [error, setError] = useState(() => store.getLastError());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,11 +22,16 @@ export default function LoginPage({ onLogin }: Props) {
 
     await new Promise(r => setTimeout(r, 400));
 
-    const user = store.authenticate(login, password);
-    if (user) {
-      onLogin(user);
-    } else {
-      setError('Identifiants incorrects ou compte désactivé');
+    try {
+      const user = store.authenticate(login, password);
+      if (user) {
+        onLogin(user);
+      } else {
+        setError('Identifiants incorrects ou compte désactivé');
+        setLoading(false);
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Connexion MySQL impossible');
       setLoading(false);
     }
   };
