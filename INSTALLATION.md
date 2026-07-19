@@ -81,6 +81,21 @@ wamp_deploy/
 - mots de passe hachés ;
 - export SQL construit directement à partir des tables MySQL.
 
+## Lancement avec impression directe (sans aperçu)
+
+Deux lanceurs Windows sont fournis à la racine du dépôt :
+
+| Fichier | Poste concerné |
+|---|---|
+| `lancer-impression-directe.bat` | poste serveur, où WAMP tourne (`http://localhost/barpos/`) |
+| `clientwamp.bat` | poste du réseau (modifier `APP_URL` avec l’IP du serveur, ex. `http://192.168.1.50/barpos/`) |
+
+Ils démarrent Chrome ou Edge avec `--kiosk-printing` : les tickets de caisse partent directement sur l’imprimante Windows par défaut, sans l’aperçu d’impression.
+
+Ces scripts **ne ferment pas** les fenêtres Chrome/Edge déjà ouvertes : ils lancent une **nouvelle session** du navigateur grâce à un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`), totalement séparé de la navigation personnelle. Seules les anciennes fenêtres Bar POS de ce profil dédié sont fermées à chaque lancement, afin de garantir que le flag `--kiosk-printing` reste actif.
+
+Prérequis : une imprimante ticket 80 mm définie comme imprimante Windows **par défaut** (éviter « Microsoft Print to PDF »).
+
 ## Sauvegarde
 
 Dans le module **Sauvegarde**, utiliser **Export SQL**. Le fichier obtenu contient les vraies colonnes MySQL et les mots de passe hachés. Pour le restaurer, l’importer dans phpMyAdmin après avoir installé le schéma `sql/barpos.sql`.
