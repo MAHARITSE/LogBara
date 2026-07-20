@@ -83,16 +83,40 @@ wamp_deploy/
 
 ## Lancement avec impression directe (sans aperçu)
 
-Deux lanceurs Windows sont fournis à la racine du dépôt :
+Quatre lanceurs Windows sont fournis à la racine du dépôt. Ils démarrent Chrome ou Edge avec `--kiosk-printing` : les tickets de caisse partent directement sur l'imprimante Windows par défaut, sans l'aperçu d'impression.
 
-| Fichier | Poste concerné |
+### Lanceurs recommandés
+
+| Fichier | Poste | Fonctionnement |
+|---|---|---|
+| `lancer-serveur.bat` | **Serveur** (WAMP) | Détecte automatiquement l'IP réseau, affiche `http://IP/barpos/` à communiquer aux clients, puis lance l'app |
+| `lancer-client.bat` | **Clients** (réseau) | Demande l'IP du serveur au 1er lancement, la sauvegarde, puis se connecte à `http://IP/barpos/` |
+
+### Anciens lanceurs (compatibles)
+
+| Fichier | Poste |
 |---|---|
-| `lancer-impression-directe.bat` | poste serveur, où WAMP tourne (`http://localhost/barpos/`) |
-| `clientwamp.bat` | poste du réseau (modifier `APP_URL` avec l’IP du serveur, ex. `http://192.168.1.50/barpos/`) |
+| `lancer-impression-directe.bat` | Serveur (`http://localhost/barpos/`) |
+| `clientwamp.bat` | Réseau (IP à modifier dans le fichier) |
 
-Ils démarrent Chrome ou Edge avec `--kiosk-printing` : les tickets de caisse partent directement sur l’imprimante Windows par défaut, sans l’aperçu d’impression.
+### Fonctionnement détaillé
 
-Ces scripts **ne ferment pas** les fenêtres Chrome/Edge déjà ouvertes : ils lancent une **nouvelle session** du navigateur grâce à un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`), totalement séparé de la navigation personnelle. Seules les anciennes fenêtres Bar POS de ce profil dédié sont fermées à chaque lancement, afin de garantir que le flag `--kiosk-printing` reste actif.
+**`lancer-serveur.bat`** (poste où WAMP est installé) :
+1. Détecte automatiquement l'adresse IP réseau via PowerShell ou `ipconfig`
+2. Affiche clairement l'URL à communiquer : `http://192.168.x.x/barpos/`
+3. Vérifie que WAMP répond sur `localhost`
+4. Ferme les anciennes fenêtres LogBara du profil dédié
+5. Lance Chrome ou Edge en impression directe
+
+**`lancer-client.bat`** (postes du réseau, sans WAMP) :
+1. Au premier lancement, demande l'adresse IP du serveur (visible dans le lanceur serveur)
+2. Sauvegarde l'IP dans `serveur_ip.txt` à côté du `.bat`
+3. Aux lancements suivants, propose de réutiliser cette IP
+4. Vérifie la connexion réseau vers le serveur
+5. En cas d'échec, permet de réessayer ou de changer l'IP
+6. Lance Chrome ou Edge en impression directe
+
+Ces lanceurs **ne ferment pas** les fenêtres Chrome/Edge personnelles : ils utilisent un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`) totalement séparé.
 
 Prérequis : une imprimante ticket 80 mm définie comme imprimante Windows **par défaut** (éviter « Microsoft Print to PDF »).
 
