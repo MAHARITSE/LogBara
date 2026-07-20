@@ -14,6 +14,10 @@ set "APP_URL=http://localhost/barpos/"
 set "APP_FOLDER=barpos"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
 
+REM Fermeture automatique de la fenetre apres le lancement de l'application.
+REM Mettre FERMER_AUTO=0 pour garder la fenetre ouverte (mode debug).
+set "FERMER_AUTO=1"
+
 echo.
 echo ===========================================================================
 echo                        LogBara - Demarrage SERVEUR
@@ -123,6 +127,7 @@ echo.
 echo    Les tickets partent directement sur l'imprimante par defaut.
 echo ===========================================================================
 echo.
+if "%FERMER_AUTO%"=="1" exit /b 0
 pause
 exit /b 0
 
