@@ -407,6 +407,24 @@ try {
     $pdo = barpos_database($config);
     $mappings = barpos_mappings();
 
+    if ($action === 'server_info') {
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $serverAddr = $_SERVER['SERVER_ADDR'] ?? '127.0.0.1';
+        // Si on accede via localhost, on montre l'IP reseau reelle du serveur
+        $displayHost = ($host === 'localhost' || str_starts_with($host, '127.') || $host === '::1')
+            ? $serverAddr
+            : $host;
+
+        xml_success_start();
+        echo '<rows><row>'
+            . '<field name="display_host" type="string">' . xml_escape($displayHost) . '</field>'
+            . '<field name="http_host" type="string">' . xml_escape($host) . '</field>'
+            . '<field name="server_addr" type="string">' . xml_escape($serverAddr) . '</field>'
+            . '</row></rows>';
+        echo '</response>';
+        exit;
+    }
+
     if ($action === 'authenticate') {
         $params = request_parameters($request);
         $login = trim($params['login'] ?? '');
