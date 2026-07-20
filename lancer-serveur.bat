@@ -115,15 +115,14 @@ if errorlevel 1 goto :erreur
 
 echo.
 echo ===========================================================================
-echo    LogBara est lance !
+echo     LogBara est lance !
 echo.
-echo    URL a communiquer aux clients :
-echo    http://!SERVER_IP!/%APP_FOLDER%/
+echo     URL a communiquer aux clients :
+echo     http://!SERVER_IP!/%APP_FOLDER%/
 echo.
-echo    Les tickets partent directement sur l'imprimante par defaut.
+echo     Les tickets partent directement sur l'imprimante par defaut.
 echo ===========================================================================
 echo.
-pause
 exit /b 0
 
 :open_browser

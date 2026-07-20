@@ -119,11 +119,10 @@ if errorlevel 1 goto :erreur
 
 echo.
 echo ===========================================================================
-echo    LogBara est lance !
-echo    Les tickets partent directement sur l'imprimante par defaut.
+echo     LogBara est lance !
+echo     Les tickets partent directement sur l'imprimante par defaut.
 echo ===========================================================================
 echo.
-pause
 exit /b 0
 
 :open_browser
