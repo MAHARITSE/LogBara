@@ -5,9 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bar POS v4.2 - Point de Vente</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍺</text></svg>">
+    <style>
+      /* Minimal fallback pour éviter écran blanc total si Tailwind ne charge pas */
+      html,body{margin:0;padding:0;height:100%;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:#f8fafc}
+      #root{min-height:100vh}
+      #initial-loader{
+        min-height:100vh;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        background: linear-gradient(135deg,#0a1628 0%,#0D47A1 50%,#1565C0 100%);
+        color:white;
+        text-align:center;
+      }
+      #initial-loader .spinner{
+        width:56px;height:56px;border:4px solid rgba(255,255,255,.25);border-top-color:white;border-radius:50%;
+        animation:spin 1s linear infinite;
+        margin-bottom:18px;
+      }
+      @keyframes spin{to{transform:rotate(360deg)}}
+      #error-overlay{
+        display:none;
+        position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.88);color:white;
+        padding:24px;overflow:auto;
+      }
+      #error-overlay pre{white-space:pre-wrap;background:rgba(255,255,255,.08);padding:16px;border-radius:12px;margin-top:12px}
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-loader">
+        <div class="spinner"></div>
+        <div style="font-weight:700;font-size:20px;letter-spacing:.02em">Bar POS v4.2</div>
+        <div style="opacity:.75;margin-top:6px;font-size:14px">Chargement de l'application...</div>
+        <div id="loader-hint" style="opacity:.5;margin-top:14px;font-size:12px;max-width:360px"></div>
+      </div>
+    </div>
+    <div id="error-overlay">
+      <h1 style="font-size:22px;font-weight:800">⚠️ Erreur de chargement</h1>
+      <p id="error-overlay-msg" style="margin-top:10px;opacity:.9"></p>
+      <pre id="error-overlay-stack"></pre>
+      <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="location.reload()" style="background:#0D47A1;color:white;padding:10px 16px;border-radius:10px;border:0;font-weight:700;cursor:pointer">Recharger</button>
+        <button onclick="document.getElementById('error-overlay').style.display='none'" style="background:white;color:#0f172a;padding:10px 16px;border-radius:10px;border:0;font-weight:700;cursor:pointer">Fermer</button>
+      </div>
+      <p style="margin-top:18px;font-size:12px;opacity:.6">Si l'erreur persiste :<br>• En mode dev : lancez <code>npm run dev</code> et ouvrez <code>http://localhost:5173</code><br>• En production WAMP : placez le dossier dans <code>C:\\wamp64\\www\\barpos</code> et ouvrez <code>http://localhost/barpos/</code><br>• Ne double-cliquez pas directement sur index.html du dossier source (utilisez dist/index.html ou wamp_deploy/index.html)</p>
+    </div>
+    <script>
+      (function(){
+        // Affiche erreur au lieu d'écran blanc
+        function showError(msg, stack){
+          var overlay = document.getElementById('error-overlay');
+          var msgEl = document.getElementById('error-overlay-msg');
+          var stackEl = document.getElementById('error-overlay-stack');
+          if(!overlay) return;
+          msgEl.textContent = msg || 'Erreur inconnue';
+          stackEl.textContent = stack || '';
+          overlay.style.display = 'block';
+        }
+        window.addEventListener('error', function(e){
+          showError(e.message, (e.error && e.error.stack) || (e.filename + ':' + e.lineno));
+        });
+        window.addEventListener('unhandledrejection', function(e){
+          var reason = e.reason;
+          var msg = reason && reason.message ? reason.message : String(reason);
+          var stack = reason && reason.stack ? reason.stack : '';
+          showError('Promise rejetée: ' + msg, stack);
+        });
+        // Timeout : si après 10s root toujours loader, on affiche hint
+        setTimeout(function(){
+          var loader = document.getElementById('initial-loader');
+          var hint = document.getElementById('loader-hint');
+          if(loader && document.body.contains(loader)){
+            if(hint){
+              hint.textContent = "Le chargement est anormalement long. Vérifiez la console (F12). Si vous avez ouvert ce fichier directement via file://, lancez plutôt `npm run dev` ou utilisez dist/index.html.";
+            }
+          }
+        }, 10000);
+        // Expose pour React
+        window.__BARPOS_SHOW_ERROR__ = showError;
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
