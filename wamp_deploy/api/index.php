@@ -77,6 +77,42 @@ function write_rows_xml(array $rows, array $mapping): void
     echo '</rows>';
 }
 
+/**
+ * Detecte l'adresse IP reseau du serveur (ex : 192.168.88.12),
+ * meme quand l'application est ouverte via http://localhost/.
+ * $_SERVER['SERVER_ADDR'] vaut 127.0.0.1 en acces localhost,
+ * on resout donc aussi le nom d'hote de la machine.
+ */
+function barpos_network_ip(): string
+{
+    $candidates = [];
+
+    $hostname = gethostname();
+    if (is_string($hostname) && $hostname !== '') {
+        $resolved = @gethostbynamel($hostname);
+        if (is_array($resolved)) {
+            $candidates = array_merge($candidates, $resolved);
+        }
+    }
+
+    $serverAddr = $_SERVER['SERVER_ADDR'] ?? '';
+    if ($serverAddr !== '') {
+        $candidates[] = $serverAddr;
+    }
+
+    foreach ($candidates as $ip) {
+        if (
+            filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+            && !str_starts_with($ip, '127.')
+            && !str_starts_with($ip, '169.254.')
+        ) {
+            return $ip;
+        }
+    }
+
+    return $serverAddr !== '' ? $serverAddr : '127.0.0.1';
+}
+
 function request_parameters(SimpleXMLElement $request): array
 {
     $parameters = [];
@@ -131,9 +167,9 @@ function cast_input_value($value, string $frontName, array $mapping)
 
 function cookie_path(): string
 {
-    $script = str_replace('\\\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/api/index.php');
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/api/index.php');
     $path = dirname(dirname($script));
-    return ($path === '.' || $path === '\\\\') ? '/' : rtrim($path, '/') . '/';
+    return ($path === '.' || $path === '\\') ? '/' : rtrim($path, '/') . '/';
 }
 
 function set_auth_cookie(string $token, int $expiresAt): void
@@ -381,7 +417,7 @@ function reset_operational_data(PDO $pdo): void
 
 try {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-        xml_error('Cette API accepte uniquement les requêtes POST de l\'application Bar POS.');
+        xml_error('Cette API accepte uniquement les requêtes POST de l’application Bar POS.');
     }
     if (($_SERVER['HTTP_X_BARPOS_REQUEST'] ?? '') !== '1') {
         xml_error('Requête API non autorisée.');
@@ -406,6 +442,27 @@ try {
     $config = require __DIR__ . '/config.php';
     $pdo = barpos_database($config);
     $mappings = barpos_mappings();
+
+    if ($action === 'server_info') {
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        // Retirer le port eventuel (ex : localhost:8080 -> localhost)
+        $hostName = preg_replace('/:\d+$/', '', $host) ?? $host;
+        $networkIp = barpos_network_ip();
+        // Si on accede via localhost, on montre l'IP reseau reelle du serveur
+        // (ex : http://192.168.88.12/barpos/) a communiquer aux clients.
+        $displayHost = ($hostName === 'localhost' || str_starts_with($hostName, '127.') || $hostName === '::1')
+            ? $networkIp
+            : $hostName;
+
+        xml_success_start();
+        echo '<rows><row>'
+            . '<field name="display_host" type="string">' . xml_escape($displayHost) . '</field>'
+            . '<field name="http_host" type="string">' . xml_escape($host) . '</field>'
+            . '<field name="server_addr" type="string">' . xml_escape($networkIp) . '</field>'
+            . '</row></rows>';
+        echo '</response>';
+        exit;
+    }
 
     if ($action === 'authenticate') {
         $params = request_parameters($request);

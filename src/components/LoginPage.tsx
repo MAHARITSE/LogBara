@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Loader2, WifiOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 
@@ -12,25 +12,19 @@ export default function LoginPage({ onLogin }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [societe] = useState(() => {
-    try { return store.getSociete(); }
-    catch { return { NOM: 'Bar POS', LOGO_EMOJI: '🍺', LOGO_TYPE: 'emoji' as const, ADRESSE: '', TELEPHONE: '', UTILISER_IMPRIMANTE: false }; }
-  });
-  const [error, setError] = useState(() => {
-    try { return store.getLastError(); } catch { return ''; }
-  });
-
-  const offline = (() => { try { return store.isOffline(); } catch { return false; } })();
+  const [societe] = useState(() => store.getSociete());
+  const [serverUrl] = useState(() => store.getServerUrl());
+  const [error, setError] = useState(() => store.getLastError());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 400));
 
     try {
-      const user = store.authenticate(login.trim(), password);
+      const user = store.authenticate(login, password);
       if (user) {
         onLogin(user);
       } else {
@@ -44,16 +38,13 @@ export default function LoginPage({ onLogin }: Props) {
   };
 
   const renderLogo = () => {
-    // @ts-ignore
-    if (societe.LOGO_TYPE === 'image' && (societe as any).LOGO_IMAGE) {
-      // @ts-ignore
+    if (societe.LOGO_TYPE === 'image' && societe.LOGO_IMAGE) {
       return <img src={societe.LOGO_IMAGE} alt="Logo" className="w-16 h-16 object-contain" />;
     }
-    // @ts-ignore
     if (societe.LOGO_TYPE === 'emoji' && societe.LOGO_EMOJI) {
       return <span className="text-4xl">{societe.LOGO_EMOJI}</span>;
     }
-    return <span className="text-3xl font-bold text-white">{(societe.NOM || 'B').charAt(0)}</span>;
+    return <span className="text-3xl font-bold text-white">{societe.NOM.charAt(0)}</span>;
   };
 
   return (
@@ -68,13 +59,6 @@ export default function LoginPage({ onLogin }: Props) {
       {/* Top color bar */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#1976D2] via-[#64B5F6] to-[#1976D2]" />
 
-      {/* Offline banner */}
-      {offline && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-amber-300 text-amber-900 px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2">
-          <WifiOff size={16}/> Mode démo offline — MySQL non détecté
-        </div>
-      )}
-
       {/* Login card */}
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
@@ -84,7 +68,7 @@ export default function LoginPage({ onLogin }: Props) {
               {renderLogo()}
             </div>
             <h1 className="text-2xl font-bold text-white">{societe.NOM}</h1>
-            <p className="text-blue-200 text-sm mt-1">Point de Vente v4.2</p>
+            <p className="text-blue-200 text-sm mt-1">Point de Vente</p>
           </div>
 
           {/* Form */}
@@ -142,24 +126,21 @@ export default function LoginPage({ onLogin }: Props) {
                 'Se connecter'
               )}
             </button>
-
-            {offline && (
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                <p className="font-bold">Comptes démo :</p>
-                <p>admin / admin123 (Admin)</p>
-                <p>gerant / gerant123 (Gérant)</p>
-                <p>caisse1 / 1234 (Caissier)</p>
-                <p>magasin / 1234 (Magasinier)</p>
-                <p>serveur / 1234 (Serveur)</p>
-              </div>
-            )}
           </form>
         </div>
 
         {/* Developer signature */}
-        <div className="text-center mt-3 text-white/60 text-sm">
+        <div className="text-center mt-6 text-white/60 text-sm">
           <p>Développé par <span className="text-white/80 font-medium">MAHARITSE Hiacinthe Bertrand</span></p>
           <p className="mt-1">📞 038 34 092 61</p>
+          {/* Adresse IP du serveur (ex : http://192.168.88.12/barpos/) */}
+          <p className="mt-2 text-xs text-white/50">
+            🌐 Serveur :{' '}
+            <a href={serverUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white/80 transition-colors">
+              {serverUrl}
+            </a>
+            <span className="text-white/70 font-medium ml-1">LogBara</span>
+          </p>
         </div>
       </div>
     </div>

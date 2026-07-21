@@ -1,47 +1,112 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title LogBara - Serveur
+title LogBara - Client
 
 REM ============================================================================
-REM LogBara - Lanceur SERVEUR (poste ou WAMP est installe)
+REM LogBara - Lanceur CLIENT (poste distant, sans WAMP)
 REM ============================================================================
-REM - Lance l'application sur le serveur en impression directe
+REM - Lit l'IP du serveur (fichier de config ou saisie manuelle)
+REM - Verifie la connexion reseau vers le serveur
+REM - Lance l'application en impression directe
 REM ============================================================================
 
-set "APP_URL=http://[::1]/LogBara/"
-set "APP_FOLDER=LogBara"
+set "APP_FOLDER=barpos"
+set "CONFIG_FILE=%~dp0serveur_ip.txt"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
 
+REM Fermeture automatique de la fenetre apres le lancement de l'application.
+REM Mettre FERMER_AUTO=0 pour garder la fenetre ouverte (mode debug).
+set "FERMER_AUTO=1"
+
 echo.
 echo ===========================================================================
-echo                        LogBara - Demarrage SERVEUR
+echo                      LogBara - Demarrage CLIENT
 echo ===========================================================================
 echo.
 
-echo [1/4] Verification du serveur WAMP...
+REM ============================================================
+REM Lecture de l'IP serveur
+REM ============================================================
+set "SERVER_IP="
+
+REM Lire le fichier de config s'il existe
+if exist "%CONFIG_FILE%" (
+    set /p SAVED_IP=<"%CONFIG_FILE%"
+    set "SAVED_IP=!SAVED_IP: =!"
+    if not "!SAVED_IP!"=="" (
+        echo Adresse IP du serveur enregistree : !SAVED_IP!
+        echo.
+        choice /c OC /n /m "[O] Utiliser cette adresse  [C] Changer"
+        echo.
+        if errorlevel 2 goto :changer_ip
+        if errorlevel 1 set "SERVER_IP=!SAVED_IP!" & goto :ip_ok
+    )
+)
+
+:changer_ip
+echo.
+echo =============================================================
+echo Entrez l'adresse IP du serveur LogBara.
+echo Exemple : 192.168.1.50
+echo Cette adresse est affichee au lancement du serveur.
+echo =============================================================
+echo.
+set /p SERVER_IP="Adresse IP du serveur : "
+
+if "!SERVER_IP!"=="" (
+    echo Adresse IP invalide. Operation annulee.
+    pause
+    exit /b 1
+)
+
+REM Sauvegarder l'IP
+echo !SERVER_IP!>"%CONFIG_FILE%"
+echo.
+echo Adresse IP sauvegardee dans : %CONFIG_FILE%
+echo.
+
+:ip_ok
+set "APP_URL=http://!SERVER_IP!/%APP_FOLDER%/"
+
+echo ===========================================================================
+echo    URL serveur : %APP_URL%
+echo ===========================================================================
+echo.
+
+REM ============================================================
+REM Verification du serveur
+REM ============================================================
+echo [1/3] Verification de la connexion au serveur...
 where curl.exe >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
-    curl.exe -fs -o nul -m 3 "%APP_URL%"
+    curl.exe -fs -o nul -m 5 "%APP_URL%"
     if errorlevel 1 (
         echo.
-        echo        ATTENTION : %APP_URL% ne repond pas.
-        echo        Demarrez WampServer et attendez que l'icone devienne verte,
-        echo        puis relancez ce script.
+        echo        ATTENTION : Le serveur %APP_URL% ne repond pas.
         echo.
-        pause
-        exit /b 1
+        echo        Verifiez que :
+        echo        - Le serveur est allume et connecte au reseau
+        echo        - WampServer est demarre sur le serveur (icone verte)
+        echo        - L'adresse IP est correcte
+        echo        - Le pare-feu ne bloque pas le port 80
+        echo.
+        choice /c RC /n /m "[R] Reessayer  [C] Changer l'IP"
+        echo.
+        if errorlevel 2 del "%CONFIG_FILE%" 2>nul & goto :changer_ip
+        if errorlevel 1 goto :ip_ok
     ) else (
-        echo        WAMP : OK
+        echo        Serveur : OK
     )
 ) else (
-    echo        Verification ignoree : curl.exe introuvable sur ce poste.
+    echo        Verification ignoree : curl.exe introuvable.
+    echo        Tentative de connexion directe...
 )
 echo.
 
 REM ============================================================
-REM Fermeture anciennes fenetres Bar POS (profil dedie)
+REM Fermeture anciennes fenetres LogBara (profil dedie)
 REM ============================================================
-echo [2/4] Fermeture des anciennes fenetres LogBara...
+echo [2/3] Fermeture des anciennes fenetres LogBara...
 echo        (vos autres fenetres Chrome/Edge ne sont pas touchees)
 where powershell >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
@@ -52,17 +117,18 @@ echo.
 REM ============================================================
 REM Lancement du navigateur
 REM ============================================================
-echo [3/4] Ouverture de LogBara en impression directe...
+echo [3/3] Ouverture de LogBara en impression directe...
 call :open_browser "%APP_URL%"
 if errorlevel 1 goto :erreur
 
 echo.
 echo ===========================================================================
-echo     LogBara est lance !
-echo.
-echo     Les tickets partent directement sur l'imprimante par defaut.
+echo    LogBara est lance !
+echo    Les tickets partent directement sur l'imprimante par defaut.
 echo ===========================================================================
 echo.
+if "%FERMER_AUTO%"=="1" exit /b 0
+pause
 exit /b 0
 
 :open_browser

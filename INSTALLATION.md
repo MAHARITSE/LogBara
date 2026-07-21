@@ -94,10 +94,30 @@ Quatre lanceurs Windows sont fournis à la racine du dépôt. Ils démarrent Chr
 
 ### Anciens lanceurs (compatibles)
 
-| Fichier | Poste |
-|---|---|
-| `lancer-impression-directe.bat` | Serveur (`http://localhost/barpos/`) |
-| `clientwamp.bat` | Réseau (IP à modifier dans le fichier) |
+| Fichier | Poste | Fonctionnement |
+|---|---|---|
+| `lancer-impression-directe.bat` | Serveur | Lance `http://localhost/barpos/` |
+| `clientwamp.bat` | Réseau | Demande l'IP du serveur, la sauvegarde dans `serveur_ip.txt`, et permet de la ressaisir si la connexion échoue |
+
+### Fermeture automatique de la fenêtre du lanceur
+
+Les quatre fichiers `.bat` se ferment **automatiquement** dès que l'application est lancée (la fenêtre du navigateur reste ouverte). En cas d'erreur (WAMP arrêté, serveur injoignable, navigateur introuvable), la fenêtre reste ouverte pour afficher le message.
+
+Pour garder la fenêtre ouverte après le lancement (mode débogage), modifier la variable en tête du `.bat` :
+
+```bat
+set "FERMER_AUTO=0"
+```
+
+### Adresse du serveur affichée à l'écran de connexion
+
+La page de connexion affiche, juste après le numéro de téléphone, l'adresse réseau du serveur, par exemple :
+
+```text
+🌐 Serveur : http://192.168.88.12/barpos/
+```
+
+Même si l'application est ouverte sur le serveur via `http://localhost/barpos/`, c'est l'**IP réseau réelle** du serveur qui est affichée (détection par l'API PHP). Il suffit de communiquer cette adresse aux postes clients pour la saisir dans `lancer-client.bat` ou `clientwamp.bat`.
 
 ### Fonctionnement détaillé
 
@@ -108,13 +128,13 @@ Quatre lanceurs Windows sont fournis à la racine du dépôt. Ils démarrent Chr
 4. Ferme les anciennes fenêtres LogBara du profil dédié
 5. Lance Chrome ou Edge en impression directe
 
-**`lancer-client.bat`** (postes du réseau, sans WAMP) :
-1. Au premier lancement, demande l'adresse IP du serveur (visible dans le lanceur serveur)
-2. Sauvegarde l'IP dans `serveur_ip.txt` à côté du `.bat`
-3. Aux lancements suivants, propose de réutiliser cette IP
-4. Vérifie la connexion réseau vers le serveur
-5. En cas d'échec, permet de réessayer ou de changer l'IP
-6. Lance Chrome ou Edge en impression directe
+**`lancer-client.bat`** et **`clientwamp.bat`** (postes du réseau, sans WAMP) :
+1. Au premier lancement, demandent l'adresse IP du serveur (visible dans le lanceur serveur et sur la page de connexion de l'application)
+2. Sauvegardent l'IP dans `serveur_ip.txt` à côté du `.bat`
+3. Aux lancements suivants, proposent de réutiliser cette IP ou de la changer
+4. Vérifient la connexion réseau vers le serveur
+5. **Si le client n'arrive pas à se connecter**, proposent `[R] Réessayer` ou `[C] Changer l'IP` pour ressaisir l'adresse du serveur
+6. Lancent Chrome ou Edge en impression directe
 
 Ces lanceurs **ne ferment pas** les fenêtres Chrome/Edge personnelles : ils utilisent un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`) totalement séparé.
 

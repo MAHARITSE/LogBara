@@ -1,0 +1,5 @@
+Options -Indexes
+
+<FilesMatch "^(config\.php|database\.php|mappings\.php)$">
+  Require all denied
+</FilesMatch>

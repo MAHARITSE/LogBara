@@ -1,57 +1,108 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title LogBara - Client
+title LogBara - Serveur
 
 REM ============================================================================
-REM LogBara - Lanceur CLIENT (poste distant, sans WAMP)
+REM LogBara - Lanceur SERVEUR (poste ou WAMP est installe)
 REM ============================================================================
-REM - Verifie la connexion reseau vers le serveur
-REM - Verifie la connexion reseau vers le serveur
-REM - Lance l'application en impression directe
+REM - Detecte automatiquement l'adresse IP reseau du serveur
+REM - Affiche l'URL a communiquer aux clients : http://IP/barpos/
+REM - Lance l'application sur le serveur en impression directe
 REM ============================================================================
 
-set "APP_FOLDER=LogBara"
+set "APP_URL=http://localhost/barpos/"
+set "APP_FOLDER=barpos"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
 
-set "APP_URL=http://localhost/%APP_FOLDER%/"
+REM Fermeture automatique de la fenetre apres le lancement de l'application.
+REM Mettre FERMER_AUTO=0 pour garder la fenetre ouverte (mode debug).
+set "FERMER_AUTO=1"
 
 echo.
 echo ===========================================================================
-echo                      LogBara - Demarrage CLIENT
+echo                        LogBara - Demarrage SERVEUR
 echo ===========================================================================
-echo.
-echo         Developpe par MAHARITSE Hiacinthe Bertrand
-echo         📞 038 34 092 61
-echo.
-echo         Si le serveur est inaccessible :
-        echo         - Verifiez que WampServer est en marche (icone VERTE)
 echo.
 
 REM ============================================================
-REM Verification du serveur
+REM Detection de l'adresse IP reseau du serveur
 REM ============================================================
-echo [1/3] Verification de la connexion au serveur...
+echo [1/4] Detection de l'adresse IP du serveur...
+echo.
+
+set "SERVER_IP="
+
+REM Essai 1 : PowerShell (le plus fiable)
+where powershell.exe >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command ^
+        "$ips = Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object { $_.InterfaceAlias -notmatch 'Loopback' -and $_.IPAddress -notmatch '^127\.' -and $_.PrefixOrigin -ne 'WellKnown' } ^| Sort-Object -Property InterfaceMetric ^| Select-Object -First 1 -ExpandProperty IPAddress; if (-not $ips) { $ips = (Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object { $_.IPAddress -notmatch '^127\.' -and $_.InterfaceAlias -notmatch 'Loopback' } ^| Select-Object -First 1 -ExpandProperty IPAddress) }; $ips"`) do (
+        set "SERVER_IP=%%a"
+    )
+)
+
+REM Essai 2 : ipconfig (fallback)
+if "!SERVER_IP!"=="" (
+    for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0.1"') do (
+        set "TEMP_IP=%%a"
+        set "TEMP_IP=!TEMP_IP: =!"
+        if not "!TEMP_IP!"=="" if "!SERVER_IP!"=="" set "SERVER_IP=!TEMP_IP!"
+    )
+)
+
+REM Essai 3 : route print (dernier recours)
+if "!SERVER_IP!"=="" (
+    for /f "tokens=4 delims= " %%a in ('route print ^| findstr " 0.0.0.0.*0.0.0.0"') do (
+        set "SERVER_IP=%%a"
+    )
+)
+
+if "!SERVER_IP!"=="" set "SERVER_IP=192.168.1.100"
+
+echo        Adresse IP detectee : !SERVER_IP!
+echo.
+
+REM ============================================================
+REM Affichage des URLs
+REM ============================================================
+echo ===========================================================================
+echo.
+echo    Serveur local  : %APP_URL%
+echo    Reseau clients : http://!SERVER_IP!/%APP_FOLDER%/
+echo.
+echo    Les clients doivent utiliser l'URL reseau ci-dessus
+echo    dans leur lanceur client (lancer-client.bat).
+echo.
+echo ===========================================================================
+echo.
+
+REM ============================================================
+REM Verification WAMP
+REM ============================================================
+echo [2/4] Verification du serveur WAMP (%APP_URL%)...
 where curl.exe >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
-    curl.exe -fs -o nul -m 5 "%APP_URL%"
+    curl.exe -fs -o nul -m 3 "%APP_URL%"
     if errorlevel 1 (
         echo.
-        echo    ATTENTION : %APP_URL% ne repond pas.
+        echo        ATTENTION : %APP_URL% ne repond pas.
+        echo        Demarrez WampServer et attendez que l'icone devienne verte,
+        echo        puis relancez ce script.
         echo.
-        echo    Verifiez que WampServer est demarre (icone VERTE).
+        pause
+        exit /b 1
     ) else (
-        echo        Serveur : OK
+        echo        WAMP : OK
     )
 ) else (
-    echo        Verification ignoree : curl.exe introuvable.
-    echo        Tentative de connexion directe...
+    echo        Verification ignoree : curl.exe introuvable sur ce poste.
 )
 echo.
 
 REM ============================================================
-REM Fermeture anciennes fenetres LogBara (profil dedie)
+REM Fermeture anciennes fenetres Bar POS (profil dedie)
 REM ============================================================
-echo [2/3] Fermeture des anciennes fenetres LogBara...
+echo [3/4] Fermeture des anciennes fenetres LogBara...
 echo        (vos autres fenetres Chrome/Edge ne sont pas touchees)
 where powershell >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
@@ -62,16 +113,22 @@ echo.
 REM ============================================================
 REM Lancement du navigateur
 REM ============================================================
-echo [3/3] Ouverture de LogBara en impression directe...
+echo [4/4] Ouverture de LogBara en impression directe...
 call :open_browser "%APP_URL%"
 if errorlevel 1 goto :erreur
 
 echo.
 echo ===========================================================================
-echo     LogBara est lance !
-echo     Les tickets partent directement sur l'imprimante par defaut.
+echo    LogBara est lance !
+echo.
+echo    URL a communiquer aux clients :
+echo    http://!SERVER_IP!/%APP_FOLDER%/
+echo.
+echo    Les tickets partent directement sur l'imprimante par defaut.
 echo ===========================================================================
 echo.
+if "%FERMER_AUTO%"=="1" exit /b 0
+pause
 exit /b 0
 
 :open_browser
