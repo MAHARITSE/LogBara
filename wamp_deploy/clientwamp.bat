@@ -8,14 +8,14 @@ REM ============================================================================
 REM 1) Remplacez l'IP ci-dessous par l'IP reelle du serveur WAMP.
 REM    L'IP du serveur est affichee sur la page de connexion LogBara
 REM    apres le telephone : 📞 038 34 092 61
-REM 2) Gardez une URL simple : http://IP/barpos/
+REM 2) Gardez une URL simple : http://IP/LogBara/
 REM 3) --kiosk-printing fonctionne seulement si le navigateur demarre avec ce
 REM    flag. Le profil dedie ci-dessous ouvre une NOUVELLE SESSION separee :
 REM    vos fenetres Chrome/Edge existantes ne sont PAS fermees.
 REM    Seules les anciennes fenetres LogBara de ce profil sont fermees.
 REM ============================================================================
 
-set "APP_URL=http://192.168.1.50/barpos/"
+set "APP_URL=http://192.168.1.50/LogBara/"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
 
 echo.
@@ -48,7 +48,7 @@ if %ERRORLEVEL% EQU 0 (
         echo.
         echo    Pour changer l'IP, ouvrez ce fichier clientwamp.bat
         echo    avec un editeur de texte et modifiez la ligne :
-        echo    set "APP_URL=http://192.168.1.50/barpos/"
+        echo    set "APP_URL=http://192.168.1.50/LogBara/"
         echo.
         pause
     ) else (

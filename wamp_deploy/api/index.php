@@ -411,9 +411,14 @@ try {
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $serverAddr = $_SERVER['SERVER_ADDR'] ?? '127.0.0.1';
         // Si on accede via localhost, on montre l'IP reseau reelle du serveur
-        $displayHost = ($host === 'localhost' || str_starts_with($host, '127.') || $host === '::1')
-            ? $serverAddr
-            : $host;
+        // HTTP_HOST can be [::1] (bracketed IPv6) and can include a port.
+        // A loopback host is valid only on this machine; return the server address
+        // so the UI can show a usable LAN address when Apache provides one.
+        $hostWithoutPort = preg_replace('/^\[([^]]+)\](?::\d+)?$|^([^:]+):\d+$/', '$1$2', $host) ?: $host;
+        $isLoopback = $hostWithoutPort === 'localhost'
+            || str_starts_with($hostWithoutPort, '127.')
+            || $hostWithoutPort === '::1';
+        $displayHost = $isLoopback ? $serverAddr : $host;
 
         xml_success_start();
         echo '<rows><row>'

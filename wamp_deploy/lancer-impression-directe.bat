@@ -17,7 +17,7 @@ REM   - seules les anciennes fenetres Bar POS (profil dedie) sont fermees,
 REM     pour garantir que l'impression silencieuse reste active.
 REM ============================================================================
 
-set "APP_URL=http://localhost/barpos/"
+set "APP_URL=http://[::1]/LogBara/"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
 
 echo [1/3] Verification du serveur WAMP (%APP_URL%)...

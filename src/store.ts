@@ -19,6 +19,10 @@ type DatasetName =
   | 'consommations';
 
 const API_URL = new URL('api/index.php', document.baseURI).toString();
+
+// A raw IPv6 address must be enclosed in brackets when it is inserted in a URL.
+const hostForUrl = (host: string): string =>
+  host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 const EMPTY_SOCIETE: Societe = {
   NOM: 'Bar POS — MySQL indisponible',
   ADRESSE: '',
@@ -183,13 +187,13 @@ export const store = {
       const protocol = window.location.protocol;
       const rows = request('server_info');
       const displayHost = rows[0]?.['display_host'] as string | undefined;
-      const host = displayHost || window.location.hostname;
+      const host = hostForUrl(displayHost || window.location.hostname);
       const path = window.location.pathname.replace(/\/api\/index\.php.*$/, '').replace(/\/+$/, '');
       return protocol + '//' + host + path + '/';
     } catch {
       // Fallback : utiliser window.location
       const protocol = window.location.protocol;
-      const host = window.location.hostname;
+      const host = hostForUrl(window.location.hostname);
       const path = window.location.pathname.replace(/\/api\/index\.php.*$/, '').replace(/\/+$/, '');
       return protocol + '//' + host + path + '/';
     }
