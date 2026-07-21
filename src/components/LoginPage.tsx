@@ -13,7 +13,6 @@ export default function LoginPage({ onLogin }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [societe] = useState(() => store.getSociete());
-  const [serverUrl] = useState(() => store.getServerUrl());
   const [error, setError] = useState(() => store.getLastError());
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,14 +132,6 @@ export default function LoginPage({ onLogin }: Props) {
         <div className="text-center mt-6 text-white/60 text-sm">
           <p>Développé par <span className="text-white/80 font-medium">MAHARITSE Hiacinthe Bertrand</span></p>
           <p className="mt-1">📞 038 34 092 61</p>
-          {/* Adresse IP du serveur (ex : http://192.168.88.12/barpos/) */}
-          <p className="mt-2 text-xs text-white/50">
-            🌐 Serveur :{' '}
-            <a href={serverUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white/80 transition-colors">
-              {serverUrl}
-            </a>
-            <span className="text-white/70 font-medium ml-1">LogBara</span>
-          </p>
         </div>
       </div>
     </div>

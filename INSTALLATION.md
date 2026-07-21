@@ -83,60 +83,16 @@ wamp_deploy/
 
 ## Lancement avec impression directe (sans aperçu)
 
-Quatre lanceurs Windows sont fournis à la racine du dépôt. Ils démarrent Chrome ou Edge avec `--kiosk-printing` : les tickets de caisse partent directement sur l'imprimante Windows par défaut, sans l'aperçu d'impression.
+Deux lanceurs Windows sont fournis à la racine du dépôt :
 
-### Lanceurs recommandés
+| Fichier | Poste concerné |
+|---|---|
+| `lancer-impression-directe.bat` | poste serveur, où WAMP tourne (`http://localhost/barpos/`) |
+| `clientwamp.bat` | poste du réseau (modifier `APP_URL` avec l’IP du serveur, ex. `http://192.168.1.50/barpos/`) |
 
-| Fichier | Poste | Fonctionnement |
-|---|---|---|
-| `lancer-serveur.bat` | **Serveur** (WAMP) | Détecte automatiquement l'IP réseau, affiche `http://IP/barpos/` à communiquer aux clients, puis lance l'app |
-| `lancer-client.bat` | **Clients** (réseau) | Demande l'IP du serveur au 1er lancement, la sauvegarde, puis se connecte à `http://IP/barpos/` |
+Ils démarrent Chrome ou Edge avec `--kiosk-printing` : les tickets de caisse partent directement sur l’imprimante Windows par défaut, sans l’aperçu d’impression.
 
-### Anciens lanceurs (compatibles)
-
-| Fichier | Poste | Fonctionnement |
-|---|---|---|
-| `lancer-impression-directe.bat` | Serveur | Lance `http://localhost/barpos/` |
-| `clientwamp.bat` | Réseau | Demande l'IP du serveur, la sauvegarde dans `serveur_ip.txt`, et permet de la ressaisir si la connexion échoue |
-
-### Fermeture automatique de la fenêtre du lanceur
-
-Les quatre fichiers `.bat` se ferment **automatiquement** dès que l'application est lancée (la fenêtre du navigateur reste ouverte). En cas d'erreur (WAMP arrêté, serveur injoignable, navigateur introuvable), la fenêtre reste ouverte pour afficher le message.
-
-Pour garder la fenêtre ouverte après le lancement (mode débogage), modifier la variable en tête du `.bat` :
-
-```bat
-set "FERMER_AUTO=0"
-```
-
-### Adresse du serveur affichée à l'écran de connexion
-
-La page de connexion affiche, juste après le numéro de téléphone, l'adresse réseau du serveur, par exemple :
-
-```text
-🌐 Serveur : http://192.168.88.12/barpos/
-```
-
-Même si l'application est ouverte sur le serveur via `http://localhost/barpos/`, c'est l'**IP réseau réelle** du serveur qui est affichée (détection par l'API PHP). Il suffit de communiquer cette adresse aux postes clients pour la saisir dans `lancer-client.bat` ou `clientwamp.bat`.
-
-### Fonctionnement détaillé
-
-**`lancer-serveur.bat`** (poste où WAMP est installé) :
-1. Détecte automatiquement l'adresse IP réseau via PowerShell ou `ipconfig`
-2. Affiche clairement l'URL à communiquer : `http://192.168.x.x/barpos/`
-3. Vérifie que WAMP répond sur `localhost`
-4. Ferme les anciennes fenêtres LogBara du profil dédié
-5. Lance Chrome ou Edge en impression directe
-
-**`lancer-client.bat`** et **`clientwamp.bat`** (postes du réseau, sans WAMP) :
-1. Au premier lancement, demandent l'adresse IP du serveur (visible dans le lanceur serveur et sur la page de connexion de l'application)
-2. Sauvegardent l'IP dans `serveur_ip.txt` à côté du `.bat`
-3. Aux lancements suivants, proposent de réutiliser cette IP ou de la changer
-4. Vérifient la connexion réseau vers le serveur
-5. **Si le client n'arrive pas à se connecter**, proposent `[R] Réessayer` ou `[C] Changer l'IP` pour ressaisir l'adresse du serveur
-6. Lancent Chrome ou Edge en impression directe
-
-Ces lanceurs **ne ferment pas** les fenêtres Chrome/Edge personnelles : ils utilisent un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`) totalement séparé.
+Ces scripts **ne ferment pas** les fenêtres Chrome/Edge déjà ouvertes : ils lancent une **nouvelle session** du navigateur grâce à un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`), totalement séparé de la navigation personnelle. Seules les anciennes fenêtres Bar POS de ce profil dédié sont fermées à chaque lancement, afin de garantir que le flag `--kiosk-printing` reste actif.
 
 Prérequis : une imprimante ticket 80 mm définie comme imprimante Windows **par défaut** (éviter « Microsoft Print to PDF »).
 

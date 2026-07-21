@@ -20,10 +20,6 @@ REM ============================================================================
 set "APP_URL=http://localhost/barpos/"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
 
-REM Fermeture automatique de la fenetre apres le lancement de l'application.
-REM Mettre FERMER_AUTO=0 pour garder la fenetre ouverte (mode debug).
-set "FERMER_AUTO=1"
-
 echo [1/3] Verification du serveur WAMP (%APP_URL%)...
 where curl.exe >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
@@ -59,7 +55,6 @@ echo Les tickets partent directement sur l'imprimante Windows par defaut.
 echo Si l'apercu s'affiche encore, verifiez que l'imprimante par defaut n'est pas
 echo "Microsoft Print to PDF".
 echo.
-if "%FERMER_AUTO%"=="1" exit /b 0
 pause
 exit /b 0
 
