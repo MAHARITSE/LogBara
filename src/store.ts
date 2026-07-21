@@ -1,7 +1,8 @@
 // ============================================
-// STORE MYSQL BAR POS v4.2
-// Toutes les donnees persistantes sont lues et ecrites dans MySQL via l'API PHP/XML.
-// Aucun stockage metier n'est effectue dans le navigateur.
+// STORE BAR POS v4.2 — Hybride MySQL / Offline Demo
+// - Tente MySQL via API PHP/XML (WAMP)
+// - Fallback automatique vers localStorage / mock si API indisponible
+//   → évite écran blanc au lancement hors WAMP
 // ============================================
 
 import {
@@ -18,8 +19,105 @@ type DatasetName =
   | 'lignes_achat' | 'inventaires' | 'lignes_inventaire'
   | 'consommations';
 
-const API_URL = new URL('api/index.php', document.baseURI).toString();
+const API_URL = (() => {
+  try {
+    return new URL('api/index.php', document.baseURI).toString();
+  } catch {
+    return '/api/index.php';
+  }
+})();
 
+const LS_PREFIX = 'barpos_';
+const LS_SESSION = LS_PREFIX + 'session';
+const LS_FLAG_OFFLINE = LS_PREFIX + 'offline_mode';
+
+let lastError = '';
+let offlineMode = false;
+let offlineReason = '';
+
+// ---------------- Mock de secours pour démo / dev sans WAMP ----------------
+const MOCK_SOCIETE: Societe = {
+  NOM: 'Bar POS (Démo Offline)',
+  ADRESSE: 'Antananarivo, Madagascar',
+  TELEPHONE: '034 00 000 00',
+  EMAIL: 'contact@barpos.mg',
+  LOGO_EMOJI: '🍺',
+  LOGO_TYPE: 'emoji',
+  UTILISER_IMPRIMANTE: false,
+};
+
+const MOCK_PERSONNEL: Personnel[] = [
+  { IDPERSONNEL: 1, NOM: 'Admin', PRENOM: 'Super', LOGIN: 'admin', MOT_DE_PASSE: 'admin123', ROLE: 'Administrateur', ACTIF: true },
+  { IDPERSONNEL: 2, NOM: 'Rakoto', PRENOM: 'Gérant', LOGIN: 'gerant', MOT_DE_PASSE: 'gerant123', ROLE: 'Gérant', ACTIF: true },
+  { IDPERSONNEL: 3, NOM: 'Caisse', PRENOM: 'Un', LOGIN: 'caisse1', MOT_DE_PASSE: '1234', ROLE: 'Caissier', ACTIF: true },
+  { IDPERSONNEL: 4, NOM: 'Caisse', PRENOM: 'Deux', LOGIN: 'caisse2', MOT_DE_PASSE: '1234', ROLE: 'Caissier', ACTIF: true },
+  { IDPERSONNEL: 5, NOM: 'Magasin', PRENOM: 'Chef', LOGIN: 'magasin', MOT_DE_PASSE: '1234', ROLE: 'Magasinier', ACTIF: true },
+  { IDPERSONNEL: 6, NOM: 'Serveur', PRENOM: 'Un', LOGIN: 'serveur', MOT_DE_PASSE: '1234', ROLE: 'Serveur', ACTIF: true },
+];
+
+const MOCK_FAMILLES: Famille[] = [
+  { IDFAMILLE: 1, CODE: 'B', FAMILLE: 'Bières', COULEUR: '#f59e0b', ORDRE: 1 },
+  { IDFAMILLE: 2, CODE: 'S', FAMILLE: 'Softs', COULEUR: '#0ea5e9', ORDRE: 2 },
+  { IDFAMILLE: 3, CODE: 'L', FAMILLE: 'Spiritueux', COULEUR: '#8b5cf6', ORDRE: 3 },
+  { IDFAMILLE: 4, CODE: 'SNK', FAMILLE: 'Snacks', COULEUR: '#10b981', ORDRE: 4 },
+];
+
+const MOCK_ARTICLES: Article[] = [
+  { IDARTICLE: 1, CODE: 'THB33', NOM: 'THB 33cl', IDFAMILLE: 1, EMOJI: '🍺', PRIX_ACHAT: 1500, PRIX_VENTE: 3000, STOCK: 120, STOCK_MIN: 24, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
+  { IDARTICLE: 2, CODE: 'THB65', NOM: 'THB 65cl', IDFAMILLE: 1, EMOJI: '🍺', PRIX_ACHAT: 2500, PRIX_VENTE: 5000, STOCK: 80, STOCK_MIN: 12, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
+  { IDARTICLE: 3, CODE: 'COCA', NOM: 'Coca 33cl', IDFAMILLE: 2, EMOJI: '🥤', PRIX_ACHAT: 1000, PRIX_VENTE: 2500, STOCK: 60, STOCK_MIN: 12, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
+  { IDARTICLE: 4, CODE: 'EAU', NOM: 'Eau Vive 50cl', IDFAMILLE: 2, EMOJI: '💧', PRIX_ACHAT: 500, PRIX_VENTE: 1500, STOCK: 100, STOCK_MIN: 20, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: false },
+  { IDARTICLE: 5, CODE: 'RHUM', NOM: 'Rhum 5cl', IDFAMILLE: 3, EMOJI: '🥃', PRIX_ACHAT: 2000, PRIX_VENTE: 6000, STOCK: 30, STOCK_MIN: 5, ACTIF: true, GERE_STOCK: true, SAISIE_PRIX_VENTE: true },
+  { IDARTICLE: 6, CODE: 'BROCH', NOM: 'Brochettes', IDFAMILLE: 4, EMOJI: '🍢', PRIX_ACHAT: 1500, PRIX_VENTE: 4000, STOCK: 999, STOCK_MIN: 0, ACTIF: true, GERE_STOCK: false, SAISIE_PRIX_VENTE: false },
+];
+
+const MOCK_TABLES: TableR[] = [
+  { IDTABLE: 1, NUMERO: 1, DESCRIPTION: 'Terrasse', PLACES: 4, ETAT: 'Libre' },
+  { IDTABLE: 2, NUMERO: 2, DESCRIPTION: 'Terrasse', PLACES: 4, ETAT: 'Libre' },
+  { IDTABLE: 3, NUMERO: 3, DESCRIPTION: 'Salle', PLACES: 2, ETAT: 'Libre' },
+  { IDTABLE: 4, NUMERO: 4, DESCRIPTION: 'Salle VIP', PLACES: 6, ETAT: 'Libre' },
+];
+
+const MOCK_EMPTY: Record<DatasetName, Row[]> = {
+  societe: [MOCK_SOCIETE as unknown as Row],
+  personnel: MOCK_PERSONNEL as unknown as Row[],
+  familles: MOCK_FAMILLES as unknown as Row[],
+  articles: MOCK_ARTICLES as unknown as Row[],
+  tables: MOCK_TABLES as unknown as Row[],
+  clients: [],
+  fournisseurs: [],
+  ventes: [],
+  lignes_vente: [],
+  paiements: [],
+  clotures: [],
+  mouvements: [],
+  achats: [],
+  lignes_achat: [],
+  inventaires: [],
+  lignes_inventaire: [],
+  consommations: [],
+};
+
+// ---------------- LocalStorage helpers ----------------
+function lsGet<T>(key: DatasetName, fallback: T[]): T[] {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as T[] : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function lsSet<T>(key: DatasetName, data: T[]) {
+  try {
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(data));
+  } catch {
+    // ignore quota
+  }
+}
+
+// ---------------- XML helpers (MySQL mode) ----------------
 const EMPTY_SOCIETE: Societe = {
   NOM: 'Bar POS — MySQL indisponible',
   ADRESSE: '',
@@ -29,8 +127,6 @@ const EMPTY_SOCIETE: Societe = {
   LOGO_TYPE: 'emoji',
   UTILISER_IMPRIMANTE: false,
 };
-
-let lastError = '';
 
 const escapeXml = (value: unknown): string => String(value)
   .replace(/&/g, '&amp;')
@@ -57,7 +153,6 @@ const rowsToXml = (rows: Row[]): string => rows.map(row => {
 const parseRows = (root: Element): Row[] => {
   const rowsContainer = Array.from(root.children).find(child => child.tagName === 'rows');
   if (!rowsContainer) return [];
-
   return Array.from(rowsContainer.children)
     .filter(child => child.tagName === 'row')
     .map(rowElement => {
@@ -81,10 +176,20 @@ const parseRows = (root: Element): Row[] => {
     });
 };
 
+const isFileProtocol = (): boolean => {
+  try {
+    return typeof window !== 'undefined' && window.location.protocol === 'file:';
+  } catch { return false; }
+};
+
+// Synchronous XHR with safety
 const sendXml = (xml: string): Element => {
+  if (isFileProtocol()) {
+    throw new Error('Protocole file:// détecté : API MySQL inaccessible. Mode démo offline activé.');
+  }
   const xhr = new XMLHttpRequest();
   xhr.open('POST', API_URL, false);
-  xhr.withCredentials = true;
+  try { xhr.withCredentials = true; } catch {}
   xhr.setRequestHeader('Content-Type', 'application/xml; charset=UTF-8');
   xhr.setRequestHeader('X-BarPOS-Request', '1');
 
@@ -126,32 +231,102 @@ const request = (action: string, dataset?: DatasetName, rows?: Row[], params?: R
   return parseRows(root);
 };
 
-const read = <T>(dataset: DatasetName): T[] => request('read', dataset) as T[];
-
 const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
+  if (offlineMode && isFileProtocol()) {
+    // file:// → toujours offline, pas de tentative réseau
+    const fromLS = lsGet<T>(dataset, [] as T[]);
+    if (fromLS.length > 0) return fromLS;
+    return (MOCK_EMPTY[dataset] as unknown as T[]) || fallback;
+  }
+  // Si offlineMode mais pas file:// (ex: flag restant), on tente quand même MySQL une fois
   try {
-    return read<T>(dataset);
+    const data = request('read', dataset) as T[];
+    // Succès MySQL → on sort du mode offline
+    markOnlineSuccess();
+    // Sauvegarde cache offline pour prochain lancement
+    if (data && data.length >= 0) {
+      lsSet(dataset, data);
+    }
+    return data;
   } catch (error) {
-    lastError = errorMessage(error);
+    const msg = errorMessage(error);
+    lastError = msg;
+    // Premier échec → bascule offline
+    if (!offlineMode) {
+      offlineMode = true;
+      offlineReason = msg;
+      try { localStorage.setItem(LS_FLAG_OFFLINE, '1'); } catch {}
+      console.warn('[BarPOS] Bascule mode offline démo:', msg, 'API_URL=', API_URL);
+    }
+    const fromLS = lsGet<T>(dataset, [] as T[]);
+    if (fromLS.length > 0) return fromLS;
+    // Fallback mock par dataset
+    if (MOCK_EMPTY[dataset]) {
+      return (MOCK_EMPTY[dataset] as unknown as T[]);
+    }
     return fallback;
   }
 };
 
 const sync = <T>(dataset: DatasetName, data: T[]): void => {
+  if (offlineMode) {
+    lsSet(dataset, data);
+    return;
+  }
   try {
     request('sync', dataset, data as Row[]);
+    lsSet(dataset, data);
   } catch (error) {
     lastError = errorMessage(error);
-    window.alert(`Enregistrement MySQL impossible :\n${lastError}`);
-    throw error;
+    // Si échec sync, on sauvegarde quand même en offline pour ne pas perdre
+    lsSet(dataset, data);
+    window.alert(`Enregistrement MySQL impossible :\n${lastError}\n\nLes données sont sauvegardées en mode démo local (offline). Elles seront perdues si vous videz le cache du navigateur.`);
+    // Ne pas throw pour éviter écran blanc ; on bascule
+    offlineMode = true;
   }
 };
 
 const readBackup = (): string => {
+  if (offlineMode) {
+    throw new Error('Sauvegarde SQL indisponible en mode démo offline. Utilisez Export Excel ou installez WAMP.');
+  }
   const root = sendXml('<request action="backup"><params/></request>');
   return Array.from(root.children).find(child => child.tagName === 'content')?.textContent || '';
 };
 
+// Init : seul file:// force offline immediatement.
+// Le flag localStorage est conservé comme hint mais on tente quand même MySQL au premier read
+// pour permettre passage auto de mode démo -> WAMP sans devoir cliquer.
+let hasOfflineFlag = false;
+try {
+  hasOfflineFlag = localStorage.getItem(LS_FLAG_OFFLINE) === '1';
+  if (isFileProtocol()) {
+    offlineMode = true;
+    offlineReason = 'file://';
+  } else if (hasOfflineFlag) {
+    // on garde trace mais on ne force pas offline ici : on laissera safeRead tenter MySQL
+    // si ça réussit, on effacera le flag (voir safeRead success)
+    offlineReason = 'offline flag (tentative MySQL en cours)';
+  }
+} catch {}
+
+function clearOfflineFlag() {
+  try { localStorage.removeItem(LS_FLAG_OFFLINE); } catch {}
+  hasOfflineFlag = false;
+  offlineMode = false;
+  offlineReason = '';
+  lastError = '';
+}
+
+function markOnlineSuccess() {
+  if (hasOfflineFlag || offlineMode) {
+    clearOfflineFlag();
+  }
+  offlineMode = false;
+  offlineReason = '';
+}
+
+// ---------------- Export ----------------
 const exportAll = () => ({
   societe: store.getSociete(),
   personnel: store.getPersonnel(),
@@ -174,9 +349,20 @@ const exportAll = () => ({
 
 export const store = {
   getLastError: (): string => lastError,
+  isOffline: (): boolean => offlineMode,
+  getOfflineReason: (): string => offlineReason,
+  clearOfflineFlag: (): void => { clearOfflineFlag(); },
 
-  getSociete: (): Societe => safeRead<Societe>('societe', [EMPTY_SOCIETE])[0] || EMPTY_SOCIETE,
-  setSociete: (data: Societe): void => sync('societe', [data]),
+  getSociete: (): Societe => {
+    const data = safeRead<Societe>('societe', [EMPTY_SOCIETE]);
+    // Si offline et pas de data MySQL, utiliser mock societe
+    if (offlineMode && data.length === 0) return MOCK_SOCIETE;
+    return data[0] || (offlineMode ? MOCK_SOCIETE : EMPTY_SOCIETE);
+  },
+  setSociete: (data: Societe): void => {
+    if (offlineMode) lsSet('societe', [data]);
+    else sync('societe', [data]);
+  },
 
   getPersonnel: (): Personnel[] => safeRead<Personnel>('personnel', []),
   setPersonnel: (data: Personnel[]): void => sync('personnel', data),
@@ -227,28 +413,96 @@ export const store = {
   setConsommations: (data: Consommation[]): void => sync('consommations', data),
 
   getSession: (): Personnel | null => {
+    if (offlineMode && isFileProtocol()) {
+      try {
+        const raw = localStorage.getItem(LS_SESSION);
+        if (!raw) return null;
+        return JSON.parse(raw) as Personnel;
+      } catch { return null; }
+    }
     try {
-      return (request('session')[0] as unknown as Personnel | undefined) || null;
+      const res = request('session')[0] as unknown as Personnel | undefined;
+      if (res) markOnlineSuccess();
+      return res || null;
     } catch (error) {
       lastError = errorMessage(error);
+      // si API down, on tente session locale
+      try {
+        const raw = localStorage.getItem(LS_SESSION);
+        if (raw) return JSON.parse(raw) as Personnel;
+      } catch {}
+      // Bascule offline silencieusement si pas déjà file://
+      if (!offlineMode && !isFileProtocol()) {
+        offlineMode = true;
+        offlineReason = lastError;
+        try { localStorage.setItem(LS_FLAG_OFFLINE, '1'); } catch {}
+      }
       return null;
     }
   },
 
-  setSession: (_data: Personnel | null): void => {
-    // La session est geree par un jeton opaque en cookie et une ligne MySQL cote serveur.
+  setSession: (data: Personnel | null): void => {
+    // En offline, on stocke session en local
+    try {
+      if (data) localStorage.setItem(LS_SESSION, JSON.stringify(data));
+      else localStorage.removeItem(LS_SESSION);
+    } catch {}
   },
 
   authenticate: (login: string, password: string): Personnel | null => {
+    // Si on est en file://, pas de tentative MySQL
+    if (offlineMode && isFileProtocol()) {
+      const users = safeRead<Personnel>('personnel', MOCK_PERSONNEL);
+      const u = users.find(p => p.LOGIN === login && p.MOT_DE_PASSE === password && p.ACTIF);
+      if (u) {
+        store.setSession(u);
+        return u;
+      }
+      return null;
+    }
     try {
-      return (request('authenticate', undefined, undefined, { login, password })[0] as unknown as Personnel | undefined) || null;
+      const res = request('authenticate', undefined, undefined, { login, password })[0] as unknown as Personnel | undefined;
+      if (res) {
+        markOnlineSuccess();
+        // aussi cache session locale pour fallback
+        try { localStorage.setItem(LS_SESSION, JSON.stringify(res)); } catch {}
+      }
+      return res || null;
     } catch (error) {
       lastError = errorMessage(error);
+      // Fallback offline auth si pas file:// déjà géré
+      if (isFileProtocol()) throw error;
+      console.warn('[BarPOS] Auth API échouée, tentative offline:', lastError);
+      if (!offlineMode) {
+        offlineMode = true;
+        offlineReason = lastError;
+        try { localStorage.setItem(LS_FLAG_OFFLINE, '1'); } catch {}
+      }
+      // Tente auth locale
+      try {
+        const raw = localStorage.getItem(LS_PREFIX + 'personnel');
+        if (raw) {
+          const localUsers = JSON.parse(raw) as Personnel[];
+          const u = localUsers.find(p => p.LOGIN === login && p.MOT_DE_PASSE === password && p.ACTIF);
+          if (u) {
+            try { localStorage.setItem(LS_SESSION, JSON.stringify(u)); } catch {}
+            return u;
+          }
+        }
+      } catch {}
+      const users = MOCK_PERSONNEL;
+      const u = users.find(p => p.LOGIN === login && p.MOT_DE_PASSE === password && p.ACTIF);
+      if (u) {
+        try { localStorage.setItem(LS_SESSION, JSON.stringify(u)); } catch {}
+        return u;
+      }
       throw error;
     }
   },
 
   logout: (): void => {
+    try { localStorage.removeItem(LS_SESSION); } catch {}
+    if (offlineMode) return;
     try {
       request('logout');
     } catch (error) {
@@ -260,6 +514,12 @@ export const store = {
     .filter(article => article.ACTIF && article.GERE_STOCK && article.STOCK <= article.STOCK_MIN).length,
 
   resetAll: (): void => {
+    if (offlineMode) {
+      // Supprime toutes les données offline sauf comptes/familles/articles/tables/societe
+      const toClear: DatasetName[] = ['ventes','lignes_vente','paiements','clotures','mouvements','achats','lignes_achat','inventaires','lignes_inventaire','consommations','clients'];
+      toClear.forEach(k => localStorage.removeItem(LS_PREFIX + k));
+      return;
+    }
     try {
       request('reset');
     } catch (error) {
