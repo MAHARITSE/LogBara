@@ -8,9 +8,9 @@
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-// 'top-right' (défaut) : notification discrète en haut à droite.
-// 'center' : notification mise en avant au centre de l'interface.
-type ToastPosition = 'top-right' | 'center';
+// 'center' (défaut) : notification mise en avant au centre de l'interface.
+// 'top-right' : notification discrète en haut à droite.
+type ToastPosition = 'center' | 'top-right';
 
 const COLORS: Record<ToastType, string> = {
   success: '#22c55e',
@@ -38,15 +38,15 @@ const ensureStyle = () => {
  * Affiche une notification globale, puis la retire automatiquement
  * après `duration` ms. Un nouvel appel remplace la notification précédente.
  *
- * - position 'top-right' : notification classique en haut à droite ;
- * - position 'center'    : notification affichée au centre de l'interface
- *   (plus visible, sans bloquer les clics), ex. « Paiement enregistré ».
+ * - position 'center' (défaut) : notification affichée au centre de
+ *   l'interface (plus visible, sans bloquer les clics) ;
+ * - position 'top-right' : notification discrète en haut à droite.
  */
 export const globalToast = (
   message: string,
   type: ToastType = 'info',
   duration = 3000,
-  position: ToastPosition = 'top-right'
+  position: ToastPosition = 'center'
 ) => {
   if (typeof document === 'undefined') return;
 
