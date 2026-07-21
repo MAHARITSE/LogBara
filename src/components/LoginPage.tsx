@@ -13,7 +13,6 @@ export default function LoginPage({ onLogin }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [societe] = useState(() => store.getSociete());
-  const [serverUrl] = useState(() => store.getServerUrl());
   const [error, setError] = useState(() => store.getLastError());
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,28 +128,10 @@ export default function LoginPage({ onLogin }: Props) {
           </form>
         </div>
 
-        {/* Server IP + LogBara */}
-        <div className="text-center mt-6 text-white/50 text-xs">
-          <a href={serverUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white/80 transition-colors">
-            {serverUrl}
-          </a>
-          <span className="text-white/70 font-medium ml-1">LogBara</span>
-        </div>
-
         {/* Developer signature */}
         <div className="text-center mt-3 text-white/60 text-sm">
           <p>Développé par <span className="text-white/80 font-medium">MAHARITSE Hiacinthe Bertrand</span></p>
           <p className="mt-1">📞 038 34 092 61</p>
-          {serverUrl && (
-            <p className="mt-2">
-              <span className="text-white/70 text-xs">ip serveur = </span>
-              <span className="text-white font-bold">
-                <a href={serverUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-white transition-colors underline decoration-dotted">
-                  {serverUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}
-                </a>
-              </span>
-            </p>
-          )}
         </div>
       </div>
     </div>
