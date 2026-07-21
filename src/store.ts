@@ -20,9 +20,6 @@ type DatasetName =
 
 const API_URL = new URL('api/index.php', document.baseURI).toString();
 
-// A raw IPv6 address must be enclosed in brackets when it is inserted in a URL.
-const hostForUrl = (host: string): string =>
-  host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 const EMPTY_SOCIETE: Societe = {
   NOM: 'Bar POS — MySQL indisponible',
   ADRESSE: '',
@@ -177,27 +174,6 @@ const exportAll = () => ({
 
 export const store = {
   getLastError: (): string => lastError,
-
-  /**
-   * Retourne l'URL complète du serveur au format http://ip/LogBara/
-   * Appelle l'API pour obtenir l'IP réelle même en cas d'accès localhost.
-   */
-  getServerUrl: (): string => {
-    try {
-      const protocol = window.location.protocol;
-      const rows = request('server_info');
-      const displayHost = rows[0]?.['display_host'] as string | undefined;
-      const host = hostForUrl(displayHost || window.location.hostname);
-      const path = window.location.pathname.replace(/\/api\/index\.php.*$/, '').replace(/\/+$/, '');
-      return protocol + '//' + host + path + '/';
-    } catch {
-      // Fallback : utiliser window.location
-      const protocol = window.location.protocol;
-      const host = hostForUrl(window.location.hostname);
-      const path = window.location.pathname.replace(/\/api\/index\.php.*$/, '').replace(/\/+$/, '');
-      return protocol + '//' + host + path + '/';
-    }
-  },
 
   getSociete: (): Societe => safeRead<Societe>('societe', [EMPTY_SOCIETE])[0] || EMPTY_SOCIETE,
   setSociete: (data: Societe): void => sync('societe', [data]),
