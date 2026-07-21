@@ -131,9 +131,9 @@ function cast_input_value($value, string $frontName, array $mapping)
 
 function cookie_path(): string
 {
-    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/api/index.php');
+    $script = str_replace('\\\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/api/index.php');
     $path = dirname(dirname($script));
-    return ($path === '.' || $path === '\\') ? '/' : rtrim($path, '/') . '/';
+    return ($path === '.' || $path === '\\\\') ? '/' : rtrim($path, '/') . '/';
 }
 
 function set_auth_cookie(string $token, int $expiresAt): void
@@ -381,7 +381,7 @@ function reset_operational_data(PDO $pdo): void
 
 try {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-        xml_error('Cette API accepte uniquement les requêtes POST de l’application Bar POS.');
+        xml_error('Cette API accepte uniquement les requêtes POST de l\'application Bar POS.');
     }
     if (($_SERVER['HTTP_X_BARPOS_REQUEST'] ?? '') !== '1') {
         xml_error('Requête API non autorisée.');
@@ -406,24 +406,6 @@ try {
     $config = require __DIR__ . '/config.php';
     $pdo = barpos_database($config);
     $mappings = barpos_mappings();
-
-    if ($action === 'server_info') {
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $serverAddr = $_SERVER['SERVER_ADDR'] ?? '127.0.0.1';
-        // Si on accede via localhost, on montre l'IP reseau reelle du serveur
-        $displayHost = ($host === 'localhost' || str_starts_with($host, '127.') || $host === '::1')
-            ? $serverAddr
-            : $host;
-
-        xml_success_start();
-        echo '<rows><row>'
-            . '<field name="display_host" type="string">' . xml_escape($displayHost) . '</field>'
-            . '<field name="http_host" type="string">' . xml_escape($host) . '</field>'
-            . '<field name="server_addr" type="string">' . xml_escape($serverAddr) . '</field>'
-            . '</row></rows>';
-        echo '</response>';
-        exit;
-    }
 
     if ($action === 'authenticate') {
         $params = request_parameters($request);

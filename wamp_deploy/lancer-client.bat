@@ -5,14 +5,15 @@ title LogBara - Client
 REM ============================================================================
 REM LogBara - Lanceur CLIENT (poste distant, sans WAMP)
 REM ============================================================================
-REM - Lit l'IP du serveur (fichier de config ou saisie manuelle)
+REM - Verifie la connexion reseau vers le serveur
 REM - Verifie la connexion reseau vers le serveur
 REM - Lance l'application en impression directe
 REM ============================================================================
 
-set "APP_FOLDER=barpos"
-set "CONFIG_FILE=%~dp0serveur_ip.txt"
+set "APP_FOLDER=LogBara"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
+
+set "APP_URL=http://localhost/%APP_FOLDER%/"
 
 echo.
 echo ===========================================================================
@@ -23,64 +24,7 @@ echo         Developpe par MAHARITSE Hiacinthe Bertrand
 echo         📞 038 34 092 61
 echo.
 echo         Si le serveur est inaccessible :
-echo         - Verifiez que WampServer est en marche (icone VERTE)
-echo         - L'adresse IP du serveur s'affiche sur la page de connexion
-echo         - Saisissez-la ci-dessous
-echo.
-
-REM ============================================================
-REM Lecture de l'IP serveur
-REM ============================================================
-set "SERVER_IP="
-
-REM Lire le fichier de config s'il existe
-if exist "%CONFIG_FILE%" (
-    set /p SAVED_IP=<"%CONFIG_FILE%"
-    set "SAVED_IP=!SAVED_IP: =!"
-    if not "!SAVED_IP!"=="" (
-        echo Adresse IP du serveur enregistree : !SAVED_IP!
-        echo.
-        choice /c OC /n /m "[O] Utiliser cette adresse  [C] Changer"
-        echo.
-        if errorlevel 2 goto :changer_ip
-        if errorlevel 1 set "SERVER_IP=!SAVED_IP!" & goto :ip_ok
-    )
-)
-
-:changer_ip
-echo.
-echo =============================================================
-echo      CONFIGURATION DE L'ADRESSE IP DU SERVEUR
-echo =============================================================
-echo.
-echo   Cette adresse est affichee sur la page de connexion
-echo   de l'application LogBara (en bas a droite) apres
-echo   le numero de telephone : 📞 038 34 092 61
-echo.
-echo   Exemple : 192.168.1.50
-echo.
-echo =============================================================
-echo.
-set /p SERVER_IP="Adresse IP du serveur : "
-
-if "!SERVER_IP!"=="" (
-    echo Adresse IP invalide. Operation annulee.
-    pause
-    exit /b 1
-)
-
-REM Sauvegarder l'IP
-echo !SERVER_IP!>"%CONFIG_FILE%"
-echo.
-echo Adresse IP sauvegardee dans : %CONFIG_FILE%
-echo.
-
-:ip_ok
-set "APP_URL=http://!SERVER_IP!/%APP_FOLDER%/"
-
-echo ===========================================================================
-echo    URL serveur : %APP_URL%
-echo ===========================================================================
+        echo         - Verifiez que WampServer est en marche (icone VERTE)
 echo.
 
 REM ============================================================
@@ -92,23 +36,9 @@ if %ERRORLEVEL% EQU 0 (
     curl.exe -fs -o nul -m 5 "%APP_URL%"
     if errorlevel 1 (
         echo.
-        echo =============================================================
-        echo    ATTENTION : Le serveur %APP_URL% ne repond pas.
-        echo =============================================================
+        echo    ATTENTION : %APP_URL% ne repond pas.
         echo.
-        echo    Verifiez que :
-        echo    - Le serveur est allume et connecte au reseau
-        echo    - WampServer est demarre (icone VERTE)
-        echo    - L'adresse IP est correcte
-        echo    - Le pare-feu ne bloque pas le port 80
-        echo.
-        echo    L'IP du serveur est affichee sur la page de connexion
-        echo    LogBara apres le telephone : 📞 038 34 092 61
-        echo.
-        choice /c RC /n /m "[R] Reessayer  [C] Changer l'IP"
-        echo.
-        if errorlevel 2 del "%CONFIG_FILE%" 2>nul & goto :changer_ip
-        if errorlevel 1 goto :ip_ok
+        echo    Verifiez que WampServer est demarre (icone VERTE).
     ) else (
         echo        Serveur : OK
     )
