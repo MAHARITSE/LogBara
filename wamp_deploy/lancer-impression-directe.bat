@@ -55,7 +55,7 @@ echo Les tickets partent directement sur l'imprimante Windows par defaut.
 echo Si l'apercu s'affiche encore, verifiez que l'imprimante par defaut n'est pas
 echo "Microsoft Print to PDF".
 echo.
-pause
+echo Fermeture automatique du lanceur...
 exit /b 0
 
 :open_browser
