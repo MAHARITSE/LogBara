@@ -91,7 +91,7 @@ export default function StockModule({ user }: Props) {
 
   return (
     <div className="space-y-6">
-      {toast && <div className="fixed top-4 right-4 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
+      {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
 
       <h1 className="text-2xl font-bold text-gray-900">📦 Gestion du stock</h1>
 

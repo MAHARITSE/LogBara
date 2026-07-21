@@ -29,7 +29,7 @@ export default function Toast({ message, type = 'success', onClose, duration = 3
   };
 
   return (
-    <div className={`fixed top-4 right-4 z-[200] ${styles[type]} text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in slide-in-from-right`}>
+    <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[200] ${styles[type]} text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3`}>
       {icons[type]}
       <span className="font-medium">{message}</span>
       <button onClick={onClose} className="ml-2 hover:opacity-70">

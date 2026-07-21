@@ -232,7 +232,7 @@ export default function CaisseModule({ user }: Props) {
 
   return (
     <div className="flex h-[calc(100vh-80px)] gap-4">
-      {toast && <div className="fixed top-4 right-4 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
+      {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
 
       {/* Panier */}
       <div className="w-80 shrink-0 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col">

@@ -60,15 +60,16 @@ const buildTicketHtml = (content: string) => {
  * puis ferme la fenêtre. Utilisé pour les tickets de caisse, tables, remboursements.
  *
  * Si l'option "Utiliser l'imprimante" est désactivée dans les paramètres société,
- * aucune impression ni aucun aperçu n'est ouvert : une simple notification
- * informe que le ticket n'a pas été imprimé.
+ * aucune impression ni aucun aperçu n'est ouvert : seule la notification
+ * « Paiement enregistré » s'affiche au centre de l'interface.
  */
 export const printTicket = (content: string) => {
   const societe = store.getSociete();
 
-  // Imprimante désactivée → pas d'impression, pas d'aperçu, juste une notification
+  // Imprimante désactivée → pas d'impression, pas d'aperçu :
+  // uniquement la notification « Paiement enregistré » au centre de l'interface
   if (!societe.UTILISER_IMPRIMANTE) {
-    globalToast('Impression désactivée — ticket non imprimé', 'info');
+    globalToast('✓ Paiement enregistré', 'success', 3000, 'center');
     return;
   }
 
