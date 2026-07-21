@@ -1,4 +1,5 @@
 import { store } from '../store';
+import { globalToast } from '../utils/globalToast';
 
 // Génère le HTML complet du ticket
 const buildTicketHtml = (content: string) => {
@@ -57,8 +58,20 @@ const buildTicketHtml = (content: string) => {
 /**
  * Impression DIRECTE : ouvre une fenêtre, lance window.print() automatiquement
  * puis ferme la fenêtre. Utilisé pour les tickets de caisse, tables, remboursements.
+ *
+ * Si l'option "Utiliser l'imprimante" est désactivée dans les paramètres société,
+ * aucune impression ni aucun aperçu n'est ouvert : une simple notification
+ * informe que le ticket n'a pas été imprimé.
  */
 export const printTicket = (content: string) => {
+  const societe = store.getSociete();
+
+  // Imprimante désactivée → pas d'impression, pas d'aperçu, juste une notification
+  if (!societe.UTILISER_IMPRIMANTE) {
+    globalToast('Impression désactivée — ticket non imprimé', 'info');
+    return;
+  }
+
   const html = buildTicketHtml(content);
   const printWindow = window.open('', '_blank', 'width=350,height=600');
   if (printWindow) {
