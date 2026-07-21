@@ -19,6 +19,14 @@ echo ===========================================================================
 echo                      LogBara - Demarrage CLIENT
 echo ===========================================================================
 echo.
+echo         Developpe par MAHARITSE Hiacinthe Bertrand
+echo         📞 038 34 092 61
+echo.
+echo         Si le serveur est inaccessible :
+echo         - Verifiez que WampServer est en marche (icone VERTE)
+echo         - L'adresse IP du serveur s'affiche sur la page de connexion
+echo         - Saisissez-la ci-dessous
+echo.
 
 REM ============================================================
 REM Lecture de l'IP serveur
@@ -42,9 +50,15 @@ if exist "%CONFIG_FILE%" (
 :changer_ip
 echo.
 echo =============================================================
-echo Entrez l'adresse IP du serveur LogBara.
-echo Exemple : 192.168.1.50
-echo Cette adresse est affichee au lancement du serveur.
+echo      CONFIGURATION DE L'ADRESSE IP DU SERVEUR
+echo =============================================================
+echo.
+echo   Cette adresse est affichee sur la page de connexion
+echo   de l'application LogBara (en bas a droite) apres
+echo   le numero de telephone : 📞 038 34 092 61
+echo.
+echo   Exemple : 192.168.1.50
+echo.
 echo =============================================================
 echo.
 set /p SERVER_IP="Adresse IP du serveur : "
@@ -78,13 +92,18 @@ if %ERRORLEVEL% EQU 0 (
     curl.exe -fs -o nul -m 5 "%APP_URL%"
     if errorlevel 1 (
         echo.
-        echo        ATTENTION : Le serveur %APP_URL% ne repond pas.
+        echo =============================================================
+        echo    ATTENTION : Le serveur %APP_URL% ne repond pas.
+        echo =============================================================
         echo.
-        echo        Verifiez que :
-        echo        - Le serveur est allume et connecte au reseau
-        echo        - WampServer est demarre sur le serveur (icone verte)
-        echo        - L'adresse IP est correcte
-        echo        - Le pare-feu ne bloque pas le port 80
+        echo    Verifiez que :
+        echo    - Le serveur est allume et connecte au reseau
+        echo    - WampServer est demarre (icone VERTE)
+        echo    - L'adresse IP est correcte
+        echo    - Le pare-feu ne bloque pas le port 80
+        echo.
+        echo    L'IP du serveur est affichee sur la page de connexion
+        echo    LogBara apres le telephone : 📞 038 34 092 61
         echo.
         choice /c RC /n /m "[R] Reessayer  [C] Changer l'IP"
         echo.

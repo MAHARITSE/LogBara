@@ -142,8 +142,13 @@ export default function LoginPage({ onLogin }: Props) {
           <p>Développé par <span className="text-white/80 font-medium">MAHARITSE Hiacinthe Bertrand</span></p>
           <p className="mt-1">📞 038 34 092 61</p>
           {serverUrl && (
-            <p className="mt-2 text-white/70 text-xs font-mono">
-              ip serveur = {serverUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}
+            <p className="mt-2">
+              <span className="text-white/70 text-xs">ip serveur = </span>
+              <span className="text-white font-bold">
+                <a href={serverUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 hover:text-white transition-colors underline decoration-dotted">
+                  {serverUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}
+                </a>
+              </span>
             </p>
           )}
         </div>

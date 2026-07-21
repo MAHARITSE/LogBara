@@ -1,21 +1,31 @@
 @echo off
 setlocal EnableExtensions
-title Bar POS - Client reseau impression directe
+title LogBara - Client reseau impression directe
 
 REM ============================================================================
-REM Bar POS (LogBara) - Client reseau WAMP avec impression directe Chrome/Edge
+REM LogBara (Bar POS) - Client reseau WAMP avec impression directe Chrome/Edge
 REM ============================================================================
 REM 1) Remplacez l'IP ci-dessous par l'IP reelle du serveur WAMP.
+REM    L'IP du serveur est affichee sur la page de connexion LogBara
+REM    apres le telephone : 📞 038 34 092 61
 REM 2) Gardez une URL simple : http://IP/barpos/
-REM    Ne pas mettre le format Markdown [http://...](http://...).
 REM 3) --kiosk-printing fonctionne seulement si le navigateur demarre avec ce
 REM    flag. Le profil dedie ci-dessous ouvre une NOUVELLE SESSION separee :
 REM    vos fenetres Chrome/Edge existantes ne sont PAS fermees.
-REM    Seules les anciennes fenetres Bar POS de ce profil sont fermees.
+REM    Seules les anciennes fenetres LogBara de ce profil sont fermees.
 REM ============================================================================
 
 set "APP_URL=http://192.168.1.50/barpos/"
 set "KIOSK_PROFILE=%LOCALAPPDATA%\LogBara\KioskProfile"
+
+echo.
+echo ===========================================================================
+echo                      LogBara - Demarrage CLIENT
+echo ===========================================================================
+echo.
+echo         Developpe par MAHARITSE Hiacinthe Bertrand
+echo         📞 038 34 092 61
+echo.
 
 echo [1/3] Verification du serveur (%APP_URL%)...
 where curl.exe >nul 2>&1
@@ -23,9 +33,22 @@ if %ERRORLEVEL% EQU 0 (
     curl.exe -fs -o nul -m 3 "%APP_URL%"
     if errorlevel 1 (
         echo.
-        echo ATTENTION : %APP_URL% ne repond pas.
-        echo Verifiez l'IP du serveur WAMP et que WampServer est demarre,
-        echo puis relancez ce script ^(ou appuyez sur une touche pour continuer^).
+        echo =============================================================
+        echo    ATTENTION : %APP_URL% ne repond pas.
+        echo =============================================================
+        echo.
+        echo    Verifiez que :
+        echo    - WampServer est demarre (icone VERTE dans la barre des taches)
+        echo    - L'adresse IP est correcte
+        echo    - Le pare-feu ne bloque pas le port 80
+        echo.
+        echo    Si vous ne connaissez pas l'IP du serveur :
+        echo    Regardez en bas de la page de connexion LogBara
+        echo    apres le telephone : 📞 038 34 092 61
+        echo.
+        echo    Pour changer l'IP, ouvrez ce fichier clientwamp.bat
+        echo    avec un editeur de texte et modifiez la ligne :
+        echo    set "APP_URL=http://192.168.1.50/barpos/"
         echo.
         pause
     ) else (
