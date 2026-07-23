@@ -1,1 +1,138 @@
 @import "tailwindcss";
+
+/* ============================================
+   LOGBARA — Design System (Frontend Design Skill)
+   Palette : Navy profond + Ambre chaud premium
+   ============================================ */
+
+:root {
+  --color-navy: #0F172A;
+  --color-navy-light: #1E2937;
+  --color-amber: #D97706;
+  --color-amber-light: #F59E0B;
+  --color-blue: #1E40AF;
+  --color-cream: #F8FAFC;
+  --color-slate: #334155;
+}
+
+/* Amélioration globale */
+body {
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* Boutons premium */
+.btn-primary {
+  background: linear-gradient(to right, var(--color-navy), #1E40AF);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 10px 15px -3px rgb(15 23 42 / 0.2), 0 4px 6px -4px rgb(15 23 42 / 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-amber {
+  background: linear-gradient(to right, var(--color-amber), #F59E0B);
+  color: white;
+  transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.btn-amber:hover {
+  box-shadow: 0 10px 15px -3px rgb(217 119 6 / 0.3);
+  transform: translateY(-1px);
+}
+
+/* Cartes avec touche premium */
+.card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.card:hover {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+}
+
+/* Article cards (Caisse) - Signature */
+.article-card {
+  transition: all 0.15s cubic-bezier(0.4, 0.0, 0.2, 1);
+  border: 1px solid #e2e8f0;
+}
+
+.article-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.1);
+  border-color: #cbd5e1;
+}
+
+.article-card.active {
+  border-color: var(--color-amber);
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
+  transform: scale(1.01);
+}
+
+/* KPI Cards */
+.kpi-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Sidebar active state */
+.nav-active {
+  background: linear-gradient(to right, var(--color-navy), #1E40AF);
+  color: white;
+  box-shadow: 0 10px 15px -3px rgb(15 23 42 / 0.25);
+}
+
+/* Modal premium */
+.modal {
+  animation: modalEnter 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Table styling */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Focus states accessibles */
+input:focus, select:focus, button:focus {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
+/* Scrollbars discrets */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Réduction de mouvement */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

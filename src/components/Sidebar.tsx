@@ -125,7 +125,7 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
                   onClick={() => { onModuleChange(item.id); if (mobileOpen) onMobileToggle(); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all ${
                     activeModule === item.id
-                      ? 'bg-gradient-to-r from-[#0D47A1] to-[#1565C0] text-white shadow-lg shadow-blue-200'
+                      ? 'nav-active'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >

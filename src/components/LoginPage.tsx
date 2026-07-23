@@ -48,26 +48,31 @@ export default function LoginPage({ onLogin }: Props) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0a1628] via-[#0D47A1] to-[#1565C0]" />
+      {/* Background — Navy profond + touche ambre premium */}
+      <div className="absolute inset-0 bg-[#0F172A]" />
       
-      {/* Decorative circles */}
-      <div className="absolute top-20 left-20 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 right-20 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl" />
+      {/* Texture subtile */}
+      <div className="absolute inset-0 bg-[radial-gradient(#1e2937_0.8px,transparent_1px)] bg-[length:5px_5px] opacity-40" />
       
-      {/* Top color bar */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#1976D2] via-[#64B5F6] to-[#1976D2]" />
+      {/* Accent ambre en coin + bleu profond */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-blue-900/20 rounded-full blur-3xl" />
+      
+      {/* Top accent bar ambre (signature) */}
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600" />
 
       {/* Login card */}
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[#0D47A1] to-[#1976D2] p-8 text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-white/20 to-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+          {/* Header — Navy profond + accent ambre */}
+          <div className="bg-[#0F172A] p-8 text-center relative">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
+            
+            <div className="w-20 h-20 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl">
               {renderLogo()}
             </div>
-            <h1 className="text-2xl font-bold text-white">{societe.NOM}</h1>
-            <p className="text-blue-200 text-sm mt-1">Point de Vente</p>
+            <h1 className="text-3xl font-bold text-white tracking-tight">{societe.NOM}</h1>
+            <p className="text-amber-400 text-sm mt-1.5 font-medium">Point de Vente • Bar &amp; Restaurant</p>
           </div>
 
           {/* Form */}
@@ -114,7 +119,7 @@ export default function LoginPage({ onLogin }: Props) {
             <button
               type="submit"
               disabled={!login || !password || loading}
-              className="w-full bg-gradient-to-r from-[#0D47A1] to-[#1565C0] text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full btn-primary py-3.5 rounded-xl font-semibold text-lg shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>

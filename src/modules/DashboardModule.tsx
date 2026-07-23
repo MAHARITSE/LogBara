@@ -98,7 +98,7 @@ export default function DashboardModule({ user }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">📊 Tableau de bord</h1>
+          <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">📊 Tableau de bord</h1>
           <p className="text-gray-500">Bienvenue, {user.PRENOM} {user.NOM}</p>
         </div>
         <div className="text-right text-sm text-gray-500">
@@ -108,7 +108,7 @@ export default function DashboardModule({ user }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
               <DollarSign className="text-green-600" size={24} />
@@ -120,7 +120,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
               <ShoppingCart className="text-blue-600" size={24} />
@@ -132,7 +132,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
               <Wallet className="text-purple-600" size={24} />
@@ -144,7 +144,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
               <AlertTriangle className="text-orange-600" size={24} />
@@ -156,7 +156,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
               <CreditCard className="text-red-600" size={24} />
@@ -168,7 +168,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center">
               <Package className="text-teal-600" size={24} />
@@ -180,7 +180,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
               <Users className="text-indigo-600" size={24} />
@@ -192,7 +192,7 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="kpi-card bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-pink-100 flex items-center justify-center">
               <TrendingUp className="text-pink-600" size={24} />
