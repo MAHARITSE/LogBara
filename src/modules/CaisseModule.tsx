@@ -316,14 +316,14 @@ export default function CaisseModule({ user }: Props) {
               const inCart = cart.find(c => c.IDARTICLE === art.IDARTICLE);
               const oos = art.GERE_STOCK && art.STOCK <= 0;
               return (
-                <button key={art.IDARTICLE} onClick={() => addToCart(art.IDARTICLE)} disabled={oos} className={`relative bg-white rounded-xl p-3 shadow-sm border border-gray-100 text-left transition-all hover:shadow-md hover:scale-[1.02] active:scale-[0.98] ${oos ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button key={art.IDARTICLE} onClick={() => addToCart(art.IDARTICLE)} disabled={oos} className={`article-card relative bg-white rounded-2xl p-4 shadow-sm text-left ${inCart ? 'active' : ''} ${oos ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   {inCart && <div className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-[#0D47A1] text-white rounded-full flex items-center justify-center text-xs font-bold shadow">{inCart.QUANTITE}</div>}
                   {art.SAISIE_PRIX_VENTE && <div className="absolute top-1 left-1 text-[10px]">✏️</div>}
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">{art.EMOJI || '📦'}</div>
-                    <p className="font-semibold text-xs mb-0.5 truncate">{art.NOM}</p>
-                    <p className="text-[#0D47A1] font-bold text-sm">{formatAr(art.PRIX_VENTE)}</p>
-                    <p className="text-[10px] text-gray-400">{art.GERE_STOCK ? `Stk: ${art.STOCK}` : '∞'}</p>
+                    <div className="text-center">
+                    <div className="text-4xl mb-2 drop-shadow-sm">{art.EMOJI || '📦'}</div>
+                    <p className="font-semibold text-sm mb-0.5 truncate text-slate-800">{art.NOM}</p>
+                    <p className="text-amber-600 font-bold text-base tracking-tight">{formatAr(art.PRIX_VENTE)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{art.GERE_STOCK ? `Stock: ${art.STOCK}` : 'Stock illimité'}</p>
                   </div>
                 </button>
               );
