@@ -5,6 +5,7 @@ import { Personnel } from '../types';
 import { formatAr, nextId, nowTime, today } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
+import MoneyInput from '../components/MoneyInput';
 
 interface Props { user: Personnel }
 
@@ -169,7 +170,12 @@ export default function CreditsModule({ user }: Props) {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Montant remboursé</label>
-                <input type="number" value={montant} onChange={e => setMontant(e.target.value)} className="w-full px-4 py-3 rounded-xl border text-center text-xl font-bold" />
+                <MoneyInput
+                  value={montant}
+                  onChange={val => setMontant(val ? String(val) : '')}
+                  className="w-full px-4 py-3 rounded-xl border text-center text-xl font-bold focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                  placeholder="0"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Mode de paiement</label>

@@ -6,6 +6,7 @@ import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from
 import { printTicket, printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import PhoneInput from '../components/PhoneInput';
+import MoneyInput from '../components/MoneyInput';
 
 interface Props { user: Personnel }
 
@@ -405,7 +406,15 @@ export default function TablesModule({ user }: Props) {
                 </div>
               </div>
 
-              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Remise</label><input type="number" value={remise || ''} onChange={e => setRemise(Math.max(0, Number(e.target.value)))} className="w-full px-4 py-2.5 rounded-xl border" placeholder="0" /></div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Remise</label>
+                <MoneyInput
+                  value={remise}
+                  onChange={val => setRemise(Math.max(0, val))}
+                  className="w-full px-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                  placeholder="0"
+                />
+              </div>
 
               <div className="bg-[#0D47A1] text-white rounded-xl p-4 text-center">
                 <p className="text-sm opacity-80">Net à payer</p>

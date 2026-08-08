@@ -6,6 +6,7 @@ import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import PhoneInput from '../components/PhoneInput';
+import MoneyInput from '../components/MoneyInput';
 
 interface Props { user: Personnel }
 type PaymentMode = 'Espèces' | 'Mobile Money' | 'Crédit' | 'Mixte';
@@ -269,7 +270,16 @@ export default function CaisseModule({ user }: Props) {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{item.EMOJI && <span className="mr-1">{item.EMOJI}</span>}{item.NOM}</p>
                   {item.SAISIE_PRIX_VENTE ? (
-                    <div className="flex items-center gap-1 mt-1"><Edit2 size={12} className="text-orange-500" /><input type="number" value={item.PRIX_UNITAIRE} onChange={e => updatePrice(item.IDARTICLE, Number(e.target.value))} className="w-20 px-2 py-1 text-xs border rounded" /><span className="text-xs text-gray-400">Ar</span></div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Edit2 size={12} className="text-orange-500" />
+                      <MoneyInput
+                        value={item.PRIX_UNITAIRE}
+                        onChange={val => updatePrice(item.IDARTICLE, val)}
+                        className="w-20 px-2 py-1 text-xs border rounded text-right"
+                        placeholder="0"
+                      />
+                      <span className="text-xs text-gray-400">Ar</span>
+                    </div>
                   ) : <p className="text-xs text-gray-500">{formatAr(item.PRIX_UNITAIRE)}</p>}
                 </div>
                 <button onClick={() => removeFromCart(item.IDARTICLE)} className="text-red-400 hover:text-red-600"><X size={16} /></button>
@@ -287,7 +297,16 @@ export default function CaisseModule({ user }: Props) {
           {cart.length === 0 && <div className="text-center py-12 text-gray-400"><ShoppingCart size={40} className="mx-auto mb-2 opacity-50" /><p>Panier vide</p></div>}
         </div>
         <div className="p-4 border-t border-gray-100 space-y-3">
-          <div className="flex items-center gap-2"><span className="text-sm text-gray-500">Remise:</span><input type="number" value={remise || ''} onChange={e => setRemise(Math.max(0, Math.min(total, Number(e.target.value))))} className="flex-1 px-3 py-2 rounded-lg border text-sm" placeholder="0" /><span className="text-sm text-gray-400">Ar</span></div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Remise:</span>
+            <MoneyInput
+              value={remise}
+              onChange={val => setRemise(Math.max(0, Math.min(total, val)))}
+              className="flex-1 px-3 py-2 rounded-lg border text-sm"
+              placeholder="0"
+            />
+            <span className="text-sm text-gray-400">Ar</span>
+          </div>
           <div className="bg-[#0D47A1] text-white rounded-xl p-4">
             {remise > 0 && <div className="flex justify-between text-sm opacity-80"><span>Remise</span><span>-{formatAr(remise)}</span></div>}
             <div className="flex justify-between text-xl font-bold"><span>Total</span><span>{formatAr(netAPayer)}</span></div>
@@ -345,11 +364,26 @@ export default function CaisseModule({ user }: Props) {
               </div>
               {(paymentMode === 'Espèces' || paymentMode === 'Mixte') && (
                 <div><label className="text-sm font-medium text-gray-700 mb-2 block">{paymentMode === 'Mixte' ? 'Montant espèces' : 'Montant reçu'}</label>
-                  <input type="number" value={paymentMode === 'Mixte' ? mixteEspeces || '' : montantRecu} onChange={e => paymentMode === 'Mixte' ? setMixteEspeces(Number(e.target.value)) : setMontantRecu(e.target.value)} className="w-full px-4 py-3 rounded-xl border text-lg font-bold text-center" placeholder="0" />
+                  <MoneyInput
+                    value={paymentMode === 'Mixte' ? mixteEspeces : montantRecu}
+                    onChange={val => paymentMode === 'Mixte' ? setMixteEspeces(val) : setMontantRecu(String(val))}
+                    className="w-full px-4 py-3 rounded-xl border text-lg font-bold text-center focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                    placeholder="0"
+                  />
                   {paymentMode === 'Espèces' && Number(montantRecu) >= netAPayer && <p className="text-center mt-2 text-green-600 font-bold">Monnaie : {formatAr(monnaie)}</p>}
                 </div>
               )}
-              {paymentMode === 'Mixte' && <div><label className="text-sm font-medium text-gray-700 mb-2 block">Montant Mobile Money</label><input type="number" value={mixteMobile || ''} onChange={e => setMixteMobile(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border text-lg font-bold text-center" placeholder="0" /></div>}
+              {paymentMode === 'Mixte' && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Montant Mobile Money</label>
+                  <MoneyInput
+                    value={mixteMobile}
+                    onChange={val => setMixteMobile(val)}
+                    className="w-full px-4 py-3 rounded-xl border text-lg font-bold text-center focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
+              )}
               {(paymentMode === 'Crédit' || (paymentMode === 'Mixte' && mixteEspeces + mixteMobile < netAPayer)) && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Client (crédit)</label>

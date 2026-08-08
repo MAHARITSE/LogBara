@@ -7,6 +7,24 @@ export const formatAr = (n: number): string => {
   return new Intl.NumberFormat('fr-MG').format(Math.round(n)) + ' Ar';
 };
 
+// Formater un montant avec des espaces automatiques (séparateur de milliers)
+export const formatAmount = (value: number | string | null | undefined): string => {
+  if (value === null || value === undefined || value === '') return '';
+  const numStr = String(value).replace(/\D/g, '');
+  if (!numStr) return '';
+  const num = parseInt(numStr, 10);
+  if (isNaN(num)) return '';
+  return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+};
+
+// Parser un montant formaté avec espaces en nombre entier
+export const parseAmount = (value: string | number | null | undefined): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return isNaN(value) ? 0 : Math.round(value);
+  const cleaned = String(value).replace(/\s/g, '').replace(/\D/g, '');
+  return cleaned ? parseInt(cleaned, 10) : 0;
+};
+
 // Date du jour (YYYY-MM-DD)
 export const today = (): string => {
   return new Date().toISOString().split('T')[0];

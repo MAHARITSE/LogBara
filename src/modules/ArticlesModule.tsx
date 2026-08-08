@@ -4,6 +4,7 @@ import { store } from '../store';
 import { Personnel, Article } from '../types';
 import { formatAr, nextId, capitalize } from '../helpers';
 import ConfirmModal from '../components/ConfirmModal';
+import MoneyInput from '../components/MoneyInput';
 
 interface Props {
   user: Personnel;
@@ -364,20 +365,22 @@ export default function ArticlesModule({ user }: Props) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Prix d'achat</label>
-                  <input
-                    type="number"
-                    value={form.PRIX_ACHAT || ''}
-                    onChange={e => setForm({ ...form, PRIX_ACHAT: Number(e.target.value) })}
-                    className="w-full px-4 py-2.5 rounded-xl border"
+                  <MoneyInput
+                    value={form.PRIX_ACHAT}
+                    onChange={val => setForm({ ...form, PRIX_ACHAT: val })}
+                    className="w-full px-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                    placeholder="0"
+                    allowZero={false}
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Prix de vente</label>
-                  <input
-                    type="number"
-                    value={form.PRIX_VENTE || ''}
-                    onChange={e => setForm({ ...form, PRIX_VENTE: Number(e.target.value) })}
-                    className="w-full px-4 py-2.5 rounded-xl border"
+                  <MoneyInput
+                    value={form.PRIX_VENTE}
+                    onChange={val => setForm({ ...form, PRIX_VENTE: val })}
+                    className="w-full px-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                    placeholder="0"
+                    allowZero={false}
                   />
                 </div>
               </div>

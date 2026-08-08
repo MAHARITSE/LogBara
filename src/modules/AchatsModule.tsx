@@ -6,6 +6,7 @@ import { formatAr, today, nowTime, nextId, dateLabel, capitalize } from '../help
 import { printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import PhoneInput from '../components/PhoneInput';
+import MoneyInput from '../components/MoneyInput';
 
 interface Props { user: Personnel }
 
@@ -669,27 +670,25 @@ export default function AchatsModule({ user }: Props) {
                               />
                             </td>
                             <td className="px-2 py-2">
-                              <input
+                              <MoneyInput
                                 ref={el => { paRefs.current[i] = el; }}
-                                type="number"
-                                min="0"
                                 value={l.PRIX_ACHAT}
-                                onChange={e => updateLigne(i, 'PRIX_ACHAT', Number(e.target.value))}
+                                onChange={val => updateLigne(i, 'PRIX_ACHAT', val)}
                                 onKeyDown={e => handleGridKeyDown(e, i, 'pa')}
                                 onFocus={e => e.target.select()}
                                 className="w-full text-right border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                                placeholder="0"
                               />
                             </td>
                             <td className="px-2 py-2">
-                              <input
+                              <MoneyInput
                                 ref={el => { pvRefs.current[i] = el; }}
-                                type="number"
-                                min="0"
                                 value={l.PRIX_VENTE}
-                                onChange={e => updateLigne(i, 'PRIX_VENTE', Number(e.target.value))}
+                                onChange={val => updateLigne(i, 'PRIX_VENTE', val)}
                                 onKeyDown={e => handleGridKeyDown(e, i, 'pv')}
                                 onFocus={e => e.target.select()}
                                 className="w-full text-right border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                                placeholder="0"
                               />
                             </td>
                             <td className="px-3 py-2 text-right font-bold text-sm text-[#0D47A1]">{formatAr(lineTotal)}</td>
