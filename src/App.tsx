@@ -7,6 +7,7 @@ import DashboardModule from './modules/DashboardModule';
 import CaisseModule from './modules/CaisseModule';
 import TablesModule from './modules/TablesModule';
 import VentesModule from './modules/VentesModule';
+import PaiementsModule from './modules/PaiementsModule';
 import ClotureModule from './modules/ClotureModule';
 import ArticlesModule from './modules/ArticlesModule';
 import FamillesModule from './modules/FamillesModule';
@@ -94,6 +95,8 @@ function App() {
         return <TablesModule user={user} />;
       case 'ventes':
         return <VentesModule user={user} />;
+      case 'paiements':
+        return <PaiementsModule user={user} />;
       case 'cloture':
         return <ClotureModule user={user} />;
       case 'articles':

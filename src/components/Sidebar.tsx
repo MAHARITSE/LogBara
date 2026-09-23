@@ -1,5 +1,5 @@
 import { 
-  LayoutDashboard, ShoppingCart, UtensilsCrossed, Receipt, Calculator,
+  LayoutDashboard, ShoppingCart, UtensilsCrossed, Receipt, Calculator, Wallet,
   Package, Tag, Warehouse, ShoppingBag, ClipboardList, Truck, Users,
   UserCircle, CreditCard, Building2, HardDrive, LogOut, Menu, X, AlertTriangle
 } from 'lucide-react';
@@ -35,6 +35,7 @@ const menuGroups: { title?: string; items: MenuItem[] }[] = [
     title: 'Ventes & Finance',
     items: [
       { id: 'ventes', label: 'Ventes', icon: <Receipt size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
+      { id: 'paiements', label: 'Paiements', icon: <Wallet size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
       { id: 'cloture', label: 'Clôture', icon: <Calculator size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
       { id: 'credits', label: 'Crédits', icon: <CreditCard size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
     ]

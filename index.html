@@ -1,9 +1,33 @@
 <!doctype html>
 <html lang="fr">
   <head>
+    <script>
+      (function() {
+        try {
+          var currentFetch = window.fetch;
+          var patchTarget = function(obj) {
+            try {
+              Object.defineProperty(obj, 'fetch', {
+                configurable: true,
+                enumerable: true,
+                get: function() { return currentFetch; },
+                set: function(fn) { currentFetch = fn; }
+              });
+            } catch (e) {}
+          };
+          if (window.Window && window.Window.prototype) {
+            patchTarget(window.Window.prototype);
+          }
+          patchTarget(window);
+        } catch (err) {}
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bar POS v4.2 - Point de Vente</title>
+    <title>Bar POS - Point de Vente</title>
+    <meta name="description" content="Application de gestion de caisse, ventes, stock et clôtures pour Bar et Restaurant." />
+    <meta property="og:title" content="Bar POS - Point de Vente" />
+    <meta property="og:description" content="Application de gestion de caisse, ventes, stock et clôtures pour Bar et Restaurant." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍺</text></svg>">
   </head>
   <body>

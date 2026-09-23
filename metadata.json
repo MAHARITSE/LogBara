@@ -1,0 +1,5 @@
+{
+  "name": "Bar POS - Point de Vente",
+  "description": "Application de gestion de caisse, ventes, stock et clôtures pour Bar et Restaurant.",
+  "request_frame_permissions": []
+}

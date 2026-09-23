@@ -204,6 +204,6 @@ export interface CartItem {
 export type Role = 'Administrateur' | 'Gérant' | 'Caissier' | 'Serveur' | 'Magasinier';
 
 export type ModuleType = 
-  | 'dashboard' | 'caisse' | 'tables' | 'ventes' | 'cloture'
+  | 'dashboard' | 'caisse' | 'tables' | 'ventes' | 'paiements' | 'cloture'
   | 'articles' | 'familles' | 'stock' | 'achats' | 'inventaire'
   | 'fournisseurs' | 'personnel' | 'clients' | 'credits' | 'societe' | 'sauvegarde';

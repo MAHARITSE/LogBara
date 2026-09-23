@@ -56,49 +56,61 @@ const buildTicketHtml = (content: string) => {
 };
 
 /**
- * Impression DIRECTE : ouvre une fenêtre, lance window.print() automatiquement
- * puis ferme la fenêtre. Utilisé pour les tickets de caisse, tables, remboursements.
+ * Impression DIRECTE : ouvre une fenêtre avec aperçu et lance window.print()
+ * pour le choix de l'imprimante. Utilisé pour les tickets de caisse, tables, etc.
  *
- * Si l'option "Utiliser l'imprimante" est désactivée dans les paramètres société,
- * aucune impression ni aucun aperçu n'est ouvert : seule la notification
- * « Paiement enregistré » s'affiche au centre de l'interface.
+ * Si force est true (comme pour la clôture de caisse), l'aperçu et le choix d'imprimante
+ * s'ouvrent TOUJOURS, même si l'option "Utiliser l'imprimante" est désactivée dans la gestion société.
  */
-export const printTicket = (content: string) => {
+export const printTicket = (content: string, force: boolean = false) => {
   const societe = store.getSociete();
 
-  // Imprimante désactivée → pas d'impression, pas d'aperçu :
-  // uniquement la notification « Paiement enregistré » au centre de l'interface
-  if (!societe.UTILISER_IMPRIMANTE) {
+  // Si l'imprimante est désactivée ET que l'impression n'est pas forcée :
+  // afficher uniquement la notification d'enregistrement
+  if (!societe.UTILISER_IMPRIMANTE && !force) {
     globalToast('✓ Paiement enregistré', 'success', 3000, 'center');
     return;
   }
 
   const html = buildTicketHtml(content);
-  const printWindow = window.open('', '_blank', 'width=350,height=600');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.onload = () => {
-      printWindow.focus();
-      printWindow.print();
-      // Fermer après un délai pour laisser le dialogue d'impression se terminer
-      setTimeout(() => {
-        try { printWindow.close(); } catch (_) { /* ignore */ }
-      }, 1000);
-    };
+  try {
+    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+      };
+    } else {
+      globalToast('Aperçu bloqué par le navigateur', 'info');
+    }
+  } catch {
+    globalToast('Aperçu non disponible dans cet environnement', 'info');
   }
 };
 
 /**
  * Impression APERÇU : ouvre une fenêtre qui reste ouverte pour consultation.
- * L'utilisateur peut imprimer manuellement s'il le souhaite.
- * Utilisé pour clôture, factures, récap TCD, bons d'achat.
+ * L'utilisateur peut imprimer manuellement ou déclencher l'impression automatique.
  */
-export const printPreview = (content: string) => {
+export const printPreview = (content: string, autoPrint: boolean = false) => {
   const html = buildTicketHtml(content);
-  const printWindow = window.open('', '_blank', 'width=350,height=600');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
+  try {
+    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      if (autoPrint) {
+        printWindow.onload = () => {
+          printWindow.focus();
+          printWindow.print();
+        };
+      }
+    } else {
+      globalToast('Aperçu bloqué par le navigateur', 'info');
+    }
+  } catch {
+    globalToast('Aperçu non disponible dans cet environnement', 'info');
   }
 };

@@ -210,6 +210,10 @@ export default function PersonnelModule({ user: _user }: Props) {
                   value={form.LOGIN}
                   onChange={e => setForm({ ...form, LOGIN: e.target.value.toLowerCase() })}
                   className="w-full px-4 py-2.5 rounded-xl border"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
                 />
               </div>
 
@@ -220,6 +224,10 @@ export default function PersonnelModule({ user: _user }: Props) {
                   value={form.MOT_DE_PASSE}
                   onChange={e => setForm({ ...form, MOT_DE_PASSE: e.target.value })}
                   className="w-full px-4 py-2.5 rounded-xl border"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
                 />
               </div>
 

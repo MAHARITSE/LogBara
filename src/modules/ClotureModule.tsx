@@ -93,8 +93,8 @@ export default function ClotureModule({ user }: Props) {
     );
     const totalAchats = achatsJour.reduce((s, a) => s + a.TOTAL, 0);
 
-    // Espèces attendues
-    const especesAttendues = totalEspeces + totalRemboursements - totalAchats;
+    // Espèces attendues (versement) — sans déduire les achats du jour
+    const especesAttendues = totalEspeces + totalRemboursements;
 
     return {
       totalVentes,
@@ -203,6 +203,7 @@ export default function ClotureModule({ user }: Props) {
       <div class="row"><span>Mobile Money</span><span>${formatAr(cloture.TOTAL_MOBILE)}</span></div>
       <div class="row"><span>Credits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>
       ${cloture.TOTAL_REMBOURSEMENTS > 0 ? `<div class="row"><span>Remboursements</span><span>${formatAr(cloture.TOTAL_REMBOURSEMENTS)}</span></div>` : ''}
+      ${stats.totalAchats > 0 ? `<div class="row"><span>Achats du jour (info)</span><span>${formatAr(stats.totalAchats)}</span></div>` : ''}
       <div class="line"></div>
 
       <div class="row bold"><span>ESPECES ATTENDUES</span><span>${formatAr(cloture.TOTAL_ESPECES + cloture.TOTAL_REMBOURSEMENTS)}</span></div>
@@ -218,7 +219,7 @@ export default function ClotureModule({ user }: Props) {
       <div class="line"></div>
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
-    `);
+    `, true);
   };
 
   // Réutilisé par l'historique admin
@@ -296,10 +297,22 @@ export default function ClotureModule({ user }: Props) {
       <h1 className="text-2xl font-bold text-gray-900">🔒 Clôture de caisse</h1>
 
       {alreadyClosed ? (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
-          <Check size={48} className="mx-auto text-green-500 mb-4" />
-          <h2 className="text-xl font-bold text-green-700 mb-2">Caisse déjà clôturée</h2>
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center space-y-4">
+          <Check size={48} className="mx-auto text-green-500 mb-2" />
+          <h2 className="text-xl font-bold text-green-700">Caisse déjà clôturée</h2>
           <p className="text-green-600">Vous avez déjà effectué votre clôture aujourd'hui.</p>
+          {clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL) && (
+            <button
+              onClick={() => {
+                const todayCloture = clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL);
+                if (todayCloture) printClotureComplete(todayCloture);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0D47A1] text-white rounded-xl font-medium shadow-md hover:bg-[#0b3c88] transition-colors mt-2"
+            >
+              <Printer size={18} />
+              Imprimer le ticket de clôture
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -387,8 +400,8 @@ export default function ClotureModule({ user }: Props) {
 
               {stats.totalAchats > 0 && (
                 <div className="flex justify-between py-2 border-b border-gray-100">
-                  <span className="text-gray-600">🛒 Achats du jour</span>
-                  <span className="font-semibold text-red-500">-{formatAr(stats.totalAchats)}</span>
+                  <span className="text-gray-600">🛒 Achats du jour <span className="text-xs text-amber-600 font-medium">(non déduit du versement)</span></span>
+                  <span className="font-semibold text-gray-800">{formatAr(stats.totalAchats)}</span>
                 </div>
               )}
             </div>
