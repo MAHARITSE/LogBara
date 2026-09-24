@@ -3,7 +3,7 @@ import { Search, Calendar, Filter, Eye, Printer, X, Wallet, DollarSign, Smartpho
 import { store } from '../store';
 import { Personnel, Paiement, Vente } from '../types';
 import { formatAr, dateLabel, today } from '../helpers';
-import { printPreview } from '../components/PrintTicket';
+import { printTicket } from '../components/PrintTicket';
 
 interface Props {
   user: Personnel;
@@ -126,7 +126,7 @@ export default function PaiementsModule({ user }: Props) {
       <div class="center italic mt-2">Merci pour votre confiance !</div>
     `;
 
-    printPreview(htmlContent);
+    printTicket(htmlContent, true);
   };
 
   return (
@@ -160,7 +160,7 @@ export default function PaiementsModule({ user }: Props) {
                 </tr>`;
               }).join('');
 
-              printPreview(`
+              printTicket(`
                 <div class="center bold">RAPPORT DES PAIEMENTS</div>
                 <div class="center">${dateFilter ? `Date: ${dateFilter}` : 'Toutes les dates'} - Mode: ${modeFilter}</div>
                 <div class="line"></div>
@@ -170,7 +170,7 @@ export default function PaiementsModule({ user }: Props) {
                 </table>
                 <div class="line"></div>
                 <div class="row bold"><span>TOTAL ENCAISSÉ</span><span>${formatAr(stats.totalEncaisse)}</span></div>
-              `);
+              `, true);
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl font-medium text-gray-700 shadow-sm transition-all"
           >
@@ -407,8 +407,8 @@ export default function PaiementsModule({ user }: Props) {
         const clientNom = getClientNom(p);
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedPaiement(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
               <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-lg">Paiement #{p.IDPAIEMENT}</h3>

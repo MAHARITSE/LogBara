@@ -21,6 +21,7 @@ import CreditsModule from './modules/CreditsModule';
 import InventaireModule from './modules/InventaireModule';
 import SauvegardeModule from './modules/SauvegardeModule';
 import { Package } from 'lucide-react';
+import MobileBottomNav from './components/MobileBottomNav';
 
 function App() {
   const [user, setUser] = useState<Personnel | null>(null);
@@ -114,6 +115,9 @@ function App() {
       case 'clients':
         return <ClientsModule user={user} />;
       case 'credits':
+        if (user.ROLE !== 'Administrateur') {
+          return <CaisseModule user={user} />;
+        }
         return <CreditsModule user={user} />;
       case 'personnel':
         return <PersonnelModule user={user} />;
@@ -146,12 +150,21 @@ function App() {
       />
       
       {/* Main content */}
-      <main className="lg:ml-64 min-h-screen">
-        <div className="lg:hidden h-16" /> {/* Spacer for mobile header */}
-        <div className="p-4 lg:p-6">
+      <main className="lg:ml-64 min-h-screen flex flex-col">
+        {/* Spacer for mobile fixed header */}
+        <div className="lg:hidden h-14 shrink-0" />
+        <div className="flex-1 p-2.5 sm:p-4 lg:p-6 pb-20 lg:pb-6">
           {renderModule()}
         </div>
       </main>
+
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <MobileBottomNav
+        user={user}
+        activeModule={activeModule}
+        onModuleChange={handleModuleChange}
+        onOpenMenu={() => setMobileOpen(true)}
+      />
     </div>
   );
 }

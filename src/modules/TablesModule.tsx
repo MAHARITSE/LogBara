@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Plus, Users, Trash2, CreditCard, X, Eye, UserPlus, Minus, RotateCcw } from 'lucide-react';
+import { Plus, Users, Trash2, Wallet, X, Eye, Minus, RotateCcw } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, TableR, CartItem, Client } from '../types';
-import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
-import { printTicket, printPreview } from '../components/PrintTicket';
+import { Personnel, TableR, CartItem } from '../types';
+import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
+import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
-import PhoneInput from '../components/PhoneInput';
 import MoneyInput from '../components/MoneyInput';
 
 interface Props { user: Personnel }
@@ -34,19 +33,15 @@ export default function TablesModule({ user }: Props) {
   const [formDescription, setFormDescription] = useState('');
   const [formPlaces, setFormPlaces] = useState(4);
 
-  const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Crédit' | 'Mixte'>('Espèces');
-  const [selectedClient, setSelectedClient] = useState<number | null>(null);
+  const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Mixte'>('Espèces');
   const [remise, setRemise] = useState(0);
-
-  const [showNewClient, setShowNewClient] = useState(false);
-  const [newClientForm, setNewClientForm] = useState({ NOM_CLIENT: '', TELEPHONE: '' });
+  const [tableFilter, setTableFilter] = useState<'all' | 'occupee' | 'libre'>('all');
 
   const isAdmin = user.ROLE === 'Administrateur';
   const canEncaisser = user.ROLE === 'Gérant' || user.ROLE === 'Caissier';
 
   const consommations = useMemo(() => store.getConsommations(), [rk]);
   const articles = store.getArticles();
-  const clients = useMemo(() => store.getClients(), [rk]);
   const personnel = store.getPersonnel();
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
@@ -145,20 +140,6 @@ export default function TablesModule({ user }: Props) {
     setConfirmDelete(null); refresh(); showMsg('Table supprimée');
   };
 
-  const handleCreateClient = () => {
-    if (!newClientForm.NOM_CLIENT.trim()) { showMsg('Nom obligatoire'); return; }
-    const list = store.getClients();
-    const newC: Client = {
-      IDCLIENT: nextId(list, 'IDCLIENT'),
-      NOM_CLIENT: capitalize(newClientForm.NOM_CLIENT.trim()),
-      TELEPHONE: newClientForm.TELEPHONE, ADRESSE: '', CREDIT_TOTAL: 0, DATE_CREATION: today(),
-    };
-    store.setClients([...list, newC]);
-    setSelectedClient(newC.IDCLIENT);
-    setShowNewClient(false); setNewClientForm({ NOM_CLIENT: '', TELEPHONE: '' });
-    refresh(); showMsg('Client créé');
-  };
-
   const handlePayment = () => {
     if (!selectedTable) return;
     const items = getTableItems(selectedTable.IDTABLE);
@@ -189,14 +170,8 @@ export default function TablesModule({ user }: Props) {
     const newPaiements = [{
       IDPAIEMENT: idPaiement, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente,
       IDPERSONNEL: user.IDPERSONNEL, MONTANT: netAPayer,
-      MODE_PAIEMENT: paymentMode === 'Crédit' ? 'Crédit' as const : paymentMode as 'Espèces' | 'Mobile Money',
-      IDCLIENT: paymentMode === 'Crédit' ? selectedClient || undefined : undefined,
+      MODE_PAIEMENT: paymentMode as 'Espèces' | 'Mobile Money' | 'Mixte',
     }];
-
-    if (paymentMode === 'Crédit' && selectedClient) {
-      const cl = store.getClients();
-      store.setClients(cl.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + netAPayer } : c));
-    }
 
     const updatedArticles = articlesList.map(a => {
       const item = items.find(c => c.IDARTICLE === a.IDARTICLE);
@@ -223,9 +198,9 @@ export default function TablesModule({ user }: Props) {
       <div class="line"></div>
       ${remise > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(remise)}</span></div>` : ''}
       <div class="row bold"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
-    `);
+    `, false, user.IDPERSONNEL);
 
-    setShowPayment(false); setSelectedTable(null); setRemise(0); setPaymentMode('Espèces'); setSelectedClient(null); setShowNewClient(false);
+    setShowPayment(false); setSelectedTable(null); setRemise(0); setPaymentMode('Espèces');
     refresh(); showMsg('Table encaissée !');
   };
 
@@ -234,7 +209,7 @@ export default function TablesModule({ user }: Props) {
     const total = getTableTotal(table.IDTABLE);
     const caissier = personnel.find(p => p.IDPERSONNEL === table.IDCAISSIER);
     const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
-    printPreview(`
+    printTicket(`
       <div class="center bold">SUIVI TABLE</div>
       <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
       <div>Table: ${table.DESCRIPTION}</div>
@@ -243,7 +218,7 @@ export default function TablesModule({ user }: Props) {
       <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(total)}</span></div>
-    `);
+    `, true);
   };
 
   const visibleTables = tables.filter(t => {
@@ -251,64 +226,127 @@ export default function TablesModule({ user }: Props) {
     return t.ETAT === 'Libre' || t.IDCAISSIER === user.IDPERSONNEL;
   });
 
-  return (
-    <div className="space-y-6">
-      {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
+  const filteredTables = visibleTables.filter(t => {
+    if (tableFilter === 'occupee') return t.ETAT === 'Occupée';
+    if (tableFilter === 'libre') return t.ETAT === 'Libre';
+    return true;
+  });
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">🍽️ Tables</h1>
+  const countOccupees = visibleTables.filter(t => t.ETAT === 'Occupée').length;
+  const countLibres = visibleTables.filter(t => t.ETAT === 'Libre').length;
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse font-medium">{toast}</div>}
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">🍽️ Tables</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Gestion du service en salle & encaissement</p>
+        </div>
         {isAdmin && (
-          <button onClick={() => { setFormNumero(tables.length + 1); setShowForm(true); }} className="bg-[#0D47A1] text-white px-4 py-2.5 rounded-xl flex items-center gap-2 font-medium hover:bg-[#1565C0]">
-            <Plus size={18} /> Ajouter table
+          <button onClick={() => { setFormNumero(tables.length + 1); setShowForm(true); }} className="bg-[#0D47A1] text-white px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-semibold hover:bg-[#1565C0] min-h-[44px] active:scale-95 transition-transform shadow-xs">
+            <Plus size={18} /> Ajouter une table
           </button>
         )}
       </div>
 
+      {/* Filtres de statut de table */}
+      <div className="flex gap-2 pb-1 overflow-x-auto whitespace-nowrap scrollbar-none">
+        <button 
+          onClick={() => setTableFilter('all')}
+          className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] ${
+            tableFilter === 'all' ? 'bg-[#0D47A1] text-white shadow-xs' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+          }`}
+        >
+          Toutes ({visibleTables.length})
+        </button>
+        <button 
+          onClick={() => setTableFilter('occupee')}
+          className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] flex items-center gap-1.5 ${
+            tableFilter === 'occupee' ? 'bg-red-600 text-white shadow-xs' : 'bg-white text-red-600 hover:bg-red-50 border border-red-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-red-500" />
+          Occupées ({countOccupees})
+        </button>
+        <button 
+          onClick={() => setTableFilter('libre')}
+          className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] flex items-center gap-1.5 ${
+            tableFilter === 'libre' ? 'bg-green-600 text-white shadow-xs' : 'bg-white text-green-700 hover:bg-green-50 border border-green-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-green-500" />
+          Libres ({countLibres})
+        </button>
+      </div>
+
       {/* Grille des tables */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {visibleTables.map(table => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+        {filteredTables.map(table => {
           const total = getTableTotal(table.IDTABLE);
           const caissier = personnel.find(p => p.IDPERSONNEL === table.IDCAISSIER);
           const isOccupied = table.ETAT === 'Occupée';
           const canManage = canEncaisser && (user.ROLE === 'Gérant' || table.IDCAISSIER === user.IDPERSONNEL);
 
           return (
-            <div key={table.IDTABLE} className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden transition-all ${isOccupied ? 'border-red-300' : 'border-green-300'}`}>
+            <div key={table.IDTABLE} className={`bg-white rounded-2xl shadow-xs border-2 overflow-hidden transition-all ${isOccupied ? 'border-red-300' : 'border-green-300'}`}>
               <div className={`px-4 py-3 ${isOccupied ? 'bg-red-50' : 'bg-green-50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className="font-bold">Table {table.NUMERO}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${isOccupied ? 'bg-red-200 text-red-700' : 'bg-green-200 text-green-700'}`}>{table.ETAT}</span>
+                  <span className="font-extrabold text-base text-gray-900">Table {table.NUMERO}</span>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${isOccupied ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'}`}>{table.ETAT}</span>
                 </div>
-                <p className="text-sm text-gray-500">{table.DESCRIPTION}</p>
+                <p className="text-xs sm:text-sm text-gray-600 font-medium truncate mt-0.5">{table.DESCRIPTION}</p>
               </div>
-              <div className="p-4">
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-3"><Users size={16} /><span>{table.PLACES} places</span></div>
+              <div className="p-3.5 sm:p-4">
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 mb-2 font-medium">
+                  <Users size={16} />
+                  <span>{table.PLACES} places</span>
+                </div>
                 {isOccupied && (
-                  <>
-                    <p className="text-xl font-bold text-[#0D47A1] mb-2">{formatAr(total)}</p>
-                    {caissier && <p className="text-xs text-gray-400 mb-2">Par: {caissier.PRENOM}</p>}
-                  </>
+                  <div className="mb-2">
+                    <p className="text-xl sm:text-2xl font-extrabold text-[#0D47A1] tabular-nums">{formatAr(total)}</p>
+                    {caissier && <p className="text-xs text-gray-500 font-medium mt-0.5">Par : {caissier.PRENOM}</p>}
+                  </div>
                 )}
-                <div className="flex gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-gray-100">
                   {isOccupied && (
-                    <button onClick={() => printTablePreview(table)} className="py-2 px-3 rounded-lg bg-gray-100 text-gray-600 text-sm hover:bg-gray-200 flex items-center justify-center" title="Aperçu">
-                      <Eye size={14} />
+                    <button 
+                      onClick={() => printTablePreview(table)} 
+                      className="py-2.5 px-3 min-h-[44px] min-w-[44px] rounded-xl bg-gray-100 text-gray-700 text-sm hover:bg-gray-200 flex items-center justify-center active:scale-95 transition-transform" 
+                      title="Aperçu ticket"
+                      aria-label="Aperçu ticket"
+                    >
+                      <Eye size={18} />
                     </button>
                   )}
                   {/* Bouton RETOUR sur la carte de table */}
                   {isOccupied && canManage && (
-                    <button onClick={() => openReturn(table)} className="py-2 px-3 rounded-lg bg-orange-100 text-orange-600 text-sm hover:bg-orange-200 flex items-center justify-center gap-1" title="Retour articles">
-                      <RotateCcw size={14} />
+                    <button 
+                      onClick={() => openReturn(table)} 
+                      className="py-2.5 px-3 min-h-[44px] min-w-[44px] rounded-xl bg-orange-100 text-orange-700 text-sm hover:bg-orange-200 flex items-center justify-center gap-1 active:scale-95 transition-transform" 
+                      title="Retour articles"
+                      aria-label="Retour articles"
+                    >
+                      <RotateCcw size={18} />
                     </button>
                   )}
                   {isOccupied && canManage && (
-                    <button onClick={() => openPayment(table)} className="flex-1 py-2 px-3 rounded-lg bg-green-500 text-white text-sm hover:bg-green-600 flex items-center justify-center gap-1">
-                      <CreditCard size={14} /> Payer
+                    <button 
+                      onClick={() => openPayment(table)} 
+                      className="flex-1 py-2.5 px-3 min-h-[44px] rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                    >
+                      <Wallet size={16} />
+                      <span>Payer</span>
                     </button>
                   )}
                   {isAdmin && !isOccupied && (
-                    <button onClick={() => setConfirmDelete(table)} className="flex-1 py-2 px-3 rounded-lg bg-red-100 text-red-600 text-sm hover:bg-red-200 flex items-center justify-center gap-1">
-                      <Trash2 size={14} />
+                    <button 
+                      onClick={() => setConfirmDelete(table)} 
+                      className="flex-1 py-2.5 px-3 min-h-[44px] rounded-xl bg-red-50 text-red-600 font-semibold text-xs hover:bg-red-100 flex items-center justify-center gap-1 active:scale-95"
+                    >
+                      <Trash2 size={16} />
+                      <span>Supprimer</span>
                     </button>
                   )}
                 </div>
@@ -317,32 +355,37 @@ export default function TablesModule({ user }: Props) {
           );
         })}
       </div>
-      {visibleTables.length === 0 && <div className="text-center py-12 text-gray-400">Aucune table</div>}
+      {filteredTables.length === 0 && (
+        <div className="text-center py-12 text-gray-400 bg-white rounded-2xl border border-gray-100">
+          <p className="font-medium">Aucune table dans cette catégorie</p>
+        </div>
+      )}
 
       {/* ===== MODAL RETOUR D'ARTICLES ===== */}
       {showReturn && returnTable && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowReturn(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-orange-500 text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg flex items-center gap-2"><RotateCcw size={20} /> Retour — {returnTable.DESCRIPTION}</h3>
-              <button onClick={() => setShowReturn(false)}><X size={20} /></button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+            <div className="bg-orange-500 text-white px-5 py-4 flex items-center justify-between shrink-0">
+              <h3 className="font-bold text-base sm:text-lg flex items-center gap-2"><RotateCcw size={20} /> Retour — {returnTable.DESCRIPTION}</h3>
+              <button onClick={() => setShowReturn(false)} className="p-1 rounded-lg hover:bg-white/20"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-500">Sélectionnez les articles à retourner. Le stock ne sera pas affecté (les articles n'avaient pas encore été facturés).</p>
-              <div className="space-y-3">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
+              <p className="text-xs sm:text-sm text-gray-500">Sélectionnez les articles à retourner. Le stock ne sera pas affecté (les articles n'avaient pas encore été facturés).</p>
+              <div className="space-y-2.5">
                 {returnItems.map(item => (
                   <div key={item.IDARTICLE} className={`flex items-center justify-between p-3 rounded-xl border ${item.QUANTITE_RETOUR > 0 ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <span className="text-xl">{item.EMOJI || '📦'}</span>
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <span className="text-xl shrink-0">{item.EMOJI || '📦'}</span>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{item.NOM}</p>
-                        <p className="text-xs text-gray-400">Servi: {item.QUANTITE_ACTUELLE}</p>
+                        <p className="font-semibold text-sm truncate text-gray-900">{item.NOM}</p>
+                        <p className="text-xs text-gray-500 font-medium">Servi : {item.QUANTITE_ACTUELLE}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => updateReturnQty(item.IDARTICLE, -1)} disabled={item.QUANTITE_RETOUR === 0} className="w-8 h-8 rounded-lg border flex items-center justify-center hover:bg-gray-100 disabled:opacity-30"><Minus size={14} /></button>
-                      <span className={`font-bold w-8 text-center text-lg ${item.QUANTITE_RETOUR > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{item.QUANTITE_RETOUR}</span>
-                      <button onClick={() => updateReturnQty(item.IDARTICLE, 1)} disabled={item.QUANTITE_RETOUR >= item.QUANTITE_ACTUELLE} className="w-8 h-8 rounded-lg border flex items-center justify-center hover:bg-gray-100 disabled:opacity-30"><Plus size={14} /></button>
+                      <button onClick={() => updateReturnQty(item.IDARTICLE, -1)} disabled={item.QUANTITE_RETOUR === 0} className="w-9 h-9 rounded-xl border bg-white flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 active:scale-95 shadow-xs"><Minus size={16} /></button>
+                      <span className={`font-bold w-7 text-center text-base tabular-nums ${item.QUANTITE_RETOUR > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{item.QUANTITE_RETOUR}</span>
+                      <button onClick={() => updateReturnQty(item.IDARTICLE, 1)} disabled={item.QUANTITE_RETOUR >= item.QUANTITE_ACTUELLE} className="w-9 h-9 rounded-xl border bg-white flex items-center justify-center hover:bg-gray-100 disabled:opacity-30 active:scale-95 shadow-xs"><Plus size={16} /></button>
                     </div>
                   </div>
                 ))}
@@ -350,9 +393,9 @@ export default function TablesModule({ user }: Props) {
 
               {returnItems.some(i => i.QUANTITE_RETOUR > 0) && (
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-                  <p className="text-sm font-semibold text-orange-700 mb-1">Résumé des retours :</p>
+                  <p className="text-xs sm:text-sm font-bold text-orange-800 mb-1">Résumé des retours :</p>
                   {returnItems.filter(i => i.QUANTITE_RETOUR > 0).map(i => (
-                    <p key={i.IDARTICLE} className="text-sm text-orange-600">↩ {i.QUANTITE_RETOUR}x {i.NOM}</p>
+                    <p key={i.IDARTICLE} className="text-xs sm:text-sm text-orange-700 font-medium">↩ {i.QUANTITE_RETOUR}x {i.NOM}</p>
                   ))}
                 </div>
               )}
@@ -360,7 +403,7 @@ export default function TablesModule({ user }: Props) {
               <button
                 onClick={confirmReturn}
                 disabled={!returnItems.some(i => i.QUANTITE_RETOUR > 0)}
-                className="w-full bg-orange-500 text-white py-3.5 rounded-xl font-bold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-orange-500 text-white py-3.5 rounded-xl font-bold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-[48px] active:scale-[0.98] shadow-sm transition-all"
               >
                 <RotateCcw size={18} />
                 Confirmer le retour
@@ -372,86 +415,92 @@ export default function TablesModule({ user }: Props) {
 
       {/* ===== MODAL CRÉATION TABLE ===== */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between"><h3 className="font-bold text-lg">🍽️ Nouvelle table</h3><button onClick={() => setShowForm(false)}><X size={20} /></button></div>
-            <div className="p-6 space-y-4">
-              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Numéro</label><input type="number" value={formNumero} onChange={e => setFormNumero(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border" min={1} /></div>
-              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Description *</label><input type="text" value={formDescription} onChange={e => setFormDescription(capitalize(e.target.value))} placeholder="Ex: Terrasse 1, VIP..." className="w-full px-4 py-2.5 rounded-xl border" /></div>
-              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Nombre de places</label><input type="number" value={formPlaces} onChange={e => setFormPlaces(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border" min={1} /></div>
-              <button onClick={handleCreateTable} className="w-full bg-[#0D47A1] text-white py-3 rounded-xl font-bold hover:bg-[#1565C0]">Créer la table</button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+            <div className="bg-[#0D47A1] text-white px-5 py-4 flex items-center justify-between shrink-0">
+              <h3 className="font-bold text-base sm:text-lg">🍽️ Nouvelle table</h3>
+              <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-white/20"><X size={20} /></button>
+            </div>
+            <div className="p-5 sm:p-6 space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-gray-700 mb-1 block">Numéro</label>
+                <input type="number" value={formNumero} onChange={e => setFormNumero(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-[#0D47A1]" min={1} />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-700 mb-1 block">Description *</label>
+                <input type="text" value={formDescription} onChange={e => setFormDescription(capitalize(e.target.value))} placeholder="Ex: Salle 1, Terrasse VIP..." className="w-full px-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-[#0D47A1]" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-gray-700 mb-1 block">Nombre de places</label>
+                <input type="number" value={formPlaces} onChange={e => setFormPlaces(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border text-sm focus:ring-2 focus:ring-[#0D47A1]" min={1} />
+              </div>
+              <button onClick={handleCreateTable} className="w-full bg-[#0D47A1] text-white py-3.5 rounded-xl font-bold hover:bg-[#1565C0] min-h-[48px] active:scale-[0.98] shadow-sm transition-all">Créer la table</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== MODAL PAIEMENT (simple) + ajout client ===== */}
+      {/* ===== MODAL PAIEMENT (simple) ===== */}
       {showPayment && selectedTable && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowPayment(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg">💳 Encaisser {selectedTable.DESCRIPTION}</h3>
-              <button onClick={() => setShowPayment(false)}><X size={20} /></button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+            <div className="bg-[#0D47A1] text-white px-5 py-4 flex items-center justify-between shrink-0">
+              <h3 className="font-bold text-base sm:text-lg">💰 Encaisser {selectedTable.DESCRIPTION}</h3>
+              <button onClick={() => setShowPayment(false)} className="p-1 rounded-lg hover:bg-white/20"><X size={20} /></button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h4 className="font-medium mb-3">Consommations</h4>
-                <div className="space-y-2">
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                <h4 className="font-semibold text-xs text-gray-500 uppercase tracking-wider mb-2">Consommations en cours</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
                   {getTableItems(selectedTable.IDTABLE).map(item => (
-                    <div key={item.IDARTICLE} className="flex justify-between text-sm">
-                      <span>{item.EMOJI} {item.QUANTITE}x {item.NOM}</span>
-                      <span className="font-medium">{formatAr(item.QUANTITE * item.PRIX_UNITAIRE)}</span>
+                    <div key={item.IDARTICLE} className="flex justify-between text-sm py-1 border-b border-gray-200/50 last:border-0">
+                      <span className="font-medium text-gray-800">{item.EMOJI} {item.QUANTITE}x {item.NOM}</span>
+                      <span className="font-bold tabular-nums text-gray-900">{formatAr(item.QUANTITE * item.PRIX_UNITAIRE)}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Remise</label>
+                <label className="text-sm font-semibold text-gray-700 mb-1 block">Remise</label>
                 <MoneyInput
                   value={remise}
                   onChange={val => setRemise(Math.max(0, val))}
-                  className="w-full px-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+                  className="w-full px-4 py-2.5 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-[#0D47A1]"
                   placeholder="0"
                 />
               </div>
 
-              <div className="bg-[#0D47A1] text-white rounded-xl p-4 text-center">
-                <p className="text-sm opacity-80">Net à payer</p>
-                <p className="text-3xl font-bold">{formatAr(getTableTotal(selectedTable.IDTABLE) - remise)}</p>
+              <div className="bg-[#0D47A1] text-white rounded-xl p-4 text-center shadow-xs">
+                <p className="text-xs uppercase tracking-wider opacity-80">Net à payer</p>
+                <p className="text-2xl sm:text-3xl font-extrabold mt-0.5 tabular-nums">{formatAr(getTableTotal(selectedTable.IDTABLE) - remise)}</p>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Mode de paiement</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['Espèces', 'Mobile Money', 'Crédit', 'Mixte'] as const).map(m => (
-                    <button key={m} onClick={() => setPaymentMode(m)} className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${paymentMode === m ? 'bg-[#0D47A1] text-white' : 'bg-gray-100 text-gray-600'}`}>{m}</button>
+                <label className="text-sm font-semibold text-gray-700 mb-2 block">Mode de paiement</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Espèces', 'Mobile Money', 'Mixte'] as const).map(m => (
+                    <button 
+                      key={m} 
+                      onClick={() => setPaymentMode(m)} 
+                      className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[44px] transition-all ${
+                        paymentMode === m ? 'bg-[#0D47A1] text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {m}
+                    </button>
                   ))}
                 </div>
               </div>
 
-              {paymentMode === 'Crédit' && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Client</label>
-                  <div className="flex gap-2">
-                    <select value={selectedClient || ''} onChange={e => setSelectedClient(Number(e.target.value) || null)} className="flex-1 px-4 py-2.5 rounded-xl border">
-                      <option value="">-- Sélectionner --</option>
-                      {clients.map(c => <option key={c.IDCLIENT} value={c.IDCLIENT}>{c.NOM_CLIENT} ({formatAr(c.CREDIT_TOTAL)})</option>)}
-                    </select>
-                    <button type="button" onClick={() => setShowNewClient(!showNewClient)} className={`p-2.5 rounded-xl border ${showNewClient ? 'bg-green-50 border-green-500 text-green-600' : 'hover:bg-gray-50'}`} title="Nouveau client"><UserPlus size={18} /></button>
-                  </div>
-                  {showNewClient && (
-                    <div className="mt-3 p-4 bg-green-50 rounded-xl border border-green-200 space-y-3">
-                      <p className="text-sm font-medium text-green-700 flex items-center gap-2"><UserPlus size={16} /> Nouveau client</p>
-                      <input type="text" placeholder="Nom du client *" value={newClientForm.NOM_CLIENT} onChange={e => setNewClientForm({ ...newClientForm, NOM_CLIENT: capitalize(e.target.value) })} className="w-full px-3 py-2 rounded-lg border text-sm" />
-                      <PhoneInput value={newClientForm.TELEPHONE} onChange={v => setNewClientForm({ ...newClientForm, TELEPHONE: v })} placeholder="034 00 000 00" className="text-sm py-2" />
-                      <button type="button" onClick={handleCreateClient} className="w-full bg-green-500 text-white py-2 rounded-lg font-medium text-sm hover:bg-green-600">Créer le client</button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button onClick={handlePayment} disabled={(paymentMode === 'Crédit' && !selectedClient)} className="w-full bg-green-500 text-white py-4 rounded-xl font-bold hover:bg-green-600 disabled:opacity-50">✅ Valider le paiement</button>
+              <button 
+                onClick={handlePayment} 
+                className="w-full bg-green-600 text-white py-4 rounded-xl font-extrabold text-base hover:bg-green-700 transition-colors min-h-[48px] active:scale-[0.98] shadow-md"
+              >
+                ✅ Valider le paiement
+              </button>
             </div>
           </div>
         </div>

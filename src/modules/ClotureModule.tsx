@@ -161,14 +161,20 @@ export default function ClotureModule({ user }: Props) {
     printClotureComplete(newCloture);
   };
 
-  // Ticket unique : clôture + récap ventes par article
+  // Ticket unique : clôture + récap ventes par article (+ achats du jour sur page séparée)
   const printClotureComplete = (cloture: typeof clotures[0]) => {
-    // Récap par article
     const freshVentes = store.getVentes();
     const allArticles = store.getArticles();
     const allLignes = store.getLignesVente();
+    const allAchats = store.getAchats();
+    const allFournisseurs = store.getFournisseurs();
+    const allPersonnel = store.getPersonnel();
+
+    const caissier = allPersonnel.find(p => p.IDPERSONNEL === cloture.IDPERSONNEL) || user;
+
+    // Ventes et récap par article
     const ventesJour = freshVentes.filter(
-      v => v.DATE_VENTE === today() && v.IDPERSONNEL === user.IDPERSONNEL && v.STATUT === 'Payée'
+      v => v.DATE_VENTE === cloture.DATE_CLOTURE && (v.IDCLOTURE === cloture.IDCLOTURE || v.IDPERSONNEL === cloture.IDPERSONNEL) && v.STATUT === 'Payée'
     );
     const lignesJour = allLignes.filter(l => ventesJour.some(v => v.IDVENTE === l.IDVENTE));
 
@@ -187,10 +193,40 @@ export default function ClotureModule({ user }: Props) {
     const totalQte = Object.values(tcd).reduce((s, r) => s + r.qte, 0);
     const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
 
+    // Achats du jour
+    const achatsCloture = allAchats.filter(
+      a => a.IDCLOTURE === cloture.IDCLOTURE || (a.DATE_ACHAT === cloture.DATE_CLOTURE && (a.IDPERSONNEL ? a.IDPERSONNEL === cloture.IDPERSONNEL : true))
+    );
+    const totalAchatsMontant = achatsCloture.reduce((sum, a) => sum + a.TOTAL, 0);
+
+    let achatsSection = '';
+    if (achatsCloture.length > 0) {
+      const achatsRows = achatsCloture.map(a => {
+        const fourn = allFournisseurs.find(f => f.IDFOURNISSEUR === a.IDFOURNISSEUR);
+        const nomFourn = fourn ? fourn.NOM : (a.OBSERVATION || 'Direct');
+        return `<tr><td>${a.REFERENCE}</td><td>${nomFourn}</td><td class="right bold">${formatAr(a.TOTAL)}</td></tr>`;
+      }).join('');
+
+      achatsSection = `
+        <div class="page-break">
+          <div class="center bold">ACHATS DU JOUR</div>
+          <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
+          <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
+          <div class="line"></div>
+          <table>
+            <tr><td class="bold">Réf.</td><td class="bold">Fournisseur</td><td class="bold right">Montant</td></tr>
+            ${achatsRows}
+          </table>
+          <div class="line"></div>
+          <div class="row bold"><span>TOTAL ACHATS</span><span>${formatAr(totalAchatsMontant)}</span></div>
+        </div>
+      `;
+    }
+
     printTicket(`
       <div class="center bold">CLOTURE DE CAISSE</div>
       <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
-      <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
+      <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
       <div class="line"></div>
 
       <div class="row"><span>Nombre de ventes</span><span>${cloture.NB_VENTES}</span></div>
@@ -201,9 +237,9 @@ export default function ClotureModule({ user }: Props) {
       <div class="bold">Detail des paiements:</div>
       <div class="row"><span>Especes</span><span>${formatAr(cloture.TOTAL_ESPECES)}</span></div>
       <div class="row"><span>Mobile Money</span><span>${formatAr(cloture.TOTAL_MOBILE)}</span></div>
-      <div class="row"><span>Credits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>
+      ${cloture.TOTAL_CREDIT > 0 ? `<div class="row"><span>Credits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>` : ''}
       ${cloture.TOTAL_REMBOURSEMENTS > 0 ? `<div class="row"><span>Remboursements</span><span>${formatAr(cloture.TOTAL_REMBOURSEMENTS)}</span></div>` : ''}
-      ${stats.totalAchats > 0 ? `<div class="row"><span>Achats du jour (info)</span><span>${formatAr(stats.totalAchats)}</span></div>` : ''}
+      ${totalAchatsMontant > 0 ? `<div class="row"><span>Achats du jour</span><span>${formatAr(totalAchatsMontant)}</span></div>` : ''}
       <div class="line"></div>
 
       <div class="row bold"><span>ESPECES ATTENDUES</span><span>${formatAr(cloture.TOTAL_ESPECES + cloture.TOTAL_REMBOURSEMENTS)}</span></div>
@@ -219,6 +255,7 @@ export default function ClotureModule({ user }: Props) {
       <div class="line"></div>
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
+      ${achatsSection}
     `, true);
   };
 
@@ -235,7 +272,57 @@ export default function ClotureModule({ user }: Props) {
 
         <h1 className="text-2xl font-bold text-gray-900">📜 Historique des clôtures</h1>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Vue mobile des clôtures */}
+        <div className="md:hidden space-y-3">
+          {clotures.sort((a, b) => b.IDCLOTURE - a.IDCLOTURE).map(c => {
+            const caissier = store.getPersonnel().find(p => p.IDPERSONNEL === c.IDPERSONNEL);
+            return (
+              <div key={c.IDCLOTURE} className="bg-white rounded-2xl p-4 shadow-xs border border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-extrabold text-sm text-gray-900">{caissier?.PRENOM} {caissier?.NOM}</span>
+                    <p className="text-xs text-gray-500 font-medium">{c.DATE_CLOTURE} · {c.HEURE}</p>
+                  </div>
+                  <button
+                    onClick={() => printCloture(c)}
+                    className="p-2 min-h-[38px] min-w-[38px] rounded-xl bg-blue-50 text-[#0D47A1] hover:bg-blue-100 flex items-center justify-center active:scale-95"
+                    title="Imprimer"
+                  >
+                    <Printer size={18} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                  <div>
+                    <span className="text-gray-500">Ventes : </span>
+                    <span className="font-bold text-gray-900">{formatAr(c.TOTAL_VENTES)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Espèces : </span>
+                    <span className="font-bold text-green-700">{formatAr(c.TOTAL_ESPECES)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Mobile : </span>
+                    <span className="font-bold text-blue-700">{formatAr(c.TOTAL_MOBILE)}</span>
+                  </div>
+                  {c.TOTAL_REMISES > 0 && (
+                    <div>
+                      <span className="text-gray-500">Remises : </span>
+                      <span className="font-bold text-red-600">-{formatAr(c.TOTAL_REMISES)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {clotures.length === 0 && (
+            <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-100">
+              Aucune clôture
+            </div>
+          )}
+        </div>
+
+        {/* Vue desktop des clôtures */}
+        <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -362,21 +449,25 @@ export default function ClotureModule({ user }: Props) {
                 <span className="font-semibold">{formatAr(stats.totalMobile)}</span>
               </div>
               
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-600">📝 Crédits</span>
-                <span className="font-semibold">{formatAr(stats.totalCredit)}</span>
-              </div>
+              {stats.totalCredit > 0 && (
+                <>
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">📝 Crédits</span>
+                    <span className="font-semibold">{formatAr(stats.totalCredit)}</span>
+                  </div>
 
-              {stats.creditDetails.length > 0 && (
-                <div className="bg-gray-50 rounded-lg p-3 mt-2">
-                  <p className="text-xs text-gray-500 mb-2">Détail des crédits:</p>
-                  {stats.creditDetails.map((d, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span>{d.client}</span>
-                      <span>{formatAr(d.montant)}</span>
+                  {stats.creditDetails.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-3 mt-2">
+                      <p className="text-xs text-gray-500 mb-2">Détail des crédits:</p>
+                      {stats.creditDetails.map((d, i) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span>{d.client}</span>
+                          <span>{formatAr(d.montant)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
 
               {stats.totalRemboursements > 0 && (

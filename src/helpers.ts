@@ -98,8 +98,8 @@ export const dateLongFr = (date?: string): string => {
 export const hasAccess = (role: string, module: string): boolean => {
   const permissions: Record<string, string[]> = {
     'Administrateur': ['dashboard', 'tables', 'ventes', 'cloture', 'articles', 'familles', 'stock', 'inventaire', 'achats', 'fournisseurs', 'personnel', 'clients', 'credits', 'societe', 'sauvegarde'],
-    'Gérant': ['dashboard', 'caisse', 'tables', 'ventes', 'cloture', 'articles', 'familles', 'stock', 'inventaire', 'fournisseurs', 'clients', 'credits', 'societe', 'sauvegarde'],
-    'Caissier': ['caisse', 'tables', 'ventes', 'cloture', 'credits', 'achats'],
+    'Gérant': ['dashboard', 'caisse', 'tables', 'ventes', 'cloture', 'articles', 'familles', 'stock', 'inventaire', 'fournisseurs', 'clients', 'societe', 'sauvegarde'],
+    'Caissier': ['caisse', 'tables', 'ventes', 'cloture', 'achats'],
     'Serveur': ['tables'],
     'Magasinier': ['articles', 'stock', 'inventaire', 'achats'],
   };

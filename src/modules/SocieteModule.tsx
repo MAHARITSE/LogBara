@@ -21,6 +21,7 @@ export default function SocieteModule({ user: _user }: Props) {
 
   const handleSave = () => {
     store.setSociete(societe);
+    window.dispatchEvent(new CustomEvent('barpos-societe-update'));
     showMsg('Paramètres enregistrés');
   };
 
@@ -150,16 +151,16 @@ export default function SocieteModule({ user: _user }: Props) {
 
         {/* Impression */}
         <div className="border-t pt-4">
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={societe.UTILISER_IMPRIMANTE}
               onChange={e => setSociete({ ...societe, UTILISER_IMPRIMANTE: e.target.checked })}
-              className="w-5 h-5 rounded text-[#0D47A1]"
+              className="w-5 h-5 mt-0.5 rounded text-[#0D47A1]"
             />
             <div>
-              <p className="font-medium">Utiliser l'imprimante</p>
-              <p className="text-sm text-gray-500">Impression directe des tickets de caisse</p>
+              <p className="font-medium">Utiliser l'imprimante (valeur par défaut)</p>
+              <p className="text-sm text-gray-500">Impression directe par défaut. En multi-poste, chaque utilisateur active ou désactive l'imprimante individuellement sur son poste directement depuis la caisse.</p>
             </div>
           </label>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Package, TrendingUp, TrendingDown, AlertTriangle, Search, Plus, Minus, RotateCcw } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, AlertTriangle, Search, Plus, Minus, RotateCcw, X } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 import { today, nowTime, nextId } from '../helpers';
@@ -228,15 +228,20 @@ export default function StockModule({ user }: Props) {
 
       {/* Modal Mouvement */}
       {showMvt && selectedArticle && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowMvt(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className={`px-6 py-4 text-white ${mvtType === 'Entrée' ? 'bg-green-500' : mvtType === 'Sortie' ? 'bg-red-500' : 'bg-blue-500'}`}>
-              <h3 className="font-bold text-lg">
-                {mvtType === 'Entrée' ? '➕ Entrée de stock' : mvtType === 'Sortie' ? '➖ Sortie de stock' : '🔄 Ajustement'}
-              </h3>
-              <p className="text-sm opacity-80">
-                {articles.find(a => a.IDARTICLE === selectedArticle)?.NOM}
-              </p>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className={`px-6 py-4 text-white flex items-center justify-between ${mvtType === 'Entrée' ? 'bg-green-500' : mvtType === 'Sortie' ? 'bg-red-500' : 'bg-blue-500'}`}>
+              <div>
+                <h3 className="font-bold text-lg">
+                  {mvtType === 'Entrée' ? '➕ Entrée de stock' : mvtType === 'Sortie' ? '➖ Sortie de stock' : '🔄 Ajustement'}
+                </h3>
+                <p className="text-sm opacity-80">
+                  {articles.find(a => a.IDARTICLE === selectedArticle)?.NOM}
+                </p>
+              </div>
+              <button onClick={() => setShowMvt(false)} className="p-1 rounded-lg hover:bg-white/20">
+                <X size={20} />
+              </button>
             </div>
 
             <div className="p-6 space-y-4">

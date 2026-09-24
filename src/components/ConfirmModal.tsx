@@ -33,8 +33,8 @@ export default function ConfirmModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={onCancel}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
         <div className="p-6 text-center">
           <div className="flex justify-center mb-4">{icons[type]}</div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>

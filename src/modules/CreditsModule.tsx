@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CreditCard, Wallet, CheckCircle2, Search, X } from 'lucide-react';
+import { CreditCard, Wallet, CheckCircle2, Search, X, Lock } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 import { formatAr, nextId, nowTime, today } from '../helpers';
@@ -17,6 +17,8 @@ export default function CreditsModule({ user }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [toast, setToast] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const isAdmin = user.ROLE === 'Administrateur';
 
   const clients = useMemo(() => store.getClients(), [refreshKey]);
   const paiements = useMemo(() => store.getPaiements(), [refreshKey]);
@@ -39,6 +41,10 @@ export default function CreditsModule({ user }: Props) {
   const montantNum = Math.max(0, Number(montant) || 0);
 
   const openRemboursement = (clientId: number) => {
+    if (!isAdmin) {
+      showMsg("Seul un Administrateur est autorisé à recevoir les paiements de crédit");
+      return;
+    }
     const c = clients.find(cl => cl.IDCLIENT === clientId);
     setSelectedClient(clientId);
     setMontant(c ? String(c.CREDIT_TOTAL) : '');
@@ -46,6 +52,10 @@ export default function CreditsModule({ user }: Props) {
   };
 
   const handleRemboursement = () => {
+    if (!isAdmin) {
+      showMsg("Accès refusé : Seul l'Administrateur peut encaisser un remboursement");
+      return;
+    }
     if (!selected || montantNum <= 0) { showMsg('Montant invalide'); return; }
     if (montantNum > selected.CREDIT_TOTAL) { showMsg('Le montant dépasse le crédit'); return; }
 
@@ -80,7 +90,7 @@ export default function CreditsModule({ user }: Props) {
       <div class="row"><span>Credit avant</span><span>${formatAr(selected.CREDIT_TOTAL)}</span></div>
       <div class="row bold"><span>Montant rembourse</span><span>${formatAr(montantNum)}</span></div>
       <div class="row"><span>Reste</span><span>${formatAr(resteApres)}</span></div>
-    `);
+    `, true);
 
     setShowConfirm(false);
     setSelectedClient(null);
@@ -94,6 +104,13 @@ export default function CreditsModule({ user }: Props) {
       {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
 
       <h1 className="text-2xl font-bold text-gray-900">💳 Crédits clients</h1>
+
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2 font-medium">
+          <Lock size={18} className="text-amber-600 shrink-0" />
+          <span>Consultation uniquement : Seul un Administrateur est autorisé à recevoir les paiements et remboursements de crédits clients.</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -141,7 +158,13 @@ export default function CreditsModule({ user }: Props) {
                   <td className="px-4 py-3 text-sm text-gray-500">{c.TELEPHONE || '-'}</td>
                   <td className="px-4 py-3 text-right font-bold text-red-500">{formatAr(c.CREDIT_TOTAL)}</td>
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => openRemboursement(c.IDCLIENT)} className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-600">Rembourser</button>
+                    {isAdmin ? (
+                      <button onClick={() => openRemboursement(c.IDCLIENT)} className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition-colors">Rembourser</button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-medium cursor-not-allowed">
+                        <Lock size={12} /> Réservé Admin
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -153,8 +176,8 @@ export default function CreditsModule({ user }: Props) {
 
       {/* Modal remboursement */}
       {selectedClient && selected && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedClient(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="font-bold text-lg">💵 Remboursement</h3>
               <button onClick={() => setSelectedClient(null)}><X size={20} /></button>

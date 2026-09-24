@@ -2,7 +2,7 @@ import { store } from '../store';
 import { globalToast } from '../utils/globalToast';
 
 // Génère le HTML complet du ticket
-const buildTicketHtml = (content: string) => {
+export const buildTicketHtml = (content: string) => {
   const societe = store.getSociete();
   
   const logoHtml = societe.LOGO_TYPE === 'emoji' 
@@ -16,16 +16,18 @@ const buildTicketHtml = (content: string) => {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Ticket</title>
+      <title>Ticket - ${societe.NOM || 'Bar POS'}</title>
       <style>
         @page { margin: 0; size: 80mm auto; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-          font-family: 'Courier New', monospace;
+          font-family: 'Courier New', monospace, sans-serif;
           font-size: 12px;
           width: 80mm;
-          padding: 5mm;
+          padding: 4mm 5mm;
           line-height: 1.4;
+          color: #000;
+          background: #fff;
         }
         .center { text-align: center; }
         .bold { font-weight: bold; }
@@ -35,7 +37,21 @@ const buildTicketHtml = (content: string) => {
         table { width: 100%; border-collapse: collapse; }
         td { padding: 2px 0; vertical-align: top; }
         .small { font-size: 10px; }
-        .header { margin-bottom: 10px; }
+        .header { margin-bottom: 8px; }
+        .page-break {
+          page-break-before: always;
+          break-before: page;
+          margin-top: 15px;
+          padding-top: 10px;
+          border-top: 1px dashed #000;
+        }
+        @media print {
+          body { width: 80mm; padding: 2mm 3mm; }
+          .page-break {
+            page-break-before: always !important;
+            break-before: page !important;
+          }
+        }
       </style>
     </head>
     <body>
@@ -56,61 +72,121 @@ const buildTicketHtml = (content: string) => {
 };
 
 /**
- * Impression DIRECTE : ouvre une fenêtre avec aperçu et lance window.print()
- * pour le choix de l'imprimante. Utilisé pour les tickets de caisse, tables, etc.
- *
- * Si force est true (comme pour la clôture de caisse), l'aperçu et le choix d'imprimante
- * s'ouvrent TOUJOURS, même si l'option "Utiliser l'imprimante" est désactivée dans la gestion société.
+ * Fallback si iframe d'impression non supporté :
+ * Ouvre une fenêtre popup avec auto-print et auto-close immédiat.
  */
-export const printTicket = (content: string, force: boolean = false) => {
-  const societe = store.getSociete();
-
-  // Si l'imprimante est désactivée ET que l'impression n'est pas forcée :
-  // afficher uniquement la notification d'enregistrement
-  if (!societe.UTILISER_IMPRIMANTE && !force) {
-    globalToast('✓ Paiement enregistré', 'success', 3000, 'center');
-    return;
-  }
-
-  const html = buildTicketHtml(content);
+const fallbackPrintWindow = (html: string) => {
   try {
     const printWindow = window.open('', '_blank', 'width=350,height=600');
     if (printWindow) {
-      printWindow.document.write(html);
+      const autoPrintHtml = html.replace(
+        '</body>',
+        `<script>
+          window.focus();
+          setTimeout(function() {
+            window.print();
+          }, 150);
+          window.onafterprint = function() {
+            setTimeout(function() { window.close(); }, 300);
+          };
+        </script></body>`
+      );
+      printWindow.document.open();
+      printWindow.document.write(autoPrintHtml);
       printWindow.document.close();
-      printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-      };
     } else {
-      globalToast('Aperçu bloqué par le navigateur', 'info');
+      globalToast('Fenêtre d\'impression bloquée. Veuillez autoriser les popups.', 'warning');
     }
   } catch {
-    globalToast('Aperçu non disponible dans cet environnement', 'info');
+    globalToast('Impression non disponible dans cet environnement', 'info');
   }
 };
 
 /**
- * Impression APERÇU : ouvre une fenêtre qui reste ouverte pour consultation.
- * L'utilisateur peut imprimer manuellement ou déclencher l'impression automatique.
+ * Exécute l'impression directe dans la page actuelle via un iframe invisible.
+ * - Ne crée AUCUNE autre fenêtre d'application ni onglet dans le navigateur
+ * - Affiche directement la boîte de dialogue d'impression système/navigateur
+ * - En mode Kiosk (--kiosk-printing), imprime directement sans ouvrir de fenêtre
  */
-export const printPreview = (content: string, autoPrint: boolean = false) => {
-  const html = buildTicketHtml(content);
+const executeDirectPrint = (html: string) => {
   try {
-    const printWindow = window.open('', '_blank', 'width=350,height=600');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      if (autoPrint) {
-        printWindow.onload = () => {
-          printWindow.focus();
-          printWindow.print();
-        };
-      }
-    } else {
-      globalToast('Aperçu bloqué par le navigateur', 'info');
+    const oldFrame = document.getElementById('barpos-direct-print-frame');
+    if (oldFrame) {
+      oldFrame.remove();
     }
-  } catch {
-    globalToast('Aperçu non disponible dans cet environnement', 'info');
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'barpos-direct-print-frame';
+    iframe.setAttribute(
+      'style',
+      'position:fixed;top:-10000px;left:-10000px;width:80mm;height:100px;border:none;visibility:hidden;pointer-events:none;'
+    );
+    document.body.appendChild(iframe);
+
+    const frameDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!frameDoc) {
+      fallbackPrintWindow(html);
+      return;
+    }
+
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+
+    setTimeout(() => {
+      try {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } else {
+          fallbackPrintWindow(html);
+        }
+      } catch (err) {
+        console.warn('Erreur impression iframe, recours au fallback', err);
+        fallbackPrintWindow(html);
+      } finally {
+        setTimeout(() => {
+          const f = document.getElementById('barpos-direct-print-frame');
+          if (f) f.remove();
+        }, 3000);
+      }
+    }, 250);
+  } catch (e) {
+    console.warn('Erreur déclenchement impression directe', e);
+    fallbackPrintWindow(html);
+  }
+};
+
+/**
+ * Impression DIRECTE :
+ * Déclenche directement la fenêtre d'impression native du navigateur/système
+ * sans ouvrir d'autre fenêtre d'application.
+ *
+ * Si force est true (comme pour la clôture de caisse), l'impression se déclenche TOUJOURS.
+ * En multi-poste, l'état d'imprimante est vérifié par utilisateur/poste (store.isUserPrinterEnabled).
+ */
+export const printTicket = (content: string, force: boolean = false, userId?: number) => {
+  const isPrinterActive = store.isUserPrinterEnabled(userId);
+
+  // Si l'imprimante est désactivée pour cet utilisateur/poste ET que l'impression n'est pas forcée :
+  // afficher uniquement la notification d'enregistrement
+  if (!isPrinterActive && !force) {
+    globalToast('✓ Paiement enregistré (sans ticket imprimé)', 'success', 3000, 'center');
+    return;
+  }
+
+  const html = buildTicketHtml(content);
+  executeDirectPrint(html);
+};
+
+/**
+ * Aperçu / réimpression directe du ticket
+ */
+export const printPreview = (content: string, autoPrint: boolean = true) => {
+  const html = buildTicketHtml(content);
+  if (autoPrint) {
+    executeDirectPrint(html);
+  } else {
+    fallbackPrintWindow(html);
   }
 };

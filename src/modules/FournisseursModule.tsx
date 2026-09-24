@@ -185,8 +185,8 @@ export default function FournisseursModule({ user: _user }: Props) {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="font-bold text-lg">🚚 {editFournisseur ? 'Modifier' : 'Nouveau'} fournisseur</h3>
               <button onClick={() => setShowForm(false)}><X size={20} /></button>

@@ -1,7 +1,8 @@
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, UtensilsCrossed, Receipt, Calculator, Wallet,
   Package, Tag, Warehouse, ShoppingBag, ClipboardList, Truck, Users,
-  UserCircle, CreditCard, Building2, HardDrive, LogOut, Menu, X, AlertTriangle
+  UserCircle, CreditCard, Building2, HardDrive, LogOut, Menu, X, AlertTriangle, Printer
 } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, ModuleType } from '../types';
@@ -37,7 +38,7 @@ const menuGroups: { title?: string; items: MenuItem[] }[] = [
       { id: 'ventes', label: 'Ventes', icon: <Receipt size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
       { id: 'paiements', label: 'Paiements', icon: <Wallet size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
       { id: 'cloture', label: 'Clôture', icon: <Calculator size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
-      { id: 'credits', label: 'Crédits', icon: <CreditCard size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
+      { id: 'credits', label: 'Crédits', icon: <CreditCard size={20} />, roles: ['Administrateur'] },
     ]
   },
   {
@@ -70,6 +71,28 @@ const menuGroups: { title?: string; items: MenuItem[] }[] = [
 export default function Sidebar({ user, activeModule, onModuleChange, onLogout, mobileOpen, onMobileToggle }: Props) {
   const societe = store.getSociete();
   const stockAlerts = store.getStockAlerts();
+  const [utiliserImprimante, setUtiliserImprimante] = useState(() => store.isUserPrinterEnabled(user.IDPERSONNEL));
+
+  useEffect(() => {
+    setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
+  }, [user.IDPERSONNEL]);
+
+  useEffect(() => {
+    const handleUpdate = (e: Event) => {
+      const custom = e as CustomEvent<{ userId?: number; enabled?: boolean }>;
+      if (!custom.detail || custom.detail.userId === user.IDPERSONNEL) {
+        setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
+      }
+    };
+    window.addEventListener('barpos-printer-pref-change', handleUpdate);
+    return () => window.removeEventListener('barpos-printer-pref-change', handleUpdate);
+  }, [user.IDPERSONNEL]);
+
+  const handleToggleImprimante = (checked: boolean) => {
+    store.setUserPrinterEnabled(checked, user.IDPERSONNEL);
+    setUtiliserImprimante(checked);
+    window.dispatchEvent(new CustomEvent('barpos-printer-pref-change', { detail: { userId: user.IDPERSONNEL, enabled: checked } }));
+  };
 
   const renderLogo = () => {
     if (societe.LOGO_TYPE === 'image' && societe.LOGO_IMAGE) {
@@ -138,6 +161,30 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
         ))}
       </nav>
 
+      {/* Utiliser l'imprimante - propre à ce poste et utilisateur */}
+      <div className="p-3 border-t border-gray-100 bg-gray-50/70">
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={utiliserImprimante}
+            onChange={e => handleToggleImprimante(e.target.checked)}
+            className="w-4 h-4 mt-0.5 rounded text-[#0D47A1] focus:ring-[#0D47A1] cursor-pointer"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                <Printer size={13} className="text-[#0D47A1]" />
+                Utiliser l'imprimante
+              </p>
+              <span className="text-[9px] text-blue-700 bg-blue-50 px-1 rounded shrink-0">Ce poste</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+              {utiliserImprimante ? 'Impression directe sur ce poste' : 'Désactivée sur ce poste'}
+            </p>
+          </div>
+        </label>
+      </div>
+
       {/* User Info */}
       <div className="p-4 border-t border-gray-100">
         <div className="flex items-center gap-3 mb-3">
@@ -172,15 +219,31 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-40">
-        <button onClick={onMobileToggle} className="p-2 hover:bg-gray-100 rounded-lg">
-          <Menu size={24} className="text-gray-700" />
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white/95 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-3 z-40">
+        <button 
+          onClick={onMobileToggle} 
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl active:scale-95 transition-transform"
+          aria-label="Ouvrir le menu"
+        >
+          <Menu size={22} className="text-gray-700" />
         </button>
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{societe.LOGO_TYPE === 'emoji' ? societe.LOGO_EMOJI : '🍺'}</span>
-          <span className="font-bold text-gray-900">{societe.NOM}</span>
+        
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg shrink-0">{societe.LOGO_TYPE === 'emoji' ? societe.LOGO_EMOJI : '🍺'}</span>
+          <span className="font-bold text-gray-900 truncate text-sm">{societe.NOM}</span>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#0D47A1] shrink-0">
+            {user.PRENOM} ({user.ROLE})
+          </span>
         </div>
-        <div className="w-10" />
+
+        <button 
+          onClick={onLogout} 
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+          title="Se déconnecter"
+          aria-label="Se déconnecter"
+        >
+          <LogOut size={18} />
+        </button>
       </div>
 
       {/* Mobile Overlay */}

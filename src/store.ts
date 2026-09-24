@@ -253,6 +253,38 @@ export const store = {
   getSociete: (): Societe => safeRead<Societe>('societe', [SEED_SOCIETE])[0] || SEED_SOCIETE,
   setSociete: (data: Societe): void => sync('societe', [data]),
 
+  /**
+   * Multi-poste / par utilisateur :
+   * Détermine si l'impression directe des tickets est activée pour un utilisateur spécifique ou ce poste.
+   * Ne modifie pas la base de données partagée pour ne pas impacter les autres postes/caissiers.
+   */
+  isUserPrinterEnabled: (userId?: number): boolean => {
+    try {
+      const uid = userId || store.getSession()?.IDPERSONNEL;
+      if (uid) {
+        const userPref = localStorage.getItem(`barpos_printer_user_${uid}`);
+        if (userPref !== null) {
+          return userPref === 'true';
+        }
+      }
+      const localPref = localStorage.getItem('barpos_printer_local');
+      if (localPref !== null) {
+        return localPref === 'true';
+      }
+    } catch (_) { /* ignore */ }
+    return store.getSociete().UTILISER_IMPRIMANTE ?? true;
+  },
+
+  setUserPrinterEnabled: (enabled: boolean, userId?: number): void => {
+    try {
+      const uid = userId || store.getSession()?.IDPERSONNEL;
+      if (uid) {
+        localStorage.setItem(`barpos_printer_user_${uid}`, String(enabled));
+      }
+      localStorage.setItem('barpos_printer_local', String(enabled));
+    } catch (_) { /* ignore */ }
+  },
+
   getPersonnel: (): Personnel[] => safeRead<Personnel>('personnel', SEED_PERSONNEL),
   setPersonnel: (data: Personnel[]): void => sync('personnel', data),
 

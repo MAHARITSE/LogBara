@@ -60,6 +60,15 @@ Le module Sauvegarde produit un fichier SQL directement depuis MySQL.
 Pour restaurer, installer d'abord le schéma barpos.sql puis importer la
 sauvegarde dans phpMyAdmin.
 
+CLIENTS, SERVEUR & IMPRESSION DIRECTE
+---------------------------------------
+- Lancer clientwamp.bat sur n'importe quel poste :
+  * Si lancé sur le serveur lui-même : détecte automatiquement 'localhost' et se connecte immédiatement.
+  * Si lancé sur un poste client (Wi-Fi, Ethernet, Hotspot) : recherche automatiquement l'IP du serveur sur le réseau.
+  * Si nécessaire, vous propose la saisie directe de l'IP et la mémorise automatiquement.
+  * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing).
+  * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset
+
 DEPANNAGE
 ---------
 - API inaccessible : vérifier Apache et l'URL http://localhost/barpos/

@@ -3,7 +3,7 @@ import { Plus, Printer, Search, X, Trash2, Keyboard, Edit2, UserPlus } from 'luc
 import { store } from '../store';
 import { Personnel, LigneAchat, Achat, Fournisseur } from '../types';
 import { formatAr, today, nowTime, nextId, dateLabel, capitalize } from '../helpers';
-import { printPreview } from '../components/PrintTicket';
+import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import PhoneInput from '../components/PhoneInput';
 import MoneyInput from '../components/MoneyInput';
@@ -426,7 +426,7 @@ export default function AchatsModule({ user }: Props) {
       return `<tr><td>${art?.NOM || '-'}</td><td style="text-align:right">${l.QUANTITE}</td><td style="text-align:right">${formatAr(l.PRIX_ACHAT)}</td><td style="text-align:right">${formatAr(l.MONTANT)}</td></tr>`;
     }).join('');
 
-    printPreview(`
+    printTicket(`
       <div class="center bold">BON D'ACHAT</div>
       <div class="center">${achat.REFERENCE}</div>
       <div class="row"><span>${achat.DATE_ACHAT}</span></div>
@@ -439,7 +439,7 @@ export default function AchatsModule({ user }: Props) {
       <div class="line"></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(achat.TOTAL)}</span></div>
       ${achat.OBSERVATION ? `<div>Obs: ${achat.OBSERVATION}</div>` : ''}
-    `);
+    `, true);
   };
 
   return (
@@ -500,8 +500,8 @@ export default function AchatsModule({ user }: Props) {
 
       {/* Modal Form */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center overflow-y-auto py-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center overflow-y-auto py-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden">
             <div className="bg-[#0D47A1] text-white px-6 py-4 flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 🛒 {editAchat ? 'Modifier' : 'Nouvel'} achat
