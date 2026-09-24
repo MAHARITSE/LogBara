@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Users, Trash2, Wallet, X, Eye, Minus, RotateCcw } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, TableR, CartItem } from '../types';
-import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
+import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import MoneyInput from '../components/MoneyInput';
@@ -118,7 +118,7 @@ export default function TablesModule({ user }: Props) {
   // ========= PAIEMENT (simple, sans retour) =========
   const openPayment = (table: TableR) => {
     setSelectedTable(table);
-    setRemise(0); setPaymentMode('Espèces'); setSelectedClient(null); setShowNewClient(false);
+    setRemise(0); setPaymentMode('Espèces');
     setShowPayment(true);
   };
 

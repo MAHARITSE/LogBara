@@ -52,12 +52,11 @@ export const buildTicketHtml = (content: string) => {
         td { padding: 2px 0; vertical-align: top; }
         .small { font-size: 10px; }
         .header { margin-bottom: 8px; }
+        /* Nouvelle page (ex. récap ACHATS de la clôture) : pas de ligne pointillée
+           au-dessus du logo, la page commence directement par l'en-tête société. */
         .page-break {
           page-break-before: always;
           break-before: page;
-          margin-top: 15px;
-          padding-top: 10px;
-          border-top: 1px dashed #000;
         }
         @media print {
           body { width: 80mm; padding: 2mm 3mm; }

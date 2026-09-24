@@ -80,6 +80,22 @@ Détails :
 - En cas d'erreur, la fenêtre reste ouverte et affiche le message au lieu de se fermer.
 - Si vous éditez clientwamp.bat, gardez les fins de ligne Windows (CRLF) et aucun accent.
 
+CLOTURE DE CAISSE : RATTACHEMENT DES OPERATIONS (ANTI-VOL)
+----------------------------------------------------------
+- Chaque vente (et ses lignes), chaque achat (et ses lignes) et chaque
+  remboursement est rattaché à UNE clôture (colonne idcloture).
+- Une opération saisie APRES la clôture du jour n'entre PAS dans cette clôture :
+  elle est reportée automatiquement sur la PROCHAINE clôture (le lendemain).
+  L'écran « Caisse déjà clôturée » affiche ces opérations en attente.
+- La réimpression d'un ticket de clôture n'affiche que les ventes/achats
+  rattachés à cette clôture.
+- Côté serveur (API PHP), sauf pour l'Administrateur : une vente, un achat,
+  leurs lignes, leurs paiements et les clôtures déjà enregistrées ne peuvent
+  plus être modifiés ni supprimés, et on ne peut plus ajouter de ligne à une
+  vente ou un achat clôturé.
+- Mise à jour d'une base existante : la colonne paiements.idcloture est ajoutée
+  automatiquement au premier appel de l'API (aucune manipulation nécessaire).
+
 DEPANNAGE
 ---------
 - API inaccessible : vérifier Apache et l'URL http://localhost/barpos/

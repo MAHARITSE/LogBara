@@ -220,13 +220,15 @@ CREATE TABLE paiements (
     montant DECIMAL(12,2) NOT NULL,
     mode_paiement ENUM('Espèces', 'Mobile Money', 'Crédit') NOT NULL,
     idclient INT DEFAULT NULL,
+    idcloture INT DEFAULT NULL,  -- clôture à laquelle le remboursement est rattaché
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (idvente) REFERENCES ventes(idvente) ON DELETE SET NULL,
     FOREIGN KEY (idpersonnel) REFERENCES personnel(idpersonnel) ON DELETE RESTRICT,
     FOREIGN KEY (idclient) REFERENCES clients(idclient) ON DELETE SET NULL,
     INDEX idx_date (date_paiement),
     INDEX idx_vente (idvente),
-    INDEX idx_mode (mode_paiement)
+    INDEX idx_mode (mode_paiement),
+    INDEX idx_paiement_cloture (idcloture)
 ) ENGINE=InnoDB;
 
 -- ============================================
@@ -484,11 +486,11 @@ BEGIN
       AND v.cloturee = FALSE
       AND p.mode_paiement = 'Crédit';
     
-    -- Remboursements reçus (paiements avec idvente = NULL)
+    -- Remboursements reçus (paiements avec idvente = NULL) non encore clôturés
     SELECT COALESCE(SUM(montant), 0) INTO v_total_remboursements
     FROM paiements
     WHERE idpersonnel = p_idpersonnel
-      AND date_paiement = CURDATE()
+      AND idcloture IS NULL
       AND idvente IS NULL;
     
     -- Créer la clôture
@@ -511,12 +513,17 @@ BEGIN
       AND statut = 'Payée' 
       AND cloturee = FALSE;
     
-    -- Marquer les achats comme clôturés
+    -- Rattacher les remboursements à la clôture
+    UPDATE paiements
+    SET idcloture = p_idcloture
+    WHERE idpersonnel = p_idpersonnel
+      AND idcloture IS NULL
+      AND idvente IS NULL;
+
+    -- Marquer les achats comme clôturés (tous ceux non encore rattachés)
     UPDATE achats 
     SET cloturee = TRUE, idcloture = p_idcloture
-    WHERE idpersonnel = p_idpersonnel 
-      AND date_achat = CURDATE()
-      AND cloturee = FALSE;
+    WHERE cloturee = FALSE;
 END //
 
 DELIMITER ;

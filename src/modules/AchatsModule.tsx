@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, Printer, Search, X, Trash2, Keyboard, Edit2, UserPlus } from 'lucide-react';
+import { Plus, Printer, Search, X, Trash2, Keyboard, Edit2, UserPlus, Lock } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, LigneAchat, Achat, Fournisseur } from '../types';
 import { formatAr, today, nowTime, nextId, dateLabel, capitalize } from '../helpers';
@@ -42,18 +42,19 @@ export default function AchatsModule({ user }: Props) {
   const articles = store.getArticles();
   const fournisseurs = store.getFournisseurs();
   const lignesAchat = store.getLignesAchat();
-  const clotures = store.getClotures();
-
-  const userCloture = clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL);
-  
   const refresh = () => setAchats(store.getAchats());
-  
-  // Achats visibles (non clôturés)
+
+  // Achats visibles : l'administrateur et le gérant voient tout ;
+  // les autres ne voient que les achats NON rattachés à une clôture.
+  // (Avant : après la clôture, les achats saisis ensuite le même jour
+  // disparaissaient de la liste alors qu'ils n'étaient clôturés nulle part.)
   const visibleAchats = achats.filter(a => {
     if (isAdmin || user.ROLE === 'Gérant') return true;
-    if (userCloture && a.DATE_ACHAT === today()) return false;
-    return true;
+    return !a.CLOTUREE;
   });
+
+  // Un achat rattaché à une clôture ne peut plus être modifié (sauf administrateur)
+  const isAchatVerrouille = (a: Achat) => a.CLOTUREE && !isAdmin;
 
   // Créer un nouveau fournisseur
   const handleCreateFournisseur = () => {
@@ -250,6 +251,10 @@ export default function AchatsModule({ user }: Props) {
   };
 
   const openEditForm = (achat: Achat) => {
+    if (isAchatVerrouille(achat)) {
+      showMsg('Achat clôturé : modification impossible');
+      return;
+    }
     const achatLignes = lignesAchat.filter(l => l.IDACHAT === achat.IDACHAT);
     setEditAchat(achat);
     setFournisseur(achat.IDFOURNISSEUR);
@@ -476,9 +481,15 @@ export default function AchatsModule({ user }: Props) {
                     <td className="px-4 py-3 text-right font-semibold">{formatAr(a.TOTAL)}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => openEditForm(a)} className="p-1.5 rounded-lg hover:bg-blue-50" title="Modifier">
-                          <Edit2 size={16} className="text-blue-500" />
-                        </button>
+                        {isAchatVerrouille(a) ? (
+                          <span className="p-1.5" title="Achat clôturé : non modifiable">
+                            <Lock size={16} className="text-gray-400" />
+                          </span>
+                        ) : (
+                          <button onClick={() => openEditForm(a)} className="p-1.5 rounded-lg hover:bg-blue-50" title="Modifier">
+                            <Edit2 size={16} className="text-blue-500" />
+                          </button>
+                        )}
                         <button onClick={() => printAchat(a.IDACHAT)} className="p-1.5 rounded-lg hover:bg-gray-100" title="Imprimer">
                           <Printer size={16} className="text-gray-500" />
                         </button>

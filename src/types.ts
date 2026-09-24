@@ -114,6 +114,8 @@ export interface Paiement {
   MONTANT: number;
   MODE_PAIEMENT: 'Espèces' | 'Mobile Money' | 'Crédit';
   IDCLIENT?: number;
+  /** Clôture à laquelle le paiement (remboursement sans vente) est rattaché */
+  IDCLOTURE?: number | null;
 }
 
 export interface Cloture {
