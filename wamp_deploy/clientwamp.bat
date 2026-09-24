@@ -205,7 +205,9 @@ if not defined BROWSER_EXE (
 echo [3/3] Ouverture de Bar POS...
 if defined BROWSER_EXE (
     echo        Navigateur utilise : !BROWSER_EXE!
-    start "" "!BROWSER_EXE!" --user-data-dir="%KIOSK_PROFILE%" --no-first-run --no-default-browser-check --disable-session-crashed-bubble --kiosk-printing --app="!APP_URL!"
+    REM Ouvre une application distincte, en plein écran, sans fermer les fenêtres
+    REM existantes du navigateur. Le profil dédié évite de réutiliser une fenêtre déjà ouverte.
+    start "Bar POS" "!BROWSER_EXE!" --user-data-dir="%KIOSK_PROFILE%" --no-first-run --no-default-browser-check --disable-session-crashed-bubble --kiosk-printing --new-window --start-fullscreen --app="!APP_URL!"
 ) else (
     echo        Ouverture avec le navigateur par defaut de Windows...
     start "" "!APP_URL!"
