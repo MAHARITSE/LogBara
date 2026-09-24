@@ -1,0 +1,5 @@
+# Les scripts batch Windows DOIVENT rester en CRLF, sinon cmd.exe
+# les interprete mal (labels introuvables, fermeture immediate).
+# -text : Git ne convertit jamais ces fichiers (y compris telechargement brut).
+*.bat -text
+*.cmd -text

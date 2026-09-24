@@ -97,9 +97,9 @@ try {
 
 # Cache ARP (appareils actifs visibles sur le reseau local)
 try {
-    $arp = arp -a
-    $matches = [regex]::Matches($arp, '\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b')
-    foreach ($m in $matches) {
+    $arp = (arp -a) -join "`n"
+    $found = [regex]::Matches($arp, '\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b')
+    foreach ($m in $found) {
         $ip = $m.Value
         if (-not $ip.EndsWith('.255') -and -not $ip.EndsWith('.0') -and -not $ip.StartsWith('127.')) {
             if (-not $candidates.Contains($ip)) { $candidates.Add($ip) }

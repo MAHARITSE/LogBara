@@ -75,6 +75,10 @@ Détails :
   * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing) via profil dédié %LOCALAPPDATA%\LogBara\KioskProfile.
   * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset  (alias: clientwamp.bat -c)
 - L'ancien lancer-impression-directe.bat est supprimé : clientwamp.bat fonctionne indifféremment en local et en réseau.
+- clientwamp.bat peut être copié SEUL sur un poste client : le script de détection PowerShell
+  est intégré (detect_server.ps1 est utilisé en priorité s'il se trouve à côté).
+- En cas d'erreur, la fenêtre reste ouverte et affiche le message au lieu de se fermer.
+- Si vous éditez clientwamp.bat, gardez les fins de ligne Windows (CRLF) et aucun accent.
 
 DEPANNAGE
 ---------
