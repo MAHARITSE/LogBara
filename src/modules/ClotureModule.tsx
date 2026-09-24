@@ -194,9 +194,10 @@ export default function ClotureModule({ user }: Props) {
     const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
 
     // Achats du jour
-    const achatsCloture = allAchats.filter(
-      a => a.IDCLOTURE === cloture.IDCLOTURE || (a.DATE_ACHAT === cloture.DATE_CLOTURE && (a.IDPERSONNEL ? a.IDPERSONNEL === cloture.IDPERSONNEL : true))
-    );
+    // Seuls les achats réellement rattachés à cette clôture doivent apparaître.
+    // Le rattachement évite de réimprimer les achats d'une autre clôture du même jour.
+    const achatsCloture = allAchats.filter(a => a.IDCLOTURE === cloture.IDCLOTURE);
+    const lignesAchats = store.getLignesAchat();
     const totalAchatsMontant = achatsCloture.reduce((sum, a) => sum + a.TOTAL, 0);
 
     let achatsSection = '';
@@ -206,17 +207,26 @@ export default function ClotureModule({ user }: Props) {
         const nomFourn = fourn ? fourn.NOM : (a.OBSERVATION || 'Direct');
         return `<tr><td>${a.REFERENCE}</td><td>${nomFourn}</td><td class="right bold">${formatAr(a.TOTAL)}</td></tr>`;
       }).join('');
+      const recapAchats: Record<number, { nom: string; qte: number; montant: number }> = {};
+      achatsCloture.forEach(a => lignesAchats.filter(l => l.IDACHAT === a.IDACHAT).forEach(l => {
+        const art = allArticles.find(x => x.IDARTICLE === l.IDARTICLE);
+        if (!recapAchats[l.IDARTICLE]) recapAchats[l.IDARTICLE] = { nom: art?.NOM || '-', qte: 0, montant: 0 };
+        recapAchats[l.IDARTICLE].qte += l.QUANTITE;
+        recapAchats[l.IDARTICLE].montant += l.MONTANT;
+      }));
+      const recapRows = Object.values(recapAchats).map(r => `<tr><td>${r.nom}</td><td class="right">${r.qte}</td><td class="right">${formatAr(r.montant)}</td></tr>`).join('');
 
       achatsSection = `
         <div class="page-break">
-          <div class="center bold">ACHATS DU JOUR</div>
+          <div class="center bold">RÉCAPITULATIF DES ACHATS</div>
           <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
           <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
           <div class="line"></div>
-          <table>
-            <tr><td class="bold">Réf.</td><td class="bold">Fournisseur</td><td class="bold right">Montant</td></tr>
-            ${achatsRows}
-          </table>
+          <div class="bold">Bons d'achat (${achatsCloture.length})</div>
+          <table><tr><td class="bold">Réf.</td><td class="bold">Fournisseur</td><td class="bold right">Montant</td></tr>${achatsRows}</table>
+          <div class="line"></div>
+          <div class="bold">Détail par article</div>
+          <table><tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">Montant</td></tr>${recapRows}</table>
           <div class="line"></div>
           <div class="row bold"><span>TOTAL ACHATS</span><span>${formatAr(totalAchatsMontant)}</span></div>
         </div>
