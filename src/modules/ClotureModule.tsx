@@ -3,7 +3,7 @@ import { Lock, AlertTriangle, Printer, Check } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 import { formatAr, today, nowTime, nextId } from '../helpers';
-import { printTicket } from '../components/PrintTicket';
+import { printTicket, buildSocieteHeaderHtml } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface Props {
@@ -216,9 +216,12 @@ export default function ClotureModule({ user }: Props) {
       }));
       const recapRows = Object.values(recapAchats).map(r => `<tr><td>${r.nom}</td><td class="right">${r.qte}</td><td class="right">${formatAr(r.montant)}</td></tr>`).join('');
 
+      // En-tête société réutilisé sur la page des achats (même en-tête que le ticket principal)
+      const societeHeaderHtml = buildSocieteHeaderHtml();
       achatsSection = `
         <div class="page-break">
-          <div class="center bold">RÉCAPITULATIF DES ACHATS</div>
+          ${societeHeaderHtml}
+          <div class="center bold">RÉCAPITULATIF DES ACHATS DU JOUR</div>
           <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
           <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
           <div class="line"></div>

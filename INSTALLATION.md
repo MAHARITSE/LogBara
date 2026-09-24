@@ -59,6 +59,8 @@ Les mots de passe sont hachés dans MySQL. Il est recommandé de les modifier ap
 ```text
 wamp_deploy/
 ├── index.html                 application compilée, autonome
+├── clientwamp.bat             lanceur universel unique (local + réseau Wi-Fi/Ethernet/Hotspot, --kiosk-printing)
+├── detect_server.ps1          détection automatique du serveur WAMP (localhost / réseau)
 ├── .htaccess                  protections Apache
 ├── api/
 │   ├── index.php              API PHP/XML
@@ -83,16 +85,28 @@ wamp_deploy/
 
 ## Lancement avec impression directe (sans aperçu)
 
-Deux lanceurs Windows sont fournis à la racine du dépôt :
+**Lanceur universel unique (`clientwamp.bat`)** — fourni dans `wamp_deploy` avec `detect_server.ps1` :
 
-| Fichier | Poste concerné |
-|---|---|
-| `lancer-impression-directe.bat` | poste serveur, où WAMP tourne (`http://localhost/barpos/`) |
-| `clientwamp.bat` | poste du réseau (modifier `APP_URL` avec l’IP du serveur, ex. `http://192.168.1.50/barpos/`) |
+- Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
+- Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
+- Supprime le `lancer-impression-directe.bat` au profit de ce lanceur universel.
 
-Ils démarrent Chrome ou Edge avec `--kiosk-printing` : les tickets de caisse partent directement sur l’imprimante Windows par défaut, sans l’aperçu d’impression.
+Détails techniques :
+- Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/barpos/`.
+- Si aucune détection automatique : invite à saisir manuellement l'IP (ex. `192.168.1.50` ou `localhost`) et la mémorise.
+- Lance Google Chrome ou Microsoft Edge en mode application avec `--kiosk-printing` : les tickets partent directement sur l'imprimante Windows par défaut, sans aperçu d'impression. Utilise un profil dédié `%LOCALAPPDATA%\LogBara\KioskProfile` (`--user-data-dir`) pour ne pas interférer avec la navigation personnelle.
 
-Ces scripts **ne ferment pas** les fenêtres Chrome/Edge déjà ouvertes : ils lancent une **nouvelle session** du navigateur grâce à un profil dédié (`%LOCALAPPDATA%\LogBara\KioskProfile`), totalement séparé de la navigation personnelle. Seules les anciennes fenêtres Bar POS de ce profil dédié sont fermées à chaque lancement, afin de garantir que le flag `--kiosk-printing` reste actif.
+Utilisation :
+
+```text
+Double-clic sur wamp_deploy\clientwamp.bat
+# Pour réinitialiser l'IP mémorisée et forcer une nouvelle détection/saisie :
+clientwamp.bat --reset
+# alias court :
+clientwamp.bat -c
+```
+
+Le lanceur fonctionne indifféremment sur le **poste serveur** (détection `localhost` immédiate) et sur tout **poste client** du réseau (Wi-Fi, Ethernet, Hotspot mobile).
 
 Prérequis : une imprimante ticket 80 mm définie comme imprimante Windows **par défaut** (éviter « Microsoft Print to PDF »).
 

@@ -60,14 +60,21 @@ Le module Sauvegarde produit un fichier SQL directement depuis MySQL.
 Pour restaurer, installer d'abord le schéma barpos.sql puis importer la
 sauvegarde dans phpMyAdmin.
 
-CLIENTS, SERVEUR & IMPRESSION DIRECTE
----------------------------------------
+LANCEUR UNIVERSEL UNIQUE (clientwamp.bat) & IMPRESSION DIRECTE
+---------------------------------------------------------
+Lanceur universel unique (clientwamp.bat) :
+- Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
+- Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
+- Supprime le lancer-impression-directe.bat au profit de ce lanceur universel.
+
+Détails :
 - Lancer clientwamp.bat sur n'importe quel poste :
   * Si lancé sur le serveur lui-même : détecte automatiquement 'localhost' et se connecte immédiatement.
   * Si lancé sur un poste client (Wi-Fi, Ethernet, Hotspot) : recherche automatiquement l'IP du serveur sur le réseau.
-  * Si nécessaire, vous propose la saisie directe de l'IP et la mémorise automatiquement.
-  * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing).
-  * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset
+  * Si nécessaire, vous propose la saisie directe de l'IP et la mémorise automatiquement (%LOCALAPPDATA%\LogBara\server_ip.txt).
+  * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing) via profil dédié %LOCALAPPDATA%\LogBara\KioskProfile.
+  * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset  (alias: clientwamp.bat -c)
+- L'ancien lancer-impression-directe.bat est supprimé : clientwamp.bat fonctionne indifféremment en local et en réseau.
 
 DEPANNAGE
 ---------

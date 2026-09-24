@@ -1,15 +1,29 @@
 import { store } from '../store';
 import { globalToast } from '../utils/globalToast';
 
-// Génère le HTML complet du ticket
-export const buildTicketHtml = (content: string) => {
+// Génère l'en-tête société (logo + nom + adresse + téléphone + NIF) réutilisable sur chaque page
+export const buildSocieteHeaderHtml = () => {
   const societe = store.getSociete();
-  
-  const logoHtml = societe.LOGO_TYPE === 'emoji' 
+  const logoHtml = societe.LOGO_TYPE === 'emoji'
     ? `<div style="font-size: 32px; text-align: center; margin-bottom: 8px;">${societe.LOGO_EMOJI}</div>`
     : societe.LOGO_TYPE === 'image' && societe.LOGO_IMAGE
     ? `<div style="text-align: center; margin-bottom: 8px;"><img src="${societe.LOGO_IMAGE}" style="max-width: 60px; max-height: 60px;" /></div>`
     : '';
+  return `
+      <div class="header center">
+        ${logoHtml}
+        <div class="bold">${societe.NOM}</div>
+        <div class="small">${societe.ADRESSE}</div>
+        <div class="small">Tel: ${societe.TELEPHONE}</div>
+        ${societe.NIF ? `<div class="small">NIF: ${societe.NIF}</div>` : ''}
+      </div>
+      <div class="line"></div>`;
+};
+
+// Génère le HTML complet du ticket
+export const buildTicketHtml = (content: string) => {
+  const societe = store.getSociete();
+  const headerHtml = buildSocieteHeaderHtml();
 
   return `
     <!DOCTYPE html>
@@ -55,14 +69,7 @@ export const buildTicketHtml = (content: string) => {
       </style>
     </head>
     <body>
-      <div class="header center">
-        ${logoHtml}
-        <div class="bold">${societe.NOM}</div>
-        <div class="small">${societe.ADRESSE}</div>
-        <div class="small">Tel: ${societe.TELEPHONE}</div>
-        ${societe.NIF ? `<div class="small">NIF: ${societe.NIF}</div>` : ''}
-      </div>
-      <div class="line"></div>
+      ${headerHtml}
       ${content}
       <div class="line"></div>
       <div class="center small">Merci de votre visite !</div>

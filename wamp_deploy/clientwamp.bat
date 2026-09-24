@@ -3,10 +3,12 @@ setlocal EnableExtensions EnableDelayedExpansion
 title Bar POS - Lanceur WAMP (Reseau & Local)
 
 REM ============================================================================
-REM Bar POS (LogBara) - Lanceur client WAMP intelligent
-REM - Auto-detection en local (localhost) ou sur reseau local (WiFi / Ethernet)
-REM - Impression thermique directe sans fenetre parasite (--kiosk-printing)
-REM - Compatible avec tous les navigateurs (Chrome, Edge, Brave ou defaut)
+REM Bar POS (LogBara) - Lanceur universel unique (clientwamp.bat)
+REM - Detecte automatiquement si le serveur WAMP tourne en local (localhost)
+REM   ou sur le reseau (Wi-Fi, Ethernet, Hotspot)
+REM - Gere la memorisation de l'IP du serveur et le lancement de
+REM   Chrome/Edge avec --kiosk-printing (impression directe)
+REM - Supprime le lancer-impression-directe.bat au profit de ce lanceur universel
 REM ============================================================================
 
 set "CONFIG_DIR=%LOCALAPPDATA%\LogBara"

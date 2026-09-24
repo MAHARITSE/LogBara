@@ -1,6 +1,12 @@
 # ==============================================================================
 # Bar POS (LogBara) - Detection automatique de l'adresse du serveur WAMP
-# Compatible avec : Localhost, Wi-Fi, Ethernet, Hotspot, 4G, sous-reseaux LAN
+# Lanceur universel unique (clientwamp.bat) :
+# - Détecte automatiquement si le serveur WAMP tourne en local (localhost)
+#   ou sur le réseau (Wi-Fi, Ethernet, Hotspot)
+# - Gère la mémorisation de l'IP du serveur et le lancement de
+#   Chrome/Edge avec --kiosk-printing (impression directe)
+# - Supprime le lancer-impression-directe.bat au profit de ce lanceur universel
+# Compatible avec : Localhost, Wi-Fi, Ethernet, Hotspot, 4G, sous-réseaux LAN
 # ==============================================================================
 param(
     [string]$savedIpFile = ""
