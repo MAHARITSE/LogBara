@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Users, Trash2, Wallet, X, Eye, Minus, RotateCcw } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, TableR, CartItem } from '../types';
+import { Personnel, TableR, CartItem, Paiement } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
@@ -35,6 +35,7 @@ export default function TablesModule({ user }: Props) {
 
   const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Mixte'>('Espèces');
   const [remise, setRemise] = useState(0);
+  const [mixteEspeces, setMixteEspeces] = useState(0); // part espèces en paiement Mixte
   const [tableFilter, setTableFilter] = useState<'all' | 'occupee' | 'libre'>('all');
 
   const isAdmin = user.ROLE === 'Administrateur';
@@ -118,7 +119,7 @@ export default function TablesModule({ user }: Props) {
   // ========= PAIEMENT (simple, sans retour) =========
   const openPayment = (table: TableR) => {
     setSelectedTable(table);
-    setRemise(0); setPaymentMode('Espèces');
+    setRemise(0); setPaymentMode('Espèces'); setMixteEspeces(0);
     setShowPayment(true);
   };
 
@@ -166,12 +167,19 @@ export default function TablesModule({ user }: Props) {
     let idLigne = nextId(lignesVente, 'IDLIGNEVENTE');
     const newLignes = items.map(c => ({ IDLIGNEVENTE: idLigne++, IDVENTE: idVente, IDARTICLE: c.IDARTICLE, QUANTITE: c.QUANTITE, PRIX_UNITAIRE: c.PRIX_UNITAIRE, MONTANT: c.QUANTITE * c.PRIX_UNITAIRE }));
 
+    // 'Mixte' n'existe pas en base (ENUM Espèces / Mobile Money / Crédit) :
+    // il est enregistré comme deux paiements, une part Espèces + une part Mobile Money.
     let idPaiement = nextId(paiements, 'IDPAIEMENT');
-    const newPaiements = [{
-      IDPAIEMENT: idPaiement, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente,
-      IDPERSONNEL: user.IDPERSONNEL, MONTANT: netAPayer,
-      MODE_PAIEMENT: paymentMode as 'Espèces' | 'Mobile Money' | 'Mixte',
-    }];
+    const base = { DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL };
+    const newPaiements: Paiement[] = [];
+    if (paymentMode === 'Mixte') {
+      const partEspeces = Math.max(0, Math.min(mixteEspeces, netAPayer));
+      const partMobile = Math.max(0, netAPayer - partEspeces);
+      if (partEspeces > 0) newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: partEspeces, MODE_PAIEMENT: 'Espèces' });
+      if (partMobile > 0) newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: partMobile, MODE_PAIEMENT: 'Mobile Money' });
+    } else {
+      newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: netAPayer, MODE_PAIEMENT: paymentMode });
+    }
 
     const updatedArticles = articlesList.map(a => {
       const item = items.find(c => c.IDARTICLE === a.IDARTICLE);
@@ -200,7 +208,7 @@ export default function TablesModule({ user }: Props) {
       <div class="row bold"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
     `, false, user.IDPERSONNEL);
 
-    setShowPayment(false); setSelectedTable(null); setRemise(0); setPaymentMode('Espèces');
+    setShowPayment(false); setSelectedTable(null); setRemise(0); setPaymentMode('Espèces'); setMixteEspeces(0);
     refresh(); showMsg('Table encaissée !');
   };
 
@@ -494,6 +502,26 @@ export default function TablesModule({ user }: Props) {
                   ))}
                 </div>
               </div>
+
+              {paymentMode === 'Mixte' && (() => {
+                const net = Math.max(0, getTableTotal(selectedTable.IDTABLE) - remise);
+                const partEsp = Math.max(0, Math.min(mixteEspeces, net));
+                return (
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2">
+                    <label className="text-sm font-semibold text-gray-700 block">Part en espèces</label>
+                    <MoneyInput
+                      value={mixteEspeces}
+                      onChange={val => setMixteEspeces(Math.max(0, val))}
+                      className="w-full px-4 py-2.5 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-[#0D47A1]"
+                      placeholder="0"
+                    />
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Reste en Mobile Money</span>
+                      <span className="font-bold tabular-nums">{formatAr(net - partEsp)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <button 
                 onClick={handlePayment} 

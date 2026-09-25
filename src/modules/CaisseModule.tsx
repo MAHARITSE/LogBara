@@ -56,9 +56,40 @@ export default function CaisseModule({ user }: Props) {
     });
   }, [tables, user]);
 
-  // getTableTotal retiré (tables occupées plus affichées ici)
+  // Consommations déjà envoyées (servies) sur la table sélectionnée.
+  // Regroupées par article ET prix (un article à prix saisi peut avoir plusieurs prix).
+  const tableItems = useMemo((): CartItem[] => {
+    if (mode !== 'table' || !selectedTable) return [];
+    const items: CartItem[] = [];
+    store.getConsommations()
+      .filter(c => c.IDTABLE === selectedTable.IDTABLE)
+      .forEach(c => {
+        const art = articles.find(a => a.IDARTICLE === c.IDARTICLE);
+        const ex = items.find(i => i.IDARTICLE === c.IDARTICLE && i.PRIX_UNITAIRE === c.PRIX_UNITAIRE);
+        if (ex) ex.QUANTITE += c.QUANTITE;
+        else items.push({
+          IDARTICLE: c.IDARTICLE, NOM: art?.NOM || 'Article', EMOJI: art?.EMOJI,
+          QUANTITE: c.QUANTITE, PRIX_UNITAIRE: c.PRIX_UNITAIRE, SAISIE_PRIX_VENTE: false,
+        });
+      });
+    return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedTable, rk]);
+  const tableTotal = tableItems.reduce((s, i) => s + i.QUANTITE * i.PRIX_UNITAIRE, 0);
 
-  const total = cart.reduce((s, i) => s + i.QUANTITE * i.PRIX_UNITAIRE, 0);
+  // Tout ce qui sera encaissé : consommations de la table + panier en cours
+  const itemsAPayer = useMemo((): CartItem[] => {
+    const merged: CartItem[] = tableItems.map(i => ({ ...i }));
+    cart.forEach(c => {
+      const ex = merged.find(m => m.IDARTICLE === c.IDARTICLE && m.PRIX_UNITAIRE === c.PRIX_UNITAIRE);
+      if (ex) ex.QUANTITE += c.QUANTITE;
+      else merged.push({ ...c });
+    });
+    return merged;
+  }, [tableItems, cart]);
+  const rienAPayer = itemsAPayer.length === 0;
+
+  const total = cart.reduce((s, i) => s + i.QUANTITE * i.PRIX_UNITAIRE, 0) + tableTotal;
   const netAPayer = total - remise;
   const monnaie = Number(montantRecu) - netAPayer;
 
@@ -123,15 +154,17 @@ export default function CaisseModule({ user }: Props) {
 
   const setRefreshKey = () => setRk(k => k + 1);
 
-  // payTableDirect retiré (tables occupées gérées dans module Tables)
-
   const openPayment = () => {
+    if (rienAPayer) return;
+    if (mode === 'table' && !selectedTable) { showMsg('Choisissez une table (ou passez en mode Comptoir)'); return; }
     setMontantRecu(String(Math.max(0, total - remise)));
     setShowPayment(true);
   };
 
+  // Encaissement : panier seul (comptoir) ou consommations de la table + panier (table)
   const handlePayment = () => {
-    if (cart.length === 0) return;
+    if (rienAPayer) return;
+    const items = itemsAPayer;
     const ventes = store.getVentes();
     const lignesVente = store.getLignesVente();
     const paiements = store.getPaiements();
@@ -148,7 +181,7 @@ export default function CaisseModule({ user }: Props) {
     };
 
     let idLigne = nextId(lignesVente, 'IDLIGNEVENTE');
-    const newLignes = cart.map(c => ({ IDLIGNEVENTE: idLigne++, IDVENTE: idVente, IDARTICLE: c.IDARTICLE, QUANTITE: c.QUANTITE, PRIX_UNITAIRE: c.PRIX_UNITAIRE, MONTANT: c.QUANTITE * c.PRIX_UNITAIRE }));
+    const newLignes = items.map(c => ({ IDLIGNEVENTE: idLigne++, IDVENTE: idVente, IDARTICLE: c.IDARTICLE, QUANTITE: c.QUANTITE, PRIX_UNITAIRE: c.PRIX_UNITAIRE, MONTANT: c.QUANTITE * c.PRIX_UNITAIRE }));
 
     let idPaiement = nextId(paiements, 'IDPAIEMENT');
     const newPaiements: typeof paiements = [];
@@ -163,7 +196,12 @@ export default function CaisseModule({ user }: Props) {
       newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: nap, MODE_PAIEMENT: paymentMode });
     }
 
-    const updatedArticles = articlesList.map(a => { const item = cart.find(c => c.IDARTICLE === a.IDARTICLE); if (item && a.GERE_STOCK) return { ...a, STOCK: a.STOCK - item.QUANTITE }; return a; });
+    // Sortie de stock pour tout ce qui est encaissé (un même article peut apparaître à plusieurs prix)
+    const updatedArticles = articlesList.map(a => {
+      if (!a.GERE_STOCK) return a;
+      const qte = items.filter(c => c.IDARTICLE === a.IDARTICLE).reduce((s, c) => s + c.QUANTITE, 0);
+      return qte > 0 ? { ...a, STOCK: a.STOCK - qte } : a;
+    });
 
     store.setVentes([...ventes, newVente]);
     store.setLignesVente([...lignesVente, ...newLignes]);
@@ -176,7 +214,7 @@ export default function CaisseModule({ user }: Props) {
       store.setConsommations(store.getConsommations().filter(c => c.IDTABLE !== selectedTable.IDTABLE));
     }
 
-    const rows = cart.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
+    const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printTicket(`
       <div class="center bold">TICKET DE CAISSE</div>
       <div class="center">${numeroFacture}</div>
@@ -222,7 +260,7 @@ export default function CaisseModule({ user }: Props) {
         >
           <ShoppingCart size={16} />
           <span>Panier</span>
-          {cart.length > 0 && (
+          {!rienAPayer && (
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
               mobileTab === 'panier' ? 'bg-white text-[#0D47A1]' : 'bg-[#0D47A1] text-white'
             }`}>
@@ -280,6 +318,21 @@ export default function CaisseModule({ user }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[220px]">
+          {tableItems.length > 0 && (
+            <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-orange-700 uppercase tracking-wide">Déjà servi sur la table</span>
+                <span className="text-xs font-bold text-orange-700 tabular-nums">{formatAr(tableTotal)}</span>
+              </div>
+              {tableItems.map(item => (
+                <div key={`${item.IDARTICLE}-${item.PRIX_UNITAIRE}`} className="flex justify-between text-sm py-0.5">
+                  <span className="text-gray-800">{item.EMOJI && <span className="mr-1">{item.EMOJI}</span>}{item.QUANTITE}x {item.NOM}</span>
+                  <span className="font-semibold tabular-nums text-gray-900">{formatAr(item.QUANTITE * item.PRIX_UNITAIRE)}</span>
+                </div>
+              ))}
+              <p className="text-[11px] text-orange-600 mt-1.5">Inclus dans le paiement de la table.</p>
+            </div>
+          )}
           {cart.map(item => (
             <div key={item.IDARTICLE} className="bg-gray-50 rounded-xl p-3 border border-gray-100 shadow-xs">
               <div className="flex items-start justify-between gap-2">
@@ -328,7 +381,7 @@ export default function CaisseModule({ user }: Props) {
               </div>
             </div>
           ))}
-          {cart.length === 0 && (
+          {cart.length === 0 && tableItems.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               <ShoppingCart size={40} className="mx-auto mb-2 opacity-50" />
               <p className="font-medium">Panier vide</p>
@@ -370,7 +423,7 @@ export default function CaisseModule({ user }: Props) {
             )}
             <button 
               onClick={openPayment} 
-              disabled={cart.length === 0} 
+              disabled={rienAPayer || (mode === 'table' && !selectedTable)} 
               className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 min-h-[48px] shadow-sm active:scale-[0.98] transition-all"
             >
               <Wallet size={18} />
@@ -463,7 +516,7 @@ export default function CaisseModule({ user }: Props) {
         </div>
 
         {/* Barre flottante Panier sur mobile */}
-        {cart.length > 0 && (
+        {!rienAPayer && (
           <div className="lg:hidden fixed bottom-16 left-0 right-0 p-3 bg-gradient-to-t from-gray-100 via-gray-100/95 to-transparent z-30 pointer-events-none">
             <button
               onClick={() => setMobileTab('panier')}
