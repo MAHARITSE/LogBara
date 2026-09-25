@@ -44,17 +44,15 @@ export default function AchatsModule({ user }: Props) {
   const lignesAchat = store.getLignesAchat();
   const refresh = () => setAchats(store.getAchats());
 
-  // Achats visibles : l'administrateur et le gérant voient tout ;
-  // les autres ne voient que les achats NON rattachés à une clôture.
-  // (Avant : après la clôture, les achats saisis ensuite le même jour
-  // disparaissaient de la liste alors qu'ils n'étaient clôturés nulle part.)
-  const visibleAchats = achats.filter(a => {
-    if (isAdmin || user.ROLE === 'Gérant') return true;
-    return !a.CLOTUREE;
-  });
+  // RÈGLE ABSOLUE : un achat rattaché à une clôture n'est JAMAIS affiché dans ce
+  // module, quel que soit le rôle (Magasinier, Caissier, Gérant, Administrateur).
+  // Il reste archivé dans le module Clôture (ticket « Récapitulatif des achats »).
+  // Les achats saisis APRÈS la clôture du jour n'étant rattachés à rien, ils
+  // restent bien visibles et partiront dans la prochaine clôture.
+  const visibleAchats = achats.filter(a => !a.CLOTUREE && !a.IDCLOTURE);
 
-  // Un achat rattaché à une clôture ne peut plus être modifié (sauf administrateur)
-  const isAchatVerrouille = (a: Achat) => a.CLOTUREE && !isAdmin;
+  // Sécurité : un achat clôturé n'est jamais modifiable (il n'est plus listé).
+  const isAchatVerrouille = (a: Achat) => !!a.CLOTUREE || !!a.IDCLOTURE;
 
   // Créer un nouveau fournisseur
   const handleCreateFournisseur = () => {
@@ -503,7 +501,14 @@ export default function AchatsModule({ user }: Props) {
                   </tr>
                 );
               })}
-              {visibleAchats.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-gray-400">Aucun achat</td></tr>}
+              {visibleAchats.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center py-8 text-gray-400">
+                    <p className="font-medium">Aucun achat</p>
+                    <p className="text-xs mt-1">Les achats clôturés sont archivés dans le module Clôture</p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
