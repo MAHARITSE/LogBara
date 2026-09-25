@@ -93,8 +93,18 @@ CLOTURE DE CAISSE : RATTACHEMENT DES OPERATIONS (ANTI-VOL)
   leurs lignes, leurs paiements et les clôtures déjà enregistrées ne peuvent
   plus être modifiés ni supprimés, et on ne peut plus ajouter de ligne à une
   vente ou un achat clôturé.
-- Mise à jour d'une base existante : la colonne paiements.idcloture est ajoutée
-  automatiquement au premier appel de l'API (aucune manipulation nécessaire).
+- Une seule clôture par jour et par caissier. La caisse peut rester ouverte
+  plusieurs jours : la clôture suivante regroupe tout ce qui n'a pas été clôturé.
+- Les ventes et achats saisis après la clôture restent visibles (Ventes, Achats).
+
+MISE A JOUR D'UNE INSTALLATION EXISTANTE (SANS PERTE DE DONNEES)
+----------------------------------------------------------------
+1. Sauvegarde : phpMyAdmin > barpos_db > Exporter (ou menu Sauvegarde).
+2. phpMyAdmin > base barpos_db > Importer > sql/mise_a_jour_v4.3.sql > Exécuter.
+   (NE PAS importer barpos.sql : il recrée la base VIDE.)
+3. Remplacer index.html, api/index.php et api/mappings.php dans le dossier barpos.
+Le script peut être relancé sans risque. Sans lui, l'API ajoute quand même la
+colonne automatiquement au premier appel.
 
 DEPANNAGE
 ---------

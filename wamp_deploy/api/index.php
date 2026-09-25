@@ -247,6 +247,15 @@ function ensure_schema(PDO $pdo): bool
             return true;
         }
         $pdo->exec('ALTER TABLE paiements ADD COLUMN idcloture INT DEFAULT NULL, ADD INDEX idx_paiement_cloture (idcloture)');
+        // Reprise de l'historique (identique à sql/mise_a_jour_v4.3.sql) : les remboursements
+        // déjà comptés dans une ancienne clôture y sont rattachés pour ne pas être recomptés.
+        $pdo->exec(
+            'UPDATE paiements p SET p.idcloture = (
+                 SELECT c.idcloture FROM clotures c
+                 WHERE c.idpersonnel = p.idpersonnel AND c.date_cloture = p.date_paiement AND c.heure >= p.heure
+                 ORDER BY c.heure ASC, c.idcloture ASC LIMIT 1)
+             WHERE p.idvente IS NULL AND p.idcloture IS NULL'
+        );
         return true;
     } catch (Throwable $error) {
         return false;

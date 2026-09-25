@@ -12,7 +12,9 @@ interface Props {
 
 export default function VentesModule({ user }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState(today());
+  // Caissier : par défaut TOUTES ses ventes non clôturées (la caisse peut rester
+  // ouverte plusieurs jours). Admin / Gérant : ventes du jour par défaut.
+  const [dateFilter, setDateFilter] = useState(user.ROLE === 'Caissier' ? '' : today());
   const [selectedVente, setSelectedVente] = useState<Vente | null>(null);
   const [confirmAnnuler, setConfirmAnnuler] = useState<Vente | null>(null);
   const [toast, setToast] = useState('');
@@ -168,6 +170,15 @@ export default function VentesModule({ user }: Props) {
               className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-[#0D47A1]"
             />
           </div>
+          {dateFilter && (
+            <button
+              onClick={() => setDateFilter('')}
+              className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              title="Afficher toutes les dates"
+            >
+              Toutes les dates
+            </button>
+          )}
         </div>
       </div>
 

@@ -144,6 +144,11 @@ export default function ClotureModule({ user }: Props) {
       ventesJour,
       achatsJour,
       remboursements,
+      // Date de la plus ancienne opération en attente (caisse ouverte depuis…)
+      ouverteDepuis: [
+        ...ventesJour.map(v => v.DATE_VENTE),
+        ...remboursements.map(p => p.DATE_PAIEMENT),
+      ].sort()[0] || '',
     };
   }, [ventes, paiements, clients, achats, clotures, user.IDPERSONNEL]);
 
@@ -439,12 +444,22 @@ export default function ClotureModule({ user }: Props) {
       {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50">{toast}</div>}
 
       <h1 className="text-2xl font-bold text-gray-900">🔒 Clôture de caisse</h1>
+      {!alreadyClosed && stats.ouverteDepuis && stats.ouverteDepuis < today() && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+          📅 Caisse ouverte depuis le <b>{stats.ouverteDepuis.split('-').reverse().join('/')}</b> :
+          cette clôture regroupe toutes les opérations non clôturées depuis cette date.
+        </div>
+      )}
 
       {alreadyClosed ? (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center space-y-4">
           <Check size={48} className="mx-auto text-green-500 mb-2" />
           <h2 className="text-xl font-bold text-green-700">Caisse déjà clôturée</h2>
           <p className="text-green-600">Vous avez déjà effectué votre clôture aujourd'hui.</p>
+          <p className="text-sm text-green-700">
+            Une seule clôture par jour : la prochaine sera possible <b>demain</b>.
+            Vous pouvez continuer à vendre et à saisir des achats en attendant.
+          </p>
           {clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL) && (
             <button
               onClick={() => {
