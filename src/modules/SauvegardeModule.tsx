@@ -104,11 +104,11 @@ export default function SauvegardeModule({ user }: Props) {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
           <h3 className="font-bold text-gray-900">Exports disponibles</h3>
 
-          <button onClick={exportExcel} className="w-full bg-green-500 text-white py-3 rounded-xl font-bold hover:bg-green-600 flex items-center justify-center gap-2">
-            <FileSpreadsheet size={18} /> Export Excel multi-onglets
+          <button onClick={exportExcel} className="w-full bg-green-500 text-white py-3 rounded-xl font-bold hover:bg-green-600 flex items-center justify-center gap-2 cursor-pointer">
+            <FileSpreadsheet size={18} /> Export brut global (Multi-onglets)
           </button>
 
-          <button onClick={exportSQL} className="w-full bg-[#0D47A1] text-white py-3 rounded-xl font-bold hover:bg-[#1565C0] flex items-center justify-center gap-2">
+          <button onClick={exportSQL} className="w-full bg-[#0D47A1] text-white py-3 rounded-xl font-bold hover:bg-[#1565C0] flex items-center justify-center gap-2 cursor-pointer">
             <Database size={18} /> Export SQL
           </button>
 

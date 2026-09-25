@@ -143,7 +143,7 @@ function set_auth_cookie(string $token, int $expiresAt): void
         'path' => cookie_path(),
         'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
         'httponly' => true,
-        'samesite' => 'Strict',
+        'samesite' => 'Lax',
     ]);
 }
 
@@ -256,6 +256,26 @@ function ensure_schema(PDO $pdo): bool
                  ORDER BY c.heure ASC, c.idcloture ASC LIMIT 1)
              WHERE p.idvente IS NULL AND p.idcloture IS NULL'
         );
+        // Ajout automatique de la colonne articles.alerte_stock si inexistante
+        $checkAlerte = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $checkAlerte->execute(['articles', 'alerte_stock']);
+        if ((int) $checkAlerte->fetchColumn() === 0) {
+            $pdo->exec('ALTER TABLE articles ADD COLUMN alerte_stock BOOLEAN DEFAULT TRUE');
+        }
+
+        // Ajout automatique de la colonne articles.ne_plus_vendre si inexistante
+        $checkNePlusVendre = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $checkNePlusVendre->execute(['articles', 'ne_plus_vendre']);
+        if ((int) $checkNePlusVendre->fetchColumn() === 0) {
+            $pdo->exec('ALTER TABLE articles ADD COLUMN ne_plus_vendre BOOLEAN DEFAULT FALSE');
+        }
+
         return true;
     } catch (Throwable $error) {
         return false;
@@ -550,18 +570,6 @@ try {
         exit;
     }
 
-    if ($action === 'read' && $dataset === 'societe') {
-        $rows = read_dataset($pdo, $mappings['societe']);
-        xml_success_start();
-        write_rows_xml($rows, $mappings['societe']);
-        echo '</response>';
-        exit;
-    }
-
-    if (!$user) {
-        xml_error('Session expirée. Veuillez vous reconnecter.');
-    }
-
     if ($action === 'read') {
         if (!isset($mappings[$dataset])) {
             xml_error('Jeu de données inconnu.');
@@ -571,6 +579,10 @@ try {
         write_rows_xml($rows, $mappings[$dataset]);
         echo '</response>';
         exit;
+    }
+
+    if (!$user) {
+        xml_error('Session expirée. Veuillez vous reconnecter.');
     }
 
     if ($action === 'sync') {

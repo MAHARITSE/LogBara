@@ -51,6 +51,8 @@ export interface Article {
   ACTIF: boolean;
   GERE_STOCK: boolean;
   SAISIE_PRIX_VENTE: boolean;
+  ALERTE_STOCK?: boolean;
+  NE_PLUS_VENDRE?: boolean;
 }
 
 export interface TableR {

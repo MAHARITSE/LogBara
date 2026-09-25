@@ -70,12 +70,28 @@ const menuGroups: { title?: string; items: MenuItem[] }[] = [
 
 export default function Sidebar({ user, activeModule, onModuleChange, onLogout, mobileOpen, onMobileToggle }: Props) {
   const societe = store.getSociete();
-  const stockAlerts = store.getStockAlerts();
+  const [stockAlerts, setStockAlerts] = useState(() => store.getStockAlerts());
   const [utiliserImprimante, setUtiliserImprimante] = useState(() => store.isUserPrinterEnabled(user.IDPERSONNEL));
 
   useEffect(() => {
     setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
   }, [user.IDPERSONNEL]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setStockAlerts(store.getStockAlerts());
+    };
+    window.addEventListener('barpos-articles-updated', handleUpdate);
+    window.addEventListener('barpos-data-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('barpos-articles-updated', handleUpdate);
+      window.removeEventListener('barpos-data-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleUpdate = (e: Event) => {

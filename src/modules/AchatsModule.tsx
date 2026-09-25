@@ -44,17 +44,15 @@ export default function AchatsModule({ user }: Props) {
   const lignesAchat = store.getLignesAchat();
   const refresh = () => setAchats(store.getAchats());
 
-  // Achats visibles : l'administrateur et le gérant voient tout ;
-  // les autres ne voient que les achats NON rattachés à une clôture.
-  // (Avant : après la clôture, les achats saisis ensuite le même jour
-  // disparaissaient de la liste alors qu'ils n'étaient clôturés nulle part.)
-  const visibleAchats = achats.filter(a => {
-    if (isAdmin || user.ROLE === 'Gérant') return true;
-    return !a.CLOTUREE;
-  });
+  // RÈGLE ABSOLUE : un achat rattaché à une clôture n'est JAMAIS affiché dans ce
+  // module, quel que soit le rôle (Magasinier, Caissier, Gérant, Administrateur).
+  // Il reste archivé dans le module Clôture (ticket « Récapitulatif des achats »).
+  // Les achats saisis APRÈS la clôture du jour n'étant rattachés à rien, ils
+  // restent bien visibles et partiront dans la prochaine clôture.
+  const visibleAchats = achats.filter(a => !a.CLOTUREE && !a.IDCLOTURE);
 
-  // Un achat rattaché à une clôture ne peut plus être modifié (sauf administrateur)
-  const isAchatVerrouille = (a: Achat) => a.CLOTUREE && !isAdmin;
+  // Sécurité : un achat clôturé n'est jamais modifiable (il n'est plus listé).
+  const isAchatVerrouille = (a: Achat) => !!a.CLOTUREE || !!a.IDCLOTURE;
 
   // Créer un nouveau fournisseur
   const handleCreateFournisseur = () => {
@@ -451,11 +449,16 @@ export default function AchatsModule({ user }: Props) {
     <div className="space-y-6 relative">
       {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-[60] animate-pulse">{toast}</div>}
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">🛒 Achats</h1>
-        <button onClick={openNewForm} className="bg-[#0D47A1] text-white px-4 py-2.5 rounded-xl flex items-center gap-2 font-medium hover:bg-[#1565C0]">
-          <Plus size={18} /> Nouvel achat
-        </button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">🛒 Achats</h1>
+          <p className="text-xs text-gray-500">Approvisionnements & suivi des prix fournisseurs</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={openNewForm} className="bg-[#0D47A1] text-white px-4 py-2.5 rounded-xl flex items-center gap-2 font-medium hover:bg-[#1565C0] text-xs sm:text-sm shadow-xs cursor-pointer">
+            <Plus size={18} /> Nouvel achat
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -503,7 +506,14 @@ export default function AchatsModule({ user }: Props) {
                   </tr>
                 );
               })}
-              {visibleAchats.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-gray-400">Aucun achat</td></tr>}
+              {visibleAchats.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center py-8 text-gray-400">
+                    <p className="font-medium">Aucun achat</p>
+                    <p className="text-xs mt-1">Les achats clôturés sont archivés dans le module Clôture</p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

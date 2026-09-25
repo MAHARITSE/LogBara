@@ -8,6 +8,7 @@ import {
   Fournisseur, Vente, LigneVente, Paiement, Cloture,
   Mouvement, Achat, LigneAchat, Inventaire, LigneInventaire, Consommation,
 } from './types';
+import { generateRandomSales } from './utils/seedSales';
 
 type Row = Record<string, unknown>;
 type DatasetName =
@@ -92,9 +93,28 @@ function getLocalDataset<T>(name: DatasetName, seed: T[]): T[] {
 function setLocalDataset<T>(name: DatasetName, data: T[]): void {
   try {
     localStorage.setItem(`barpos_${name}`, JSON.stringify(data));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('barpos-data-updated', { detail: { dataset: name } }));
+      if (name === 'articles') {
+        window.dispatchEvent(new CustomEvent('barpos-articles-updated', { detail: { articles: data } }));
+      }
+    }
   } catch (e) {
     console.error('Erreur sauvegarde locale barpos:', e);
   }
+}
+
+// Écoute des modifications provenant d'autres onglets / fenêtres
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key && event.key.startsWith('barpos_')) {
+      const dataset = event.key.replace('barpos_', '');
+      window.dispatchEvent(new CustomEvent('barpos-data-updated', { detail: { dataset } }));
+      if (dataset === 'articles') {
+        window.dispatchEvent(new CustomEvent('barpos-articles-updated'));
+      }
+    }
+  });
 }
 
 const escapeXml = (value: unknown): string => String(value)
@@ -204,26 +224,67 @@ const getDefaultSeedForDataset = (dataset: DatasetName): any[] => {
   }
 };
 
-const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
-  try {
-    const res = request('read', dataset) as T[];
-    lastError = '';
-    return res;
-  } catch {
-    lastError = '';
-    const seed = fallback.length > 0 ? fallback : (getDefaultSeedForDataset(dataset) as T[]);
-    return getLocalDataset<T>(dataset, seed);
+let _cachedApiStatus: boolean | null = null;
+
+const isApiConfigured = (): boolean => {
+  if (typeof window === 'undefined') return false;
+
+  // Contrôle explicite via drapeau global si nécessaire
+  const win = window as unknown as { __BARPOS_USE_API__?: boolean };
+  if (typeof win.__BARPOS_USE_API__ === 'boolean') {
+    return win.__BARPOS_USE_API__;
   }
+
+  // Dans l'environnement de dev / bac à sable Vite Cloud (.run.app ou port 3000 sans backend PHP WAMP local)
+  if (window.location.hostname.includes('.run.app') || (window.location.port === '3000' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))) {
+    return false;
+  }
+
+  // En environnement WAMP / Apache (ex: http://localhost/barpos/ ou adresse IP LAN en production)
+  if (_cachedApiStatus !== null) return _cachedApiStatus;
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API_URL, false);
+    xhr.setRequestHeader('Content-Type', 'application/xml; charset=UTF-8');
+    xhr.setRequestHeader('X-BarPOS-Request', '1');
+    xhr.timeout = 1000;
+    xhr.send('<request action="session"><params/></request>');
+    if (xhr.status >= 200 && xhr.status < 400 && xhr.responseXML) {
+      _cachedApiStatus = true;
+      return true;
+    }
+  } catch {
+    // API PHP WAMP non joignable
+  }
+
+  _cachedApiStatus = false;
+  return false;
+};
+
+const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
+  if (isApiConfigured()) {
+    try {
+      const res = request('read', dataset) as T[];
+      lastError = '';
+      return res;
+    } catch {
+      lastError = '';
+    }
+  }
+  const seed = fallback.length > 0 ? fallback : (getDefaultSeedForDataset(dataset) as T[]);
+  return getLocalDataset<T>(dataset, seed);
 };
 
 const sync = <T>(dataset: DatasetName, data: T[]): void => {
   // Always update local storage first for resilience
   setLocalDataset(dataset, data);
-  try {
-    request('sync', dataset, data as Row[]);
-  } catch (error) {
-    lastError = errorMessage(error);
-    // Silent fallback to local storage
+  if (isApiConfigured()) {
+    try {
+      request('sync', dataset, data as Row[]);
+    } catch (error) {
+      lastError = errorMessage(error);
+    }
   }
 };
 
@@ -248,6 +309,7 @@ const exportAll = () => ({
 });
 
 export const store = {
+  isApiConfigured: (): boolean => isApiConfigured(),
   getLastError: (): string => lastError,
 
   getSociete: (): Societe => safeRead<Societe>('societe', [SEED_SOCIETE])[0] || SEED_SOCIETE,
@@ -312,6 +374,17 @@ export const store = {
   getPaiements: (): Paiement[] => safeRead<Paiement>('paiements', []),
   setPaiements: (data: Paiement[]): void => sync('paiements', data),
 
+  /**
+   * Génère un historique de ventes réaliste pour 3 mois (90 jours)
+   */
+  seedRandomSales: (months = 3, append = false) => {
+    const res = generateRandomSales(months, append);
+    try {
+      localStorage.setItem('barpos_seeded_3months_sales', 'true');
+    } catch (_) {}
+    return res;
+  },
+
   getClotures: (): Cloture[] => safeRead<Cloture>('clotures', []),
   setClotures: (data: Cloture[]): void => sync('clotures', data),
 
@@ -334,11 +407,13 @@ export const store = {
   setConsommations: (data: Consommation[]): void => sync('consommations', data),
 
   getSession: (): Personnel | null => {
-    try {
-      const rows = request('session');
-      if (rows.length > 0) return rows[0] as unknown as Personnel;
-    } catch {
-      // Fallback local session
+    if (isApiConfigured()) {
+      try {
+        const rows = request('session');
+        if (rows.length > 0) return rows[0] as unknown as Personnel;
+      } catch {
+        // Fallback local session
+      }
     }
     try {
       const saved = localStorage.getItem('barpos_session');
@@ -356,11 +431,13 @@ export const store = {
   },
 
   authenticate: (login: string, password: string): Personnel | null => {
-    try {
-      const rows = request('authenticate', undefined, undefined, { login, password });
-      if (rows.length > 0) return rows[0] as unknown as Personnel;
-    } catch {
-      // Fallback local auth check
+    if (isApiConfigured()) {
+      try {
+        const rows = request('authenticate', undefined, undefined, { login, password });
+        if (rows.length > 0) return rows[0] as unknown as Personnel;
+      } catch {
+        // Fallback local auth check
+      }
     }
 
     const allPersonnel = store.getPersonnel();
@@ -381,22 +458,26 @@ export const store = {
   },
 
   logout: (): void => {
-    try {
-      request('logout');
-    } catch {
-      // ignore
+    if (isApiConfigured()) {
+      try {
+        request('logout');
+      } catch {
+        // ignore
+      }
     }
     store.setSession(null);
   },
 
   getStockAlerts: (): number => store.getArticles()
-    .filter(article => article.ACTIF && article.GERE_STOCK && article.STOCK <= article.STOCK_MIN).length,
+    .filter(article => article.ACTIF && article.GERE_STOCK && (article.ALERTE_STOCK !== false) && article.STOCK <= article.STOCK_MIN).length,
 
   resetAll: (): void => {
-    try {
-      request('reset');
-    } catch {
-      // ignore
+    if (isApiConfigured()) {
+      try {
+        request('reset');
+      } catch {
+        // ignore
+      }
     }
     const datasets: DatasetName[] = [
       'societe', 'personnel', 'familles', 'articles', 'tables',
@@ -418,11 +499,65 @@ export const store = {
 
   exportAll,
   exportSQL: (): string => {
-    try {
-      const root = sendXml('<request action="backup"><params/></request>');
-      return Array.from(root.children).find(child => child.tagName === 'content')?.textContent || '';
-    } catch {
-      return JSON.stringify(exportAll(), null, 2);
+    if (isApiConfigured()) {
+      try {
+        const root = sendXml('<request action="backup"><params/></request>');
+        const content = Array.from(root.children).find(child => child.tagName === 'content')?.textContent;
+        if (content) return content;
+      } catch {
+        // Fallback to local SQL generation
+      }
     }
+
+    // Generate valid MySQL SQL dump from local data
+    const all = exportAll();
+    const escapeSql = (val: unknown): string => {
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'number') return String(val);
+      if (typeof val === 'boolean') return val ? '1' : '0';
+      return `'${String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    };
+
+    let sql = `-- ============================================\n`;
+    sql += `-- BAR POS - Sauvegarde SQL MySQL\n`;
+    sql += `-- Date: ${new Date().toISOString()}\n`;
+    sql += `-- ============================================\n\n`;
+    sql += `SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n`;
+
+    const tableMapping: Record<string, string> = {
+      societe: 'societe',
+      personnel: 'personnel',
+      familles: 'familles',
+      articles: 'articles',
+      tables: 'tables_resto',
+      clients: 'clients',
+      fournisseurs: 'fournisseurs',
+      ventes: 'ventes',
+      lignes_vente: 'lignes_vente',
+      paiements: 'paiements',
+      clotures: 'clotures',
+      mouvements: 'mouvements_stock',
+      achats: 'achats',
+      lignes_achat: 'lignes_achat',
+      inventaires: 'inventaires',
+      lignes_inventaire: 'lignes_inventaire',
+      consommations: 'consommations',
+    };
+
+    Object.entries(all).forEach(([key, items]) => {
+      const rows = (Array.isArray(items) ? items : [items]) as unknown as Record<string, unknown>[];
+      if (rows.length === 0) return;
+      const tableName = tableMapping[key] || key;
+      const cols = Object.keys(rows[0]);
+      sql += `-- Données pour la table ${tableName}\n`;
+      rows.forEach(row => {
+        const vals = cols.map(c => escapeSql(row[c])).join(', ');
+        sql += `INSERT INTO \`${tableName}\` (\`${cols.join('`, `')}\`) VALUES (${vals});\n`;
+      });
+      sql += '\n';
+    });
+
+    sql += `SET FOREIGN_KEY_CHECKS = 1;\n`;
+    return sql;
   },
 };

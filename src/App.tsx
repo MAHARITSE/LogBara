@@ -30,6 +30,21 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initialiser 3 mois de ventes uniquement en mode local/demo (pas en mode MySQL WAMP)
+    try {
+      const isApi = store.isApiConfigured();
+      if (!isApi) {
+        const existingVentes = store.getVentes();
+        const v2Seeded = localStorage.getItem('barpos_seeded_3months_v2');
+        if (!v2Seeded || existingVentes.length < 10) {
+          store.seedRandomSales(3, false);
+          localStorage.setItem('barpos_seeded_3months_v2', 'true');
+        }
+      }
+    } catch (e) {
+      console.error('Erreur initialisation:', e);
+    }
+
     // Check for existing session
     const session = store.getSession();
     if (session) {

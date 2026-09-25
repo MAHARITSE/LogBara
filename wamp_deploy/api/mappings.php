@@ -58,10 +58,12 @@ function barpos_mappings(): array
                 'PRIX_VENTE' => 'prix_vente', 'STOCK' => 'stock', 'STOCK_MIN' => 'stock_min',
                 'CODE_BARRE' => 'code_barre', 'ACTIF' => 'actif', 'GERE_STOCK' => 'gere_stock',
                 'SAISIE_PRIX_VENTE' => 'saisie_prix_vente',
+                'ALERTE_STOCK' => 'alerte_stock',
+                'NE_PLUS_VENDRE' => 'ne_plus_vendre',
             ],
             'integers' => ['IDARTICLE', 'IDFAMILLE', 'STOCK', 'STOCK_MIN'],
             'decimals' => ['PRIX_ACHAT', 'PRIX_VENTE'],
-            'booleans' => ['ACTIF', 'GERE_STOCK', 'SAISIE_PRIX_VENTE'],
+            'booleans' => ['ACTIF', 'GERE_STOCK', 'SAISIE_PRIX_VENTE', 'ALERTE_STOCK', 'NE_PLUS_VENDRE'],
         ],
         'tables' => [
             'table' => 'tables_resto',

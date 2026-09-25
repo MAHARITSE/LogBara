@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Printer, Package, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, CartItem, TableR } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
@@ -13,7 +13,7 @@ type PaymentMode = 'Espèces' | 'Mobile Money' | 'Mixte';
 export default function CaisseModule({ user }: Props) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [remise, setRemise] = useState(0);
-  const [selectedFamily, setSelectedFamily] = useState<number | null>(null);
+  const [selectedFamily, setSelectedFamily] = useState<number | null | 'rupture'>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'comptoir' | 'table'>('comptoir');
   const [selectedTable, setSelectedTable] = useState<TableR | null>(null);
@@ -26,10 +26,35 @@ export default function CaisseModule({ user }: Props) {
   const [mobileTab, setMobileTab] = useState<'articles' | 'panier'>('articles');
   const [toast, setToast] = useState('');
   const [rk, setRk] = useState(0);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setRk(k => k + 1);
+    };
+    window.addEventListener('barpos-articles-updated', handleUpdate);
+    window.addEventListener('barpos-data-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('barpos-articles-updated', handleUpdate);
+      window.removeEventListener('barpos-data-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
+  }, []);
 
   const familles = store.getFamilles();
-  const articles = store.getArticles();
+  const articles = useMemo(() => store.getArticles(), [rk]);
   const tables = useMemo(() => store.getTables(), [rk]);
+
+  const articlesEnAlerte = useMemo(() => {
+    return articles.filter(a => a.ACTIF && a.GERE_STOCK && (a.ALERTE_STOCK !== false) && a.STOCK <= a.STOCK_MIN);
+  }, [articles]);
+
+  const articlesEnRupture = useMemo(() => {
+    return articles.filter(a => a.ACTIF && !a.NE_PLUS_VENDRE && a.GERE_STOCK && a.STOCK <= 0);
+  }, [articles]);
 
   const showMsg = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
@@ -40,8 +65,21 @@ export default function CaisseModule({ user }: Props) {
 
   const filteredArticles = useMemo(() => {
     return articles.filter(a => {
-      if (!a.ACTIF) return false;
-      if (selectedFamily && a.IDFAMILLE !== selectedFamily) return false;
+      // Masquer les articles inactifs ou marqués "Ne plus vendre"
+      if (!a.ACTIF || a.NE_PLUS_VENDRE) return false;
+
+      if (selectedFamily === 'rupture') {
+        // Dans l'onglet Ruptures uniquement : afficher les articles gérés en stock et épuisés
+        if (!a.GERE_STOCK || a.STOCK > 0) return false;
+      } else {
+        // Dans Tous et les catégories par famille : MASQUER les articles en rupture
+        if (a.GERE_STOCK && a.STOCK <= 0) return false;
+
+        if (typeof selectedFamily === 'number' && a.IDFAMILLE !== selectedFamily) {
+          return false;
+        }
+      }
+
       if (searchTerm && !a.NOM.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       return true;
     });
@@ -436,7 +474,7 @@ export default function CaisseModule({ user }: Props) {
       {/* Grille articles */}
       <div className={`flex-1 flex-col min-w-0 ${mobileTab === 'articles' ? 'flex' : 'hidden lg:flex'}`}>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 mb-3">
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 sm:gap-3 items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input 
@@ -452,6 +490,19 @@ export default function CaisseModule({ user }: Props) {
                 </button>
               )}
             </div>
+
+            {articlesEnAlerte.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAlertModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 font-bold text-xs shrink-0 transition-colors shadow-xs"
+                title="Afficher les articles en alerte de stock"
+              >
+                <AlertTriangle size={16} className="text-orange-600 shrink-0" />
+                <span className="hidden sm:inline">Alertes</span>
+                <span className="bg-orange-200/90 text-orange-800 px-1.5 py-0.5 rounded-full text-[11px] font-extrabold">{articlesEnAlerte.length}</span>
+              </button>
+            )}
           </div>
           <div className="flex gap-2 mt-2.5 pb-1 overflow-x-auto whitespace-nowrap scrollbar-none">
             <button 
@@ -460,6 +511,26 @@ export default function CaisseModule({ user }: Props) {
             >
               Tous ({articles.length})
             </button>
+            {articlesEnRupture.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedFamily(selectedFamily === 'rupture' ? null : 'rupture')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all min-h-[34px] flex items-center gap-1.5 cursor-pointer ${
+                  selectedFamily === 'rupture'
+                    ? 'bg-red-600 text-white shadow-xs ring-2 ring-red-300'
+                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                }`}
+                title="Afficher uniquement les articles en rupture de stock"
+              >
+                <span>🚫</span>
+                <span>Ruptures</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                  selectedFamily === 'rupture' ? 'bg-white text-red-700' : 'bg-red-200 text-red-800'
+                }`}>
+                  {articlesEnRupture.length}
+                </span>
+              </button>
+            )}
             {familles.map(f => (
               <button 
                 key={f.IDFAMILLE} 
@@ -478,30 +549,79 @@ export default function CaisseModule({ user }: Props) {
             {filteredArticles.map(art => {
               const inCart = cart.find(c => c.IDARTICLE === art.IDARTICLE);
               const oos = art.GERE_STOCK && art.STOCK <= 0;
+              const isLow = art.GERE_STOCK && art.STOCK > 0 && art.STOCK <= art.STOCK_MIN && (art.ALERTE_STOCK !== false);
               return (
                 <button 
                   key={art.IDARTICLE} 
                   onClick={() => addToCart(art.IDARTICLE)} 
                   disabled={oos} 
-                  className={`article-card relative bg-white rounded-2xl p-3 sm:p-4 shadow-xs text-left active:scale-[0.97] transition-all border ${
-                    inCart 
-                      ? 'border-[#0D47A1] ring-2 ring-[#0D47A1]/20 bg-blue-50/20' 
-                      : 'border-gray-100 hover:border-gray-200'
-                  } ${oos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`article-card relative rounded-2xl p-3 sm:p-4 text-left active:scale-[0.97] transition-all border ${
+                    oos
+                      ? 'bg-slate-50/90 border-red-200/90 ring-1 ring-red-300/40 cursor-not-allowed'
+                      : inCart 
+                        ? 'bg-blue-50/30 border-[#0D47A1] ring-2 ring-[#0D47A1]/20 shadow-xs' 
+                        : 'bg-white border-gray-100 hover:border-gray-200 shadow-xs'
+                  }`}
                 >
+                  {/* Badge Rupture ou Stock bas ou Prix libre */}
+                  {oos ? (
+                    <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-lg bg-red-600 text-white font-black text-[10px] shadow-sm flex items-center gap-1 tracking-wider uppercase">
+                      <span>🚫</span>
+                      <span>Rupture</span>
+                    </div>
+                  ) : isLow ? (
+                    <div className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded-lg bg-amber-500 text-white font-bold text-[10px] shadow-xs flex items-center gap-0.5">
+                      <span>⚡</span>
+                      <span>Reste {art.STOCK}</span>
+                    </div>
+                  ) : art.SAISIE_PRIX_VENTE ? (
+                    <div className="absolute top-2 left-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md font-semibold">
+                      ✏️ Prix libre
+                    </div>
+                  ) : null}
+
                   {inCart && (
-                    <div className="absolute top-2 right-2 min-w-[22px] h-[22px] px-1 bg-[#0D47A1] text-white rounded-full flex items-center justify-center text-xs font-extrabold shadow-sm">
+                    <div className="absolute top-2 right-2 min-w-[22px] h-[22px] px-1 bg-[#0D47A1] text-white rounded-full flex items-center justify-center text-xs font-extrabold shadow-sm z-10">
                       {inCart.QUANTITE}
                     </div>
                   )}
-                  {art.SAISIE_PRIX_VENTE && <div className="absolute top-2 left-2 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md font-semibold">✏️ Prix libre</div>}
-                  <div className="text-center pt-1">
-                    <div className="text-3xl sm:text-4xl mb-1.5 drop-shadow-sm select-none">{art.EMOJI || '📦'}</div>
-                    <p className="font-semibold text-xs sm:text-sm mb-1 line-clamp-2 text-slate-800 leading-tight min-h-[2.2rem] flex items-center justify-center">
+
+                  <div className="text-center pt-2">
+                    <div className="flex items-center justify-center h-14 sm:h-16 mb-1.5 select-none">
+                      {art.IMAGE ? (
+                        <img
+                          src={art.IMAGE}
+                          alt={art.NOM}
+                          className={`max-h-14 sm:max-h-16 max-w-full object-contain rounded-xl drop-shadow-2xs transition-transform ${
+                            oos ? 'grayscale opacity-40 scale-95' : 'group-hover:scale-105'
+                          }`}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className={`text-3xl sm:text-4xl drop-shadow-sm select-none transition-transform ${oos ? 'grayscale opacity-50 scale-95' : ''}`}>
+                          {art.EMOJI || '📦'}
+                        </div>
+                      )}
+                    </div>
+                    <p className={`font-semibold text-xs sm:text-sm mb-1 line-clamp-2 leading-tight min-h-[2.2rem] flex items-center justify-center ${oos ? 'text-gray-400' : 'text-slate-800'}`}>
                       {art.NOM}
                     </p>
-                    <p className="text-amber-600 font-extrabold text-sm sm:text-base tracking-tight tabular-nums">{formatAr(art.PRIX_VENTE)}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{art.GERE_STOCK ? `Stock: ${art.STOCK}` : 'Stock illimité'}</p>
+                    <p className={`font-extrabold text-sm sm:text-base tracking-tight tabular-nums ${oos ? 'text-gray-400 line-through' : 'text-amber-600'}`}>
+                      {formatAr(art.PRIX_VENTE)}
+                    </p>
+                    {oos ? (
+                      <p className="text-[11px] text-red-600 font-extrabold mt-0.5 tracking-tight">
+                        🚫 Épuisé (0 en stock)
+                      </p>
+                    ) : isLow ? (
+                      <p className="text-[10px] text-amber-700 font-bold mt-0.5">
+                        Stock bas : {art.STOCK}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                        {art.GERE_STOCK ? `Stock: ${art.STOCK}` : 'Stock illimité'}
+                      </p>
+                    )}
                   </div>
                 </button>
               );
@@ -632,6 +752,84 @@ export default function CaisseModule({ user }: Props) {
           </div>
         </div>
       )}
+      {/* Modal Consultation Alertes de Stock (sans tableau de gestion) */}
+      {showAlertModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden border border-gray-100">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-orange-500 to-amber-500 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-white/20">
+                  <AlertTriangle size={22} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg">Articles en alerte de stock</h3>
+                  <p className="text-xs text-orange-100">{articlesEnAlerte.length} article{articlesEnAlerte.length > 1 ? 's' : ''} à surveiller</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAlertModal(false)}
+                className="p-1.5 rounded-xl hover:bg-white/20 transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800">
+                <span className="font-bold">Pour la caisse : </span>
+                Cette liste vous permet de connaître les produits en rupture ou bientôt épuisés afin d'en avertir les clients et le magasinier.
+              </div>
+
+              <div className="space-y-2">
+                {articlesEnAlerte.map(a => {
+                  const isZero = a.STOCK <= 0;
+                  return (
+                    <div
+                      key={a.IDARTICLE}
+                      className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
+                        isZero ? 'bg-red-50/60 border-red-200' : 'bg-orange-50/60 border-orange-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {a.IMAGE ? (
+                          <div className="w-9 h-9 rounded-xl overflow-hidden border border-gray-200 bg-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <img src={a.IMAGE} alt={a.NOM} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <span className="text-2xl select-none shrink-0">{a.EMOJI || '📦'}</span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-gray-900 truncate">{a.NOM}</p>
+                          <p className="text-xs text-gray-400 font-mono">{a.CODE}</p>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className={`text-base font-extrabold tabular-nums block ${isZero ? 'text-red-600' : 'text-orange-600'}`}>
+                          {a.STOCK} en stock
+                        </span>
+                        <span className="text-[11px] text-gray-500">Seuil min : {a.STOCK_MIN}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAlertModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-[#0D47A1] hover:bg-[#1565C0] text-white font-semibold text-sm transition-colors cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal open={confirmClear} type="warning" title="Vider le panier" message="Voulez-vous vraiment vider le panier ?" confirmText="Oui, vider" cancelText="Non" onConfirm={clearCart} onCancel={() => setConfirmClear(false)} />
     </div>
   );

@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Package, TrendingUp, TrendingDown, AlertTriangle, Search, Plus, Minus, RotateCcw, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, TrendingUp, TrendingDown, AlertTriangle, Search, Plus, Minus, RotateCcw, X, ShieldAlert, CheckCircle2, Bell, BellOff } from 'lucide-react';
 import { store } from '../store';
 import { Personnel } from '../types';
 import { today, nowTime, nextId } from '../helpers';
 
 interface Props {
   user: Personnel;
+  onNavigateToCaisse?: () => void;
 }
 
 export default function StockModule({ user }: Props) {
@@ -19,6 +20,7 @@ export default function StockModule({ user }: Props) {
   const [mvtRef, setMvtRef] = useState('');
   const [toast, setToast] = useState('');
 
+  const canManageStock = ['Administrateur', 'Gérant', 'Magasinier'].includes(user.ROLE);
   const familles = store.getFamilles();
 
   const showMsg = (msg: string) => {
@@ -31,12 +33,177 @@ export default function StockModule({ user }: Props) {
     setMouvements(store.getMouvements());
   };
 
+  const toggleAlerte = (artId: number) => {
+    const artList = store.getArticles();
+    const art = artList.find(a => a.IDARTICLE === artId);
+    if (!art) return;
+    const newAlerte = !(art.ALERTE_STOCK !== false);
+    const updated = artList.map(a => a.IDARTICLE === artId ? { ...a, ALERTE_STOCK: newAlerte } : a);
+    store.setArticles(updated);
+    refresh();
+    showMsg(newAlerte ? `Alerte réactivée pour ${art.NOM}` : `Alerte désactivée pour ${art.NOM}`);
+  };
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      refresh();
+    };
+    window.addEventListener('barpos-articles-updated', handleUpdate);
+    window.addEventListener('barpos-data-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('barpos-articles-updated', handleUpdate);
+      window.removeEventListener('barpos-data-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
+  }, []);
+
   const filteredArticles = articles.filter(a =>
     a.NOM.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.CODE.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const articlesEnAlerte = articles.filter(a => a.STOCK <= a.STOCK_MIN);
+  const articlesEnAlerte = articles.filter(a => (a.ALERTE_STOCK !== false) && a.STOCK <= a.STOCK_MIN);
+  const filteredAlertes = articlesEnAlerte.filter(a =>
+    a.NOM.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    a.CODE.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // VUE SPÉCIALE CAISSIER : affichage des alertes sans le tableau Article | Famille | Stock | Min | Actions
+  if (!canManageStock) {
+    return (
+      <div className="space-y-6 max-w-5xl mx-auto">
+        {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <AlertTriangle className="text-orange-500" size={26} />
+              Alertes de stock
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Articles dont le niveau de stock est critique ou en rupture
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium self-start sm:self-auto">
+            <ShieldAlert size={16} className="text-amber-600 shrink-0" />
+            <span>Consultation caisse (gestion des stocks restreinte)</span>
+          </div>
+        </div>
+
+        {/* Message d'information pour la caisse */}
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
+          <p className="font-semibold mb-1">Information pour le poste Caisse :</p>
+          <p className="text-blue-700">
+            Le caissier n'a pas accès à la modification du stock. Veuillez signaler les articles en alerte ci-dessous au magasinier ou à la gérance pour réapprovisionnement.
+          </p>
+        </div>
+
+        {/* Recherche parmi les alertes */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Filtrer un article en alerte..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-[#0D47A1] focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {/* Liste des alertes sans le tableau de gestion */}
+        {articlesEnAlerte.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-emerald-100 p-8 text-center">
+            <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Aucune alerte de stock</h3>
+            <p className="text-sm text-gray-500 max-w-md mx-auto">
+              Tous les articles gérés en stock sont actuellement au-dessus de leur seuil d'alerte.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm text-gray-600 font-medium px-1">
+              <span>{filteredAlertes.length} article{filteredAlertes.length > 1 ? 's' : ''} en stock bas</span>
+              <span className="text-xs text-orange-600 font-semibold">Stock critique</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {filteredAlertes.map(a => {
+                const famille = familles.find(f => f.IDFAMILLE === a.IDFAMILLE);
+                const isOutOfStock = a.STOCK <= 0;
+                return (
+                  <div
+                    key={a.IDARTICLE}
+                    className={`rounded-2xl p-4 border transition-all ${
+                      isOutOfStock
+                        ? 'bg-red-50/70 border-red-200 text-red-900'
+                        : 'bg-orange-50/70 border-orange-200 text-orange-950'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        {a.IMAGE ? (
+                          <div className="w-10 h-10 rounded-xl overflow-hidden border border-gray-200 bg-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <img src={a.IMAGE} alt={a.NOM} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <span className="text-3xl select-none">{a.EMOJI || '📦'}</span>
+                        )}
+                        <div>
+                          <p className="font-bold text-gray-900 leading-snug">{a.NOM}</p>
+                          <p className="text-xs text-gray-400 font-mono">{a.CODE}</p>
+                        </div>
+                      </div>
+                      <span
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white shrink-0"
+                        style={{ backgroundColor: famille?.COULEUR || '#64748b' }}
+                      >
+                        {famille?.FAMILLE || 'Divers'}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-gray-200/60 flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] text-gray-500 block">Stock actuel</span>
+                        <span className={`text-xl font-extrabold tabular-nums ${isOutOfStock ? 'text-red-600' : 'text-orange-600'}`}>
+                          {a.STOCK}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[11px] text-gray-500 block">Seuil d'alerte</span>
+                        <span className="text-sm font-semibold text-gray-700 tabular-nums">
+                          min: {a.STOCK_MIN}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5">
+                      {isOutOfStock ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 bg-red-100/80 px-2 py-0.5 rounded-md">
+                          Rupture de stock
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-orange-700 bg-orange-100/80 px-2 py-0.5 rounded-md">
+                          Approvisionnement requis
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const handleMouvement = () => {
     if (!selectedArticle || mvtQty <= 0) return;
@@ -128,9 +295,20 @@ export default function StockModule({ user }: Props) {
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {articlesEnAlerte.map(a => (
-              <div key={a.IDARTICLE} className="bg-white rounded-lg p-3 border border-orange-200">
-                <p className="font-medium text-sm">{a.NOM}</p>
-                <p className="text-xs text-orange-600">Stock: {a.STOCK} / Min: {a.STOCK_MIN}</p>
+              <div key={a.IDARTICLE} className="bg-white rounded-lg p-3 border border-orange-200 flex flex-col justify-between">
+                <div>
+                  <p className="font-medium text-sm">{a.NOM}</p>
+                  <p className="text-xs text-orange-600">Stock: {a.STOCK} / Min: {a.STOCK_MIN}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleAlerte(a.IDARTICLE)}
+                  className="mt-2 text-[11px] text-gray-500 hover:text-red-600 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Désactiver l'alerte pour cet article (si fin de vente ou rupture définitive)"
+                >
+                  <BellOff size={12} />
+                  <span>Couper l'alerte</span>
+                </button>
               </div>
             ))}
           </div>
@@ -167,14 +345,20 @@ export default function StockModule({ user }: Props) {
             <tbody>
               {filteredArticles.map(a => {
                 const famille = familles.find(f => f.IDFAMILLE === a.IDFAMILLE);
-                const isLow = a.STOCK <= a.STOCK_MIN;
+                const isLow = a.STOCK <= a.STOCK_MIN && (a.ALERTE_STOCK !== false);
                 return (
                   <tr key={a.IDARTICLE} className={`border-t border-gray-50 hover:bg-gray-50 ${isLow ? 'bg-orange-50' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span>{a.EMOJI}</span>
+                      <div className="flex items-center gap-2.5">
+                        {a.IMAGE ? (
+                          <div className="w-8 h-8 rounded-lg overflow-hidden border border-gray-200 bg-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <img src={a.IMAGE} alt={a.NOM} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <span className="text-xl shrink-0">{a.EMOJI || '📦'}</span>
+                        )}
                         <div>
-                          <p className="font-medium">{a.NOM}</p>
+                          <p className="font-medium text-gray-900">{a.NOM}</p>
                           <p className="text-xs text-gray-400">{a.CODE}</p>
                         </div>
                       </div>
@@ -215,6 +399,17 @@ export default function StockModule({ user }: Props) {
                           title="Ajustement"
                         >
                           <RotateCcw size={16} />
+                        </button>
+                        <button
+                          onClick={() => toggleAlerte(a.IDARTICLE)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            a.ALERTE_STOCK !== false
+                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                          }`}
+                          title={a.ALERTE_STOCK !== false ? "Désactiver l'alerte pour cet article" : "Réactiver l'alerte pour cet article"}
+                        >
+                          {a.ALERTE_STOCK !== false ? <Bell size={16} /> : <BellOff size={16} />}
                         </button>
                       </div>
                     </td>

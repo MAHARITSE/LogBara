@@ -166,6 +166,18 @@ INNER JOIN personnel pe ON pe.idpersonnel = v.idpersonnel
 WHERE v.statut = 'Payée' AND v.cloturee = FALSE
 GROUP BY v.idpersonnel, pe.prenom, pe.nom;
 
+-- ----------------------------------------------------------------------------
+-- 5. Nouvelle colonne articles.ne_plus_vendre (masquage en caisse POS)
+-- ----------------------------------------------------------------------------
+SET @existe := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'articles' AND COLUMN_NAME = 'ne_plus_vendre'
+);
+SET @sql := IF(@existe = 0,
+    'ALTER TABLE articles ADD COLUMN ne_plus_vendre BOOLEAN DEFAULT FALSE',
+    'SELECT ''Colonne articles.ne_plus_vendre deja presente'' AS info');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- ============================================================================
 -- FIN DE LA MISE À JOUR
 -- Ensuite : remplacez index.html, api/index.php et api/mappings.php dans le

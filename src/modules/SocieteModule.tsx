@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Save } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Save, Upload, Image as ImageIcon, Trash2, CheckCircle2 } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Societe } from '../types';
 import PhoneInput from '../components/PhoneInput';
+import { fileToDataUrl } from '../utils/imageUtils';
 
 interface Props {
   user: Personnel;
@@ -13,10 +14,42 @@ const emojis = ['🍺', '🍻', '🍷', '🍸', '🍹', '🥃', '☕', '🍽️'
 export default function SocieteModule({ user: _user }: Props) {
   const [societe, setSociete] = useState<Societe>(store.getSociete());
   const [toast, setToast] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showMsg = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2500);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const dataUrl = await fileToDataUrl(file, { maxWidth: 400, maxHeight: 400, quality: 0.90 });
+      setSociete(prev => ({
+        ...prev,
+        LOGO_TYPE: 'image',
+        LOGO_IMAGE: dataUrl,
+      }));
+      showMsg('Logo chargé avec succès');
+    } catch (err) {
+      showMsg('Erreur de chargement du fichier image');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSociete(prev => ({
+      ...prev,
+      LOGO_IMAGE: '',
+      LOGO_TYPE: 'emoji',
+    }));
+    showMsg('Logo retiré');
   };
 
   const handleSave = () => {
@@ -27,17 +60,17 @@ export default function SocieteModule({ user: _user }: Props) {
 
   return (
     <div className="space-y-6">
-      {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-green-500 text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse">{toast}</div>}
+      {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg z-50 animate-pulse font-medium">{toast}</div>}
 
       <h1 className="text-2xl font-bold text-gray-900">🏢 Paramètres société</h1>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
         {/* Logo */}
         <div>
-          <label className="text-sm font-medium text-gray-700 mb-2 block">Type de logo</label>
+          <label className="text-sm font-semibold text-gray-800 mb-2 block">Identité visuelle & Logo</label>
           <div className="flex gap-4 mb-4">
             {(['emoji', 'image', 'none'] as const).map(t => (
-              <label key={t} className="flex items-center gap-2 cursor-pointer">
+              <label key={t} className="flex items-center gap-2 cursor-pointer font-medium text-sm">
                 <input
                   type="radio"
                   name="logoType"
@@ -45,21 +78,22 @@ export default function SocieteModule({ user: _user }: Props) {
                   onChange={() => setSociete({ ...societe, LOGO_TYPE: t })}
                   className="w-4 h-4 text-[#0D47A1]"
                 />
-                <span className="text-sm capitalize">{t === 'none' ? 'Aucun' : t === 'emoji' ? 'Emoji' : 'Image'}</span>
+                <span className="capitalize">{t === 'none' ? 'Aucun' : t === 'emoji' ? '😀 Emoji' : '🖼️ Image / Logo'}</span>
               </label>
             ))}
           </div>
 
           {societe.LOGO_TYPE === 'emoji' && (
-            <div>
-              <p className="text-sm text-gray-500 mb-2">Choisir un emoji</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <p className="text-sm text-gray-600 mb-3 font-medium">Choisir un emoji pour l'établissement :</p>
+              <div className="flex flex-wrap gap-2.5">
                 {emojis.map(e => (
                   <button
                     key={e}
+                    type="button"
                     onClick={() => setSociete({ ...societe, LOGO_EMOJI: e })}
-                    className={`w-12 h-12 rounded-xl text-2xl transition-all ${
-                      societe.LOGO_EMOJI === e ? 'ring-2 ring-[#0D47A1] bg-blue-50' : 'bg-gray-100 hover:bg-gray-200'
+                    className={`w-12 h-12 rounded-xl text-2xl transition-all cursor-pointer ${
+                      societe.LOGO_EMOJI === e ? 'ring-2 ring-[#0D47A1] bg-blue-50 shadow-xs' : 'bg-white hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
                     {e}
@@ -70,18 +104,61 @@ export default function SocieteModule({ user: _user }: Props) {
           )}
 
           {societe.LOGO_TYPE === 'image' && (
-            <div>
-              <p className="text-sm text-gray-500 mb-2">URL de l'image ou base64</p>
-              <input
-                type="text"
-                value={societe.LOGO_IMAGE || ''}
-                onChange={e => setSociete({ ...societe, LOGO_IMAGE: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border"
-                placeholder="https://..."
-              />
-              {societe.LOGO_IMAGE && (
-                <div className="mt-2 w-20 h-20 border rounded-lg overflow-hidden">
-                  <img src={societe.LOGO_IMAGE} alt="Logo" className="w-full h-full object-contain" />
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/png,image/jpeg,image/jpg,image/x-icon,image/vnd.microsoft.icon,image/ico,image/webp,image/svg+xml"
+                  className="hidden"
+                  id="societe-logo-file-input"
+                />
+
+                <label
+                  htmlFor="societe-logo-file-input"
+                  className="px-4 py-2.5 bg-[#0D47A1] hover:bg-[#1565C0] text-white rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs shrink-0 active:scale-95"
+                >
+                  <Upload size={16} />
+                  <span>{isUploading ? 'Chargement...' : 'Charger une image (PNG, JPG, ICO, WEBP)'}</span>
+                </label>
+
+                {societe.LOGO_IMAGE && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="px-3.5 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shrink-0"
+                  >
+                    <Trash2 size={16} />
+                    <span>Supprimer le logo</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Aperçu du logo */}
+              {societe.LOGO_IMAGE ? (
+                <div className="flex items-center gap-4 p-3 bg-white rounded-xl border border-gray-200">
+                  <div className="w-20 h-20 rounded-xl border border-gray-200 bg-slate-50 flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-2xs">
+                    <img
+                      src={societe.LOGO_IMAGE}
+                      alt="Logo établissement"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
+                      <CheckCircle2 size={14} /> Logo chargé et configuré
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Ce logo sera imprimé sur les tickets de caisse et affiché dans le menu.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center text-gray-500 bg-white">
+                  <ImageIcon size={32} className="mx-auto text-gray-400 mb-2" />
+                  <p className="text-xs font-semibold text-gray-700">Aucune image sélectionnée</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Cliquez sur le bouton ci-dessus pour importer le logo de votre bar / restaurant.</p>
                 </div>
               )}
             </div>

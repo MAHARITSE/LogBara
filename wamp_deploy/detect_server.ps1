@@ -32,29 +32,54 @@ function Test-BarPos([string]$hostOrIp) {
         return $false
     }
 
-    # Test HTTP sur /barpos/
-    $url = "http://$h/barpos/"
-    try {
-        $req = [System.Net.HttpWebRequest]::Create($url)
-        $req.Timeout = 1500
-        $req.Method = "HEAD"
-        $req.AllowAutoRedirect = $true
-        $res = $req.GetResponse()
-        $code = [int]$res.StatusCode
-        $res.Close()
-        if ($code -ge 200 -and $code -lt 400) { return $true }
-    } catch {
-        # Fallback en methode GET si HEAD est refusee par la config Apache
+    # 1. Test specifique de l'API Bar POS (logbara ou barpos)
+    foreach ($appPath in @("logbara", "barpos")) {
         try {
-            $req2 = [System.Net.HttpWebRequest]::Create($url)
-            $req2.Timeout = 1800
-            $req2.Method = "GET"
-            $res2 = $req2.GetResponse()
-            $code2 = [int]$res2.StatusCode
-            $res2.Close()
-            if ($code2 -ge 200 -and $code2 -lt 400) { return $true }
+            $apiUrl = "http://$h/$appPath/api/index.php"
+            $reqApi = [System.Net.HttpWebRequest]::Create($apiUrl)
+            $reqApi.Timeout = 1500
+            $reqApi.Method = "GET"
+            $reqApi.Headers.Add("X-BarPOS-Request", "1")
+            $resApi = $reqApi.GetResponse()
+            $stream = $resApi.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $content = $reader.ReadToEnd()
+            $reader.Close()
+            $resApi.Close()
+
+            if ($content -match "Starlink" -or $content -match "starlink") {
+                return $false
+            }
+
+            if ($content -match "<response" -or $content -match "barpos" -or $content -match "Bar POS" -or $content -match "LogBara" -or $content -match "logbara") {
+                return $true
+            }
+        } catch {}
+
+        # 2. Test secondaire sur l'interface HTML
+        $url = "http://$h/$appPath/"
+        try {
+            $req = [System.Net.HttpWebRequest]::Create($url)
+            $req.Timeout = 1500
+            $req.Method = "GET"
+            $req.AllowAutoRedirect = $true
+            $res = $req.GetResponse()
+            $stream = $res.GetResponseStream()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $html = $reader.ReadToEnd()
+            $reader.Close()
+            $res.Close()
+
+            if ($html -match "Starlink" -or $html -match "starlink") {
+                return $false
+            }
+
+            if ($html -match "Bar POS" -or $html -match "barpos" -or $html -match "Point de Vente" -or $html -match "LogBara" -or $html -match "logbara") {
+                return $true
+            }
         } catch {}
     }
+
     return $false
 }
 

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { 
   TrendingUp, ShoppingCart, Users, Package, 
-  AlertTriangle, DollarSign, CreditCard, Wallet 
+  AlertTriangle, DollarSign, CreditCard, Wallet,
+  FileSpreadsheet, Sparkles
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -10,24 +11,46 @@ import {
 import { store } from '../store';
 import { Personnel } from '../types';
 import { formatAr, today, dateLabel } from '../helpers';
+import ExcelExportModal from '../components/ExcelExportModal';
 
 interface Props {
   user: Personnel;
 }
 
 export default function DashboardModule({ user }: Props) {
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [toast, setToast] = useState('');
+  const [dataVersion, setDataVersion] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setDataVersion(v => v + 1);
+    window.addEventListener('barpos-data-updated', handleUpdate);
+    return () => window.removeEventListener('barpos-data-updated', handleUpdate);
+  }, []);
+
   const ventes = store.getVentes();
   const articles = store.getArticles();
   const lignesVente = store.getLignesVente();
   const clients = store.getClients();
   const familles = store.getFamilles();
 
+  const showMsg = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  };
+
+  const handleGenerate3MonthsSales = () => {
+    const res = store.seedRandomSales(3, false);
+    setDataVersion(v => v + 1);
+    showMsg(`✅ ${res.countVentes} ventes générées sur 3 mois (${formatAr(res.totalCa)})`);
+  };
+
   const stats = useMemo(() => {
     const ventesAujourdhui = ventes.filter(v => v.DATE_VENTE === today() && v.STATUT === 'Payée');
     const totalAujourdhui = ventesAujourdhui.reduce((s, v) => s + v.TOTAL - v.REMISE, 0);
     const remisesAujourdhui = ventesAujourdhui.reduce((s, v) => s + v.REMISE, 0);
     
-    const articlesAlerte = articles.filter(a => a.ACTIF && a.GERE_STOCK && a.STOCK <= a.STOCK_MIN);
+    const articlesAlerte = articles.filter(a => a.ACTIF && a.GERE_STOCK && (a.ALERTE_STOCK !== false) && a.STOCK <= a.STOCK_MIN);
     const totalCredits = clients.reduce((s, c) => s + c.CREDIT_TOTAL, 0);
 
     // Ventes des 7 derniers jours
@@ -96,13 +119,33 @@ export default function DashboardModule({ user }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl z-50 font-bold text-sm flex items-center gap-2 animate-bounce">
+          <Sparkles size={18} />
+          <span>{toast}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">📊 Tableau de bord</h1>
           <p className="text-gray-500">Bienvenue, {user.PRENOM} {user.NOM}</p>
         </div>
-        <div className="text-right text-sm text-gray-500">
-          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        <div className="flex items-center gap-3 flex-wrap">
+          {(user.ROLE === 'Administrateur' || user.ROLE === 'Gérant') && (
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer"
+              title="Exporter les ventes et achats par période en Excel"
+            >
+              <FileSpreadsheet size={18} />
+              <span>Exporter en Excel (.xlsx)</span>
+            </button>
+          )}
+          <div className="text-right text-xs sm:text-sm text-gray-500 bg-white px-3 py-2 rounded-xl border border-gray-100 shadow-2xs">
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
         </div>
       </div>
 
@@ -308,6 +351,12 @@ export default function DashboardModule({ user }: Props) {
           </div>
         </div>
       </div>
+
+      <ExcelExportModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        defaultType="tout"
+      />
     </div>
   );
 }
