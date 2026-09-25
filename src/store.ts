@@ -159,11 +159,11 @@ const sendXml = (xml: string): Element => {
   try {
     xhr.send(xml);
   } catch {
-    throw new Error('API PHP inaccessible. Ouvrez Bar POS depuis http://localhost/barpos/ et non depuis un fichier local.');
+    throw new Error('API PHP inaccessible. Ouvrez Bar POS depuis http://localhost/logbara/ et non depuis un fichier local.');
   }
 
   if (xhr.status < 200 || xhr.status >= 300) {
-    throw new Error(`API PHP indisponible (HTTP ${xhr.status || 0}). Vérifiez Apache et le dossier barpos.`);
+    throw new Error(`API PHP indisponible (HTTP ${xhr.status || 0}). Vérifiez Apache et le dossier logbara.`);
   }
 
   const documentXml = xhr.responseXML || new DOMParser().parseFromString(xhr.responseText, 'application/xml');

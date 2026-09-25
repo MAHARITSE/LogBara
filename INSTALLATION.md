@@ -20,14 +20,14 @@ Cette version ne possède aucun mode de stockage navigateur. Les articles, vente
 2. Copier le dossier prêt à déployer :
 
    ```text
-   wamp_deploy  ->  C:\wamp64\www\barpos
+   wamp_deploy  ->  C:\wamp64\www\logbara
    ```
 
 3. Ouvrir <http://localhost/phpmyadmin>.
 4. Choisir **Importer**, puis sélectionner :
 
    ```text
-   C:\wamp64\www\barpos\sql\barpos.sql
+   C:\wamp64\www\logbara\sql\barpos.sql
    ```
 
    Attention : le script recrée entièrement la base `barpos_db`. Sauvegardez une base existante avant de le réimporter.
@@ -35,14 +35,14 @@ Cette version ne possède aucun mode de stockage navigateur. Les articles, vente
 5. Avec l’installation WAMP standard (`root` sans mot de passe), aucune modification n’est nécessaire. Sinon, modifier :
 
    ```text
-   C:\wamp64\www\barpos\api\config.php
+   C:\wamp64\www\logbara\api\config.php
    ```
 
-6. Tester MySQL avec <http://localhost/barpos/api/diagnostic.php>.
+6. Tester MySQL avec <http://localhost/logbara/api/diagnostic.php>.
    La page vérifie séparément PDO, pdo_mysql, SimpleXML, la connexion, chaque
    table/colonne et chaque module. Elle doit afficher **OK** partout. Une
    version exploitable par un outil est disponible avec `?format=json`.
-7. Ouvrir l’application : <http://localhost/barpos/>.
+7. Ouvrir l’application : <http://localhost/logbara/>.
 
 **Important :** ne pas ouvrir `index.html` par double-clic (`file:///...`). Le
 build WAMP refuse volontairement le stockage local : si PHP/MySQL est arrêté,
@@ -100,7 +100,7 @@ wamp_deploy/
 - Supprime le `lancer-impression-directe.bat` au profit de ce lanceur universel.
 
 Détails techniques :
-- Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/barpos/`.
+- Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/logbara/`.
 - Si aucune détection automatique : invite à saisir manuellement l'IP (ex. `192.168.1.50` ou `localhost`) et la mémorise.
 - Lance Google Chrome ou Microsoft Edge en mode application avec `--kiosk-printing` : les tickets partent directement sur l'imprimante Windows par défaut, sans aperçu d'impression. Utilise un profil dédié `%LOCALAPPDATA%\LogBara\KioskProfile` (`--user-data-dir`) pour ne pas interférer avec la navigation personnelle.
 

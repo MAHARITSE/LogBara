@@ -127,8 +127,8 @@ if not defined USER_IP goto :saisie_ip
 set "USER_IP=!USER_IP: =!"
 set "USER_IP=!USER_IP:http://=!"
 set "USER_IP=!USER_IP:https://=!"
-set "USER_IP=!USER_IP:/barpos/=!"
-set "USER_IP=!USER_IP:/barpos=!"
+set "USER_IP=!USER_IP:/logbara/=!"
+set "USER_IP=!USER_IP:/logbara=!"
 set "USER_IP=!USER_IP:/=!"
 
 if not defined USER_IP goto :saisie_ip
@@ -139,7 +139,7 @@ REM ----------------------------------------------------------------------------
 REM 3. DETECTION DU NAVIGATEUR ET LANCEMENT DE L'APPLICATION
 REM ----------------------------------------------------------------------------
 :lancer
-set "APP_URL=http://!SERVER_HOST!/barpos/"
+set "APP_URL=http://!SERVER_HOST!/logbara/"
 echo.
 echo [2/3] Preparation de l'application sur : !APP_URL!
 
@@ -208,7 +208,7 @@ function Test-BarPos([string]$hostOrIp) {
         $tcp.Close()
     } catch { return $false }
 
-    $url = "http://$h/barpos/"
+    $url = "http://$h/logbara/"
     foreach ($method in @("HEAD", "GET")) {
         try {
             $req = [System.Net.HttpWebRequest]::Create($url)

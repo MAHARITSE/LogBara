@@ -17,13 +17,13 @@ INSTALLATION
 ------------
 1. Démarrer WAMP et attendre l'icône verte.
 
-2. Copier ce dossier sous le nom barpos :
-   C:\wamp64\www\barpos\
+2. Copier ce dossier sous le nom logbara :
+   C:\wamp64\www\logbara\
 
 3. Ouvrir http://localhost/phpmyadmin
 
 4. Cliquer sur Importer et sélectionner :
-   C:\wamp64\www\barpos\sql\barpos.sql
+   C:\wamp64\www\logbara\sql\barpos.sql
 
    ATTENTION : ce script recrée la base barpos_db. Sauvegarder une base
    existante avant de réimporter le script d'installation.
@@ -38,14 +38,14 @@ INSTALLATION
    Si nécessaire, modifier api\config.php.
 
 6. Vérifier l'installation :
-   http://localhost/barpos/api/diagnostic.php
+   http://localhost/logbara/api/diagnostic.php
    Cette page teste une par une PDO, pdo_mysql, SimpleXML, MySQL, les tables,
    les colonnes et les modules. Toutes les lignes doivent être OK.
    Pour un contrôle automatisé :
-   http://localhost/barpos/api/diagnostic.php?format=json
+   http://localhost/logbara/api/diagnostic.php?format=json
 
 7. Ouvrir l'application :
-   http://localhost/barpos/
+   http://localhost/logbara/
 
 IMPORTANT : ne pas ouvrir index.html par double-clic (file:///...). Le build
 WAMP refuse volontairement le stockage local : si PHP/MySQL est arrêté, il
@@ -110,13 +110,13 @@ MISE A JOUR D'UNE INSTALLATION EXISTANTE (SANS PERTE DE DONNEES)
 1. Sauvegarde : phpMyAdmin > barpos_db > Exporter (ou menu Sauvegarde).
 2. phpMyAdmin > base barpos_db > Importer > sql/mise_a_jour_v4.3.sql > Exécuter.
    (NE PAS importer barpos.sql : il recrée la base VIDE.)
-3. Remplacer index.html, api/index.php et api/mappings.php dans le dossier barpos.
+3. Remplacer index.html, api/index.php et api/mappings.php dans le dossier logbara.
 Le script peut être relancé sans risque. Sans lui, l'API ajoute quand même la
 colonne automatiquement au premier appel.
 
 DEPANNAGE
 ---------
-- API inaccessible : vérifier Apache et l'URL http://localhost/barpos/
+- API inaccessible : vérifier Apache et l'URL http://localhost/logbara/
 - Erreur MySQL : importer sql\barpos.sql et vérifier api\config.php
 - Connexion PDO impossible : activer pdo_mysql dans WAMP
 - XML indisponible : activer SimpleXML dans WAMP

@@ -32,8 +32,8 @@ function Test-BarPos([string]$hostOrIp) {
         return $false
     }
 
-    # Test HTTP sur /barpos/
-    $url = "http://$h/barpos/"
+    # Test HTTP sur /logbara/
+    $url = "http://$h/logbara/"
     try {
         $req = [System.Net.HttpWebRequest]::Create($url)
         $req.Timeout = 1500
