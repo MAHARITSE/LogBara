@@ -230,56 +230,77 @@ function existing_password(PDO $pdo, array $mapping, int $id): ?string
 }
 
 /**
+ * Indique si une colonne existe dans la base courante.
+ */
+function column_exists(PDO $pdo, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+    $check = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+    );
+    $check->execute([$table, $column]);
+    $exists = (int) $check->fetchColumn() > 0;
+    $cache[$key] = $exists;
+    return $exists;
+}
+
+/**
  * Mise à niveau automatique du schéma pour les bases déjà installées.
- * Ajoute paiements.idcloture (rattachement des remboursements à une clôture).
- * Retourne false si la colonne est absente et n'a pas pu être créée
- * (droits MySQL insuffisants) : l'API continue alors de fonctionner sans elle.
+ * Chaque évolution est vérifiée INDEPENDAMMENT (une base récente possédant
+ * déjà paiements.idcloture doit quand même recevoir les colonnes articles
+ * ajoutées ensuite) :
+ * - paiements.idcloture   (rattachement des remboursements à une clôture)
+ * - articles.alerte_stock (alerte de stock basse par article)
+ * - articles.ne_plus_vendre (masquage d'un article dans la caisse POS)
+ * Retourne true si le schéma est complet, false si un ALTER a échoué
+ * (droits MySQL insuffisants) : l'API continue alors de fonctionner.
  */
 function ensure_schema(PDO $pdo): bool
 {
-    try {
-        $check = $pdo->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $check->execute(['paiements', 'idcloture']);
-        if ((int) $check->fetchColumn() > 0) {
-            return true;
-        }
-        $pdo->exec('ALTER TABLE paiements ADD COLUMN idcloture INT DEFAULT NULL, ADD INDEX idx_paiement_cloture (idcloture)');
-        // Reprise de l'historique (identique à sql/mise_a_jour_v4.3.sql) : les remboursements
-        // déjà comptés dans une ancienne clôture y sont rattachés pour ne pas être recomptés.
-        $pdo->exec(
-            'UPDATE paiements p SET p.idcloture = (
-                 SELECT c.idcloture FROM clotures c
-                 WHERE c.idpersonnel = p.idpersonnel AND c.date_cloture = p.date_paiement AND c.heure >= p.heure
-                 ORDER BY c.heure ASC, c.idcloture ASC LIMIT 1)
-             WHERE p.idvente IS NULL AND p.idcloture IS NULL'
-        );
-        // Ajout automatique de la colonne articles.alerte_stock si inexistante
-        $checkAlerte = $pdo->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $checkAlerte->execute(['articles', 'alerte_stock']);
-        if ((int) $checkAlerte->fetchColumn() === 0) {
-            $pdo->exec('ALTER TABLE articles ADD COLUMN alerte_stock BOOLEAN DEFAULT TRUE');
-        }
+    $complete = true;
 
-        // Ajout automatique de la colonne articles.ne_plus_vendre si inexistante
-        $checkNePlusVendre = $pdo->prepare(
-            'SELECT COUNT(*) FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-        );
-        $checkNePlusVendre->execute(['articles', 'ne_plus_vendre']);
-        if ((int) $checkNePlusVendre->fetchColumn() === 0) {
-            $pdo->exec('ALTER TABLE articles ADD COLUMN ne_plus_vendre BOOLEAN DEFAULT FALSE');
+    // 1. paiements.idcloture + reprise de l'historique
+    if (!column_exists($pdo, 'paiements', 'idcloture')) {
+        try {
+            $pdo->exec('ALTER TABLE paiements ADD COLUMN idcloture INT DEFAULT NULL, ADD INDEX idx_paiement_cloture (idcloture)');
+            // Reprise de l'historique (identique à sql/mise_a_jour_v4.3.sql) : les remboursements
+            // déjà comptés dans une ancienne clôture y sont rattachés pour ne pas être recomptés.
+            $pdo->exec(
+                'UPDATE paiements p SET p.idcloture = (
+                     SELECT c.idcloture FROM clotures c
+                     WHERE c.idpersonnel = p.idpersonnel AND c.date_cloture = p.date_paiement AND c.heure >= p.heure
+                     ORDER BY c.heure ASC, c.idcloture ASC LIMIT 1)
+                 WHERE p.idvente IS NULL AND p.idcloture IS NULL'
+            );
+        } catch (Throwable $error) {
+            $complete = false;
         }
-
-        return true;
-    } catch (Throwable $error) {
-        return false;
     }
+
+    // 2. articles.alerte_stock
+    if (!column_exists($pdo, 'articles', 'alerte_stock')) {
+        try {
+            $pdo->exec('ALTER TABLE articles ADD COLUMN alerte_stock BOOLEAN DEFAULT TRUE');
+        } catch (Throwable $error) {
+            $complete = false;
+        }
+    }
+
+    // 3. articles.ne_plus_vendre
+    if (!column_exists($pdo, 'articles', 'ne_plus_vendre')) {
+        try {
+            $pdo->exec('ALTER TABLE articles ADD COLUMN ne_plus_vendre BOOLEAN DEFAULT FALSE');
+        } catch (Throwable $error) {
+            $complete = false;
+        }
+    }
+
+    return $complete;
 }
 
 /** Identifiants (clé primaire) des lignes verrouillées car rattachées à une clôture. */
@@ -405,14 +426,16 @@ function sql_identifier(string $name): string
 function create_sql_backup(PDO $pdo): string
 {
     $tables = barpos_backup_tables();
+    $database = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
     $lines = [
         '-- ============================================',
-        '-- SAUVEGARDE MYSQL BAR POS',
+        '-- SAUVEGARDE MYSQL LOGBARA (BAR POS)',
+        '-- Base : ' . $database,
         '-- Generee le ' . date('Y-m-d H:i:s'),
         '-- ============================================',
         'SET NAMES utf8mb4;',
         'SET FOREIGN_KEY_CHECKS = 0;',
-        'USE barpos_db;',
+        'USE ' . sql_identifier($database) . ';',
         '',
         'DELETE FROM app_sessions;',
     ];
@@ -498,8 +521,10 @@ try {
     $config = require __DIR__ . '/config.php';
     $pdo = barpos_database($config);
     $mappings = barpos_mappings();
-    if (!ensure_schema($pdo)) {
-        // Base ancienne non mise à niveau : on ignore paiements.idcloture
+    // Mise à niveau best-effort du schéma (alerte_stock, ne_plus_vendre, idcloture).
+    ensure_schema($pdo);
+    if (!column_exists($pdo, 'paiements', 'idcloture')) {
+        // Base ancienne non mise à niveau (ALTER impossible) : on ignore paiements.idcloture
         unset($mappings['paiements']['columns']['IDCLOTURE']);
         $mappings['paiements']['locked_where'] = 'idvente IN (SELECT idvente FROM ventes WHERE cloturee = 1)';
     }
@@ -620,7 +645,8 @@ try {
 
     xml_error('Action API inconnue.');
 } catch (PDOException $error) {
-    $message = 'Erreur MySQL. Vérifiez la base barpos_db et le fichier api/config.php.';
+    $databaseName = isset($config['database']) ? (string) $config['database'] : 'logbara';
+    $message = 'Erreur MySQL. Vérifiez la base ' . $databaseName . ' (import de sql\\logbara.sql) et le fichier api/config.php.';
     if (isset($config) && !empty($config['debug'])) {
         $message .= ' Détail : ' . $error->getMessage();
     }

@@ -1,47 +1,59 @@
-BAR POS v4.2 — INSTALLATION WAMP / MYSQL UNIQUEMENT
-====================================================
+LOGBARA (BAR POS) v4.3 — INSTALLATION WAMP / MYSQL UNIQUEMENT
+==============================================================
 
 Ce dossier est prêt à copier dans WAMP. Toutes les données et toutes les
 sessions applicatives sont stockées dans MySQL. Aucun fichier de données JSON
 et aucun stockage navigateur ne sont utilisés. L'API PHP échange en XML avec
 l'application.
 
+URL de l'application : http://localhost/logbara/
+Dossier WAMP :         C:\wamp64\www\logbara\
+Base MySQL :           logbara
+
 PREREQUIS
 ---------
 - WampServer 3.x 64 bits
 - PHP 8.0 ou supérieur
-- MySQL 8.0 ou supérieur
-- Extensions PHP PDO, pdo_mysql et SimpleXML
+- MySQL 8.0 ou supérieur (ou MariaDB 10.6+, fourni avec WAMP)
+- Extensions PHP PDO, pdo_mysql et SimpleXML (activées par défaut dans WAMP)
 
 INSTALLATION
 ------------
 1. Démarrer WAMP et attendre l'icône verte.
 
-2. Copier ce dossier sous le nom barpos :
-   C:\wamp64\www\barpos\
+2. Copier CE dossier (wamp_deploy) dans WAMP sous le nom logbara :
+   C:\wamp64\www\logbara\
+   (le contenu de wamp_deploy va directement dans logbara :
+   C:\wamp64\www\logbara\index.html, C:\wamp64\www\logbara\api\, etc.)
 
 3. Ouvrir http://localhost/phpmyadmin
 
 4. Cliquer sur Importer et sélectionner :
-   C:\wamp64\www\barpos\sql\barpos.sql
+   C:\wamp64\www\logbara\sql\logbara.sql
 
-   ATTENTION : ce script recrée la base barpos_db. Sauvegarder une base
+   ATTENTION : ce script recrée la base « logbara ». Sauvegarder une base
    existante avant de réimporter le script d'installation.
 
-5. Configuration WAMP standard :
+5. Configuration WAMP standard (déjà écrite dans api\config.php) :
    - serveur : 127.0.0.1
    - port : 3306
-   - base : barpos_db
+   - base : logbara
    - utilisateur : root
    - mot de passe : vide
 
-   Si nécessaire, modifier api\config.php.
+   Si votre MySQL/MariaDB utilise un autre compte, modifier api\config.php.
 
-6. Vérifier l'installation :
-   http://localhost/barpos/api/diagnostic.php
+6. Vérifier la connexion MySQL (page de diagnostic) :
+   http://localhost/logbara/api/diagnostic.php
+   -> le message doit être : « Connexion MySQL réussie. La base LogBara est prête. »
 
 7. Ouvrir l'application :
-   http://localhost/barpos/
+   http://localhost/logbara/
+
+   Le menu latéral affiche « MySQL connecté — données centralisées ».
+   S'il affiche « Mode local — MySQL non connecté », suivre la section
+   DÉPANNAGE ci-dessous : le message exact de l'erreur est aussi affiché
+   sur l'écran de connexion.
 
 COMPTES INITIAUX
 ----------------
@@ -57,15 +69,15 @@ Les mots de passe sont hachés dans MySQL. Les modifier après installation.
 SAUVEGARDE
 ----------
 Le module Sauvegarde produit un fichier SQL directement depuis MySQL.
-Pour restaurer, installer d'abord le schéma barpos.sql puis importer la
-sauvegarde dans phpMyAdmin.
+Pour restaurer, installer d'abord le schéma logbara.sql puis importer la
+sauvegarde dans phpMyAdmin (elle contient la ligne « USE logbara; »).
 
 LANCEUR UNIVERSEL UNIQUE (clientwamp.bat) & IMPRESSION DIRECTE
 ---------------------------------------------------------
 Lanceur universel unique (clientwamp.bat) :
+- Ouvre automatiquement http://<serveur>/logbara/ (localhost ou IP réseau).
 - Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
-- Supprime le lancer-impression-directe.bat au profit de ce lanceur universel.
 
 Détails :
 - Lancer clientwamp.bat sur n'importe quel poste :
@@ -74,7 +86,6 @@ Détails :
   * Si nécessaire, vous propose la saisie directe de l'IP et la mémorise automatiquement (%LOCALAPPDATA%\LogBara\server_ip.txt).
   * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing) via profil dédié %LOCALAPPDATA%\LogBara\KioskProfile.
   * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset  (alias: clientwamp.bat -c)
-- L'ancien lancer-impression-directe.bat est supprimé : clientwamp.bat fonctionne indifféremment en local et en réseau.
 - clientwamp.bat peut être copié SEUL sur un poste client : le script de détection PowerShell
   est intégré (detect_server.ps1 est utilisé en priorité s'il se trouve à côté).
 - En cas d'erreur, la fenêtre reste ouverte et affiche le message au lieu de se fermer.
@@ -99,18 +110,23 @@ CLOTURE DE CAISSE : RATTACHEMENT DES OPERATIONS (ANTI-VOL)
 
 MISE A JOUR D'UNE INSTALLATION EXISTANTE (SANS PERTE DE DONNEES)
 ----------------------------------------------------------------
-1. Sauvegarde : phpMyAdmin > barpos_db > Exporter (ou menu Sauvegarde).
-2. phpMyAdmin > base barpos_db > Importer > sql/mise_a_jour_v4.3.sql > Exécuter.
-   (NE PAS importer barpos.sql : il recrée la base VIDE.)
-3. Remplacer index.html, api/index.php et api/mappings.php dans le dossier barpos.
-Le script peut être relancé sans risque. Sans lui, l'API ajoute quand même la
-colonne automatiquement au premier appel.
+1. Sauvegarde : phpMyAdmin > logbara > Exporter (ou menu Sauvegarde).
+2. phpMyAdmin > base logbara > Importer > sql/mise_a_jour_v4.3.sql > Exécuter.
+   (NE PAS importer logbara.sql : il recrée la base VIDE.)
+3. Remplacer index.html et le dossier api dans C:\wamp64\www\logbara.
+Le script peut être relancé sans risque. Sans lui, l'API ajoute quand même
+les colonnes manquantes automatiquement au premier appel
+(paiements.idcloture, articles.alerte_stock, articles.ne_plus_vendre).
 
 DEPANNAGE
 ---------
-- API inaccessible : vérifier Apache et l'URL http://localhost/barpos/
-- Erreur MySQL : importer sql\barpos.sql et vérifier api\config.php
-- Connexion PDO impossible : activer pdo_mysql dans WAMP
-- XML indisponible : activer SimpleXML dans WAMP
+- Page blanche ou mode local : ouvrir http://localhost/logbara/api/diagnostic.php
+  et suivre son message.
+- API inaccessible : vérifier Apache et l'URL http://localhost/logbara/
+- Erreur MySQL « Unknown column 'alerte_stock' » : importer sql\mise_a_jour_v4.3.sql
+  (ou relancer l'application : la colonne est ajoutée automatiquement).
+- Erreur MySQL « Unknown database 'logbara' » : importer sql\logbara.sql dans phpMyAdmin.
+- Connexion PDO impossible : activer pdo_mysql dans WAMP.
+- XML indisponible : activer SimpleXML dans WAMP.
 
 Support : MAHARITSE Hiacinthe Bertrand — 038 34 092 61

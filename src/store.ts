@@ -225,6 +225,18 @@ const getDefaultSeedForDataset = (dataset: DatasetName): any[] => {
 };
 
 let _cachedApiStatus: boolean | null = null;
+let _apiStatusMessage = '';
+
+/**
+ * Statut de la connexion MySQL (WAMP), exposé à l'interface.
+ * - connected=true  : l'API PHP a répondu et MySQL fonctionne.
+ * - connected=false : mode local (données dans ce navigateur uniquement),
+ *   _apiStatusMessage explique la raison exacte.
+ */
+export const getApiStatus = (): { connected: boolean; message: string } => ({
+  connected: isApiConfigured(),
+  message: _apiStatusMessage,
+});
 
 const isApiConfigured = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -232,15 +244,20 @@ const isApiConfigured = (): boolean => {
   // Contrôle explicite via drapeau global si nécessaire
   const win = window as unknown as { __BARPOS_USE_API__?: boolean };
   if (typeof win.__BARPOS_USE_API__ === 'boolean') {
+    if (!win.__BARPOS_USE_API__ && _cachedApiStatus === null) {
+      _apiStatusMessage = 'Mode local forcé par la configuration.';
+    }
     return win.__BARPOS_USE_API__;
   }
 
   // Dans l'environnement de dev / bac à sable Vite Cloud (.run.app ou port 3000 sans backend PHP WAMP local)
   if (window.location.hostname.includes('.run.app') || (window.location.port === '3000' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))) {
+    _cachedApiStatus = false;
+    _apiStatusMessage = 'Environnement de démonstration : MySQL (WAMP) n\'est pas utilisé ici.';
     return false;
   }
 
-  // En environnement WAMP / Apache (ex: http://localhost/barpos/ ou adresse IP LAN en production)
+  // En environnement WAMP / Apache (ex: http://localhost/logbara/ ou adresse IP LAN en production)
   if (_cachedApiStatus !== null) return _cachedApiStatus;
 
   try {
@@ -248,18 +265,35 @@ const isApiConfigured = (): boolean => {
     xhr.open('POST', API_URL, false);
     xhr.setRequestHeader('Content-Type', 'application/xml; charset=UTF-8');
     xhr.setRequestHeader('X-BarPOS-Request', '1');
-    xhr.timeout = 1000;
+    // NB : aucun xhr.timeout ici — sur une requête synchrone, sa définition
+    // lève InvalidAccessError et faisait échouer TOUTE détection de l'API WAMP.
     xhr.send('<request action="session"><params/></request>');
     if (xhr.status >= 200 && xhr.status < 400 && xhr.responseXML) {
-      _cachedApiStatus = true;
-      return true;
+      const root = xhr.responseXML.documentElement;
+      if (root && root.tagName === 'response' && root.getAttribute('success') === '1') {
+        _cachedApiStatus = true;
+        _apiStatusMessage = '';
+        return true;
+      }
+      // L'API PHP répond mais MySQL renvoie une erreur (base absente, identifiants...)
+      const apiMessage = root
+        ? Array.from(root.children).find(child => child.tagName === 'message')?.textContent
+        : '';
+      _cachedApiStatus = false;
+      _apiStatusMessage = apiMessage
+        ? `L'API PHP répond mais MySQL a renvoyé une erreur : ${apiMessage}`
+        : 'L\'API PHP a répondu mais MySQL est indisponible. Importez sql\\logbara.sql dans phpMyAdmin et vérifiez api\\config.php.';
+      return false;
     }
+    _cachedApiStatus = false;
+    _apiStatusMessage = `API PHP injoignable (HTTP ${xhr.status || 0}) — vérifiez WAMP (Apache + MySQL) et l'adresse http://localhost/logbara/.`;
   } catch {
     // API PHP WAMP non joignable
+    _cachedApiStatus = false;
+    _apiStatusMessage = 'API PHP inaccessible — vérifiez que WAMP est démarré (icône verte) et que l\'application est ouverte via http://localhost/logbara/.';
   }
 
-  _cachedApiStatus = false;
-  return false;
+  return _cachedApiStatus;
 };
 
 const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
@@ -310,6 +344,7 @@ const exportAll = () => ({
 
 export const store = {
   isApiConfigured: (): boolean => isApiConfigured(),
+  getApiStatus: (): { connected: boolean; message: string } => getApiStatus(),
   getLastError: (): string => lastError,
 
   getSociete: (): Societe => safeRead<Societe>('societe', [SEED_SOCIETE])[0] || SEED_SOCIETE,

@@ -1,0 +1,79 @@
+name: Vérification WAMP (PHP + MySQL)
+
+# Reproduit l'installation WAMP réelle :
+# - application dans le sous-dossier /logbara/ (http://localhost/logbara/)
+# - base MySQL « logbara » importée depuis wamp_deploy/sql/logbara.sql
+# - API PHP sollicitée module par module (17 jeux de données)
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  wamp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer PHP 8.2 (pdo_mysql, simplexml)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, simplexml
+
+      - name: Démarrer MySQL
+        run: |
+          sudo systemctl start mysql
+          sleep 3
+          mysql -uroot -proot -e "SELECT VERSION();"
+
+      - name: Préparer C:\wamp64\www\logbara (équivalent Linux : www/logbara)
+        run: |
+          mkdir -p www
+          cp -r wamp_deploy www/logbara
+          find www/logbara -type f | sort
+
+      - name: Importer la base logbara
+        run: |
+          mysql -uroot -proot < www/logbara/sql/logbara.sql
+          mysql -uroot -proot -e "SHOW DATABASES LIKE 'logbara'; USE logbara; SHOW TABLES;"
+
+      - name: Adapter api/config.php aux identifiants du serveur CI
+        run: |
+          sed -i "s/'password' => ''/'password' => 'root'/" www/logbara/api/config.php
+          cat www/logbara/api/config.php
+
+      - name: Vérifier la syntaxe PHP
+        run: |
+          for f in www/logbara/api/*.php; do php -l "$f"; done
+
+      - name: Vérifier le bundle front (aucun chemin absolu /barpos/ ou /logbara/)
+        run: |
+          test -f www/logbara/index.html
+          if grep -qE "['\"]/(barpos|logbara)/" www/logbara/index.html; then
+            echo "Chemin absolu trouvé dans le bundle"; exit 1
+          fi
+          echo "OK : l'appelle API est relatif (fonctionne dans tout sous-dossier)"
+
+      - name: Démarrer le serveur PHP (émule Apache/WAMP sur le port 8099)
+        run: |
+          cd www
+          nohup php -S 127.0.0.1:8099 -t . > php_server.log 2>&1 &
+          sleep 2
+          curl -s -o /dev/null -w "index: %{http_code}\n" http://127.0.0.1:8099/logbara/
+          curl -s -o /dev/null -w "diagnostic: %{http_code}\n" http://127.0.0.1:8099/logbara/api/diagnostic.php
+
+      - name: Auto-réparation du schéma (base ancienne sans articles.alerte_stock)
+        run: |
+          mysql -uroot -proot logbara -e "ALTER TABLE articles DROP COLUMN alerte_stock; SHOW COLUMNS FROM articles LIKE 'alerte_stock';"
+
+      - name: Vérification module par module
+        env:
+          TEST_SELF_REPAIR: '1'
+        run: |
+          php tests/wamp_api_test.php http://127.0.0.1:8099/logbara/api/index.php www/logbara/api
+
+      - name: Journal du serveur PHP en cas d'échec
+        if: failure()
+        run: |
+          cat www/php_server.log || true

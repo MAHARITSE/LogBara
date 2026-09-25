@@ -25,14 +25,16 @@ try {
         $message = 'Connexion réussie, mais des tables manquent : ' . implode(', ', $missing);
     } else {
         $ok = true;
-        $message = 'Connexion MySQL réussie. La base Bar POS est prête.';
+        $message = 'Connexion MySQL réussie. La base LogBara est prête.';
     }
     $details[] = 'Base : ' . $config['database'];
     $details[] = 'Tables trouvées : ' . count($found);
     $details[] = 'Articles : ' . (int) $pdo->query('SELECT COUNT(*) FROM articles')->fetchColumn();
     $details[] = 'Personnel actif : ' . (int) $pdo->query('SELECT COUNT(*) FROM personnel WHERE actif = 1')->fetchColumn();
 } catch (Throwable $error) {
-    $message = 'Connexion MySQL impossible. Vérifiez WAMP, l’import SQL et api/config.php.';
+    $message = 'Connexion MySQL impossible. Vérifiez que WAMP est démarré (icône verte), que la base « '
+        . (isset($config) && is_array($config) ? $config['database'] : 'logbara')
+        . ' » a bien été importée via sql\\logbara.sql dans phpMyAdmin, et que api/config.php est correct.';
 }
 
 function h(string $value): string
@@ -55,12 +57,12 @@ function h(string $value): string
 </head>
 <body>
   <main class="card">
-    <h1>Diagnostic MySQL — Bar POS</h1>
+    <h1>Diagnostic MySQL — LogBara (Bar POS)</h1>
     <p class="status"><?= h($message) ?></p>
     <?php if (count($details) > 0): ?>
       <ul><?php foreach ($details as $detail): ?><li><?= h($detail) ?></li><?php endforeach; ?></ul>
     <?php endif; ?>
-    <p><a href="../">Ouvrir Bar POS</a></p>
+    <p><a href="../">Ouvrir LogBara</a></p>
   </main>
 </body>
 </html>

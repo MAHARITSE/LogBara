@@ -14,6 +14,7 @@ export default function LoginPage({ onLogin }: Props) {
   const [loading, setLoading] = useState(false);
   const [societe] = useState(() => store.getSociete());
   const [error, setError] = useState('');
+  const [apiStatus] = useState(() => store.getApiStatus());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +65,17 @@ export default function LoginPage({ onLogin }: Props) {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm text-center">
               {error}
+            </div>
+          )}
+          {error && store.getLastError() && store.getLastError() !== error && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-xl text-xs text-center">
+              {store.getLastError()}
+            </div>
+          )}
+          {!apiStatus.connected && !error && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs text-center">
+              <p className="font-semibold">MySQL non connecté — mode local (données dans ce navigateur uniquement).</p>
+              {apiStatus.message && <p className="mt-1 leading-snug">{apiStatus.message}</p>}
             </div>
           )}
 

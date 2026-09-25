@@ -214,6 +214,22 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
             </span>
           </div>
         </div>
+        {(() => {
+          const status = store.getApiStatus();
+          return (
+            <div
+              className={`flex items-center gap-2 mb-2 px-3 py-2 rounded-xl text-[11px] font-medium ${
+                status.connected ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+              }`}
+              title={status.connected ? 'Données enregistrées dans MySQL (WAMP)' : status.message}
+            >
+              <span className={`w-2 h-2 rounded-full shrink-0 ${status.connected ? 'bg-green-500' : 'bg-amber-500'}`} />
+              {status.connected
+                ? 'MySQL connecté — données centralisées'
+                : 'Mode local — MySQL non connecté'}
+            </div>
+          );
+        })()}
         <button
           onClick={onLogout}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-all"
