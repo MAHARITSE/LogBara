@@ -282,7 +282,7 @@ const isApiConfigured = (): boolean => {
       _cachedApiStatus = false;
       _apiStatusMessage = apiMessage
         ? `L'API PHP répond mais MySQL a renvoyé une erreur : ${apiMessage}`
-        : 'L\'API PHP a répondu mais MySQL est indisponible. Importez sql\\logbara.sql dans phpMyAdmin et vérifiez api\\config.php.';
+        : 'Réponse non XML reçue de api/index.php : le PHP n\'est pas exécuté par ce serveur (WAMP requis).';
       return false;
     }
     _cachedApiStatus = false;
