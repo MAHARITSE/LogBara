@@ -97,7 +97,7 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
     const handleUpdate = (e: Event) => {
       const custom = e as CustomEvent<{ userId?: number; enabled?: boolean }>;
       if (!custom.detail || custom.detail.userId === user.IDPERSONNEL) {
-        setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
+        setPrinterMode(store.getUserPrinterMode(user.IDPERSONNEL));
       }
     };
     window.addEventListener('barpos-printer-pref-change', handleUpdate);
