@@ -221,8 +221,9 @@ check($resp !== null && (string) $resp['success'] === '0', 'T2b requête sans l\
 // T3. Session vierge + mot de passe erroné
 // ---------------------------------------------------------------------------
 echo "\n[T3] Session et authentification\n";
-[$resp, $rows] = api_post($urlApi, xml_request('session'), $cookieJar);
-check((string) $resp['success'] === '1' && count($rows) === 0, 'T3a session vierge (aucun utilisateur) avant login');
+[$resp] = api_post($urlApi, xml_request('session'), $cookieJar);
+$sessionRows = xml_rows($resp);
+check((string) $resp['success'] === '1' && count($sessionRows) === 0, 'T3a session vierge (aucun utilisateur) avant login');
 [$resp] = api_post($urlApi, xml_request('authenticate', '', null, ['login' => 'admin', 'password' => 'MAUVAIS']), $cookieJar);
 check((string) $resp['success'] === '1' && count(xml_rows($resp)) === 0, 'T3b mauvais mot de passe rejeté');
 
@@ -606,10 +607,18 @@ check((string) $resp['success'] === '1', 'T10a reset opérationnel accepté (adm
 [, $ventesRows] = api_read($urlApi, $cookieJar, 'ventes');
 check(count($ventesRows) === 0, 'T10b ventes vides après reset');
 api_post($urlApi, xml_request('logout'), $cookieJar);
-[, $rows] = api_post($urlApi, xml_request('session'), $cookieJar);
-check(count($rows) === 0, 'T10c session vide après logout');
+[$resp] = api_post($urlApi, xml_request('session'), $cookieJar);
+$sessionRows = xml_rows($resp);
+check(count($sessionRows) === 0, 'T10c session vide après logout');
 
 // ---------------------------------------------------------------------------
+// Bilan
+// ---------------------------------------------------------------------------
+echo "\n==============================================================\n";
+echo " BILAN : $testsPassed OK, $testsFailed ÉCHEC(S)\n";
+echo "==============================================================\n";
+exit($testsFailed > 0 ? 1 : 0);
+---------
 // Bilan
 // ---------------------------------------------------------------------------
 echo "\n==============================================================\n";
