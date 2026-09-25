@@ -86,7 +86,7 @@ Lanceur universel unique (clientwamp.bat) :
 - Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
 
-IMPRESSION PAR POSTE (case à cocher dans le menu latéral ou l'écran d'encaissement) :
+IMPRESSION PAR POSTE (case à cocher dans le menu latéral) :
 - Cochée   : le ticket part immédiatement sur l'imprimante PAR DÉFAUT de Windows,
   sans aucune page ni fenêtre affichée (mode kiosque silencieux).
 - Décochée : en CAISSE, aucun ticket kiosque (vente enregistrée sans impression).

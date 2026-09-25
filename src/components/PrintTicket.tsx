@@ -189,18 +189,17 @@ export const openPrintPage = (html: string) => {
  *   poste ; un message invite à réactiver l'imprimante.
  */
 export const printTicket = (content: string, force: boolean = false, userId?: number) => {
-  const enabled = store.isUserPrinterEnabled(userId);
+  const isPrinterActive = store.isUserPrinterEnabled(userId);
 
-  if (!enabled) {
-    // Imprimante désactivée sur ce poste : jamais d'impression kiosque silencieuse.
-    globalToast(
-      force
-        ? "Impression désactivée sur ce poste — activez-la dans le menu latéral ou dans l'écran d'encaissement."
-        : 'Impression désactivée sur ce poste — ticket non imprimé.',
-      force ? 'warning' : 'info',
-      3500,
-      'center',
-    );
+  // Si l'imprimante est désactivée pour cet utilisateur/poste ET que l'impression n'est pas forcée :
+  // afficher la notification d'enregistrement au centre de l'interface
+  if (!isPrinterActive && !force) {
+    globalToast('✓ Paiement enregistré (sans ticket imprimé)', 'success', 3000, 'center');
+    return;
+  }
+
+  if (!isPrinterActive && force) {
+    globalToast("Impression désactivée sur ce poste — activez-la dans le menu latéral.", 'warning', 3500, 'center');
     return;
   }
 

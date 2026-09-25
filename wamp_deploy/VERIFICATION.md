@@ -55,7 +55,7 @@ Contrôles transverses également vérifiés :
 ## Impression (caisse & clôture)
 
 - Impression par poste / utilisateur : case à cocher **« Utiliser l'imprimante »** disponible dans le menu latéral
-  **et directement dans l'écran d'encaissement de la caisse**.
+  (accessible aux caissiers et administrateurs).
 - L'impression automatique de la **clôture** respecte le choix du poste : imprimante
   cochée ⇒ impression directe silencieuse ; imprimante non cochée ⇒ ouverture de la
   page d'impression pour choisir l'imprimante.

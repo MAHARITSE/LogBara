@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle, Printer } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, CartItem, TableR } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
@@ -27,29 +27,6 @@ export default function CaisseModule({ user }: Props) {
   const [toast, setToast] = useState('');
   const [rk, setRk] = useState(0);
   const [showAlertModal, setShowAlertModal] = useState(false);
-  // Impression propre à ce poste (activée ou désactivée directement depuis la caisse)
-  const [utiliserImprimante, setUtiliserImprimante] = useState(() => store.isUserPrinterEnabled(user.IDPERSONNEL));
-
-  useEffect(() => {
-    setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
-  }, [user.IDPERSONNEL]);
-
-  useEffect(() => {
-    const handleUpdate = (e: Event) => {
-      const custom = e as CustomEvent<{ userId?: number; enabled?: boolean }>;
-      if (!custom.detail || custom.detail.userId === user.IDPERSONNEL) {
-        setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
-      }
-    };
-    window.addEventListener('barpos-printer-pref-change', handleUpdate);
-    return () => window.removeEventListener('barpos-printer-pref-change', handleUpdate);
-  }, [user.IDPERSONNEL]);
-
-  const handleToggleImprimante = (checked: boolean) => {
-    store.setUserPrinterEnabled(checked, user.IDPERSONNEL);
-    setUtiliserImprimante(checked);
-    window.dispatchEvent(new CustomEvent('barpos-printer-pref-change', { detail: { userId: user.IDPERSONNEL, enabled: checked } }));
-  };
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -761,29 +738,6 @@ export default function CaisseModule({ user }: Props) {
                   </div>
                 </div>
               )}
-              {/* Utiliser l'imprimante — propre à ce poste */}
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={utiliserImprimante}
-                    onChange={e => handleToggleImprimante(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded text-[#0D47A1] focus:ring-[#0D47A1] cursor-pointer"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
-                        <Printer size={13} className="text-[#0D47A1]" />
-                        Utiliser l'imprimante
-                      </p>
-                      <span className="text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">Ce poste</span>
-                    </div>
-                    <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
-                      {utiliserImprimante ? 'Impression directe sur ce poste' : 'Désactivée sur ce poste'}
-                    </p>
-                  </div>
-                </label>
-              </div>
               <button
                 onClick={handlePayment}
                 disabled={

@@ -93,7 +93,7 @@ wamp_deploy/
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
 - Supprime le `lancer-impression-directe.bat` au profit de ce lanceur universel.
 
-Case à cocher « Utiliser l'imprimante » par poste (menu latéral ou écran d'encaissement) :
+Case à cocher « Utiliser l'imprimante » par poste (menu latéral) :
 - Cochée : impression directe silencieuse sur l'imprimante par défaut (aucune page affichée) ;
 - Décochée : aucune impression kiosque sur ce poste (ventes enregistrées sans ticket ; pour la clôture, ouverture de la page d'impression avec choix de l'imprimante).
 

@@ -177,29 +177,31 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
         ))}
       </nav>
 
-      {/* Utiliser l'imprimante - propre à ce poste et utilisateur */}
-      <div className="p-3 border-t border-gray-100 bg-gray-50/70">
-        <label className="flex items-start gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={utiliserImprimante}
-            onChange={e => handleToggleImprimante(e.target.checked)}
-            className="w-4 h-4 mt-0.5 rounded text-[#0D47A1] focus:ring-[#0D47A1] cursor-pointer"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-1">
-              <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
-                <Printer size={13} className="text-[#0D47A1]" />
-                Utiliser l'imprimante
+      {/* Utiliser l'imprimante - propre à ce poste et utilisateur (seulement caisse ou admin) */}
+      {['Administrateur', 'Gérant', 'Caissier'].includes(user.ROLE) && (
+        <div className="p-3 border-t border-gray-100 bg-gray-50/70">
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={utiliserImprimante}
+              onChange={e => handleToggleImprimante(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded text-[#0D47A1] focus:ring-[#0D47A1] cursor-pointer"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                  <Printer size={13} className="text-[#0D47A1]" />
+                  Utiliser l'imprimante
+                </p>
+                <span className="text-[9px] text-blue-700 bg-blue-50 px-1 rounded shrink-0">Ce poste</span>
+              </div>
+              <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+                {utiliserImprimante ? 'Impression directe sur ce poste' : 'Désactivée sur ce poste'}
               </p>
-              <span className="text-[9px] text-blue-700 bg-blue-50 px-1 rounded shrink-0">Ce poste</span>
             </div>
-            <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
-              {utiliserImprimante ? 'Impression directe sur ce poste' : 'Désactivée sur ce poste'}
-            </p>
-          </div>
-        </label>
-      </div>
+          </label>
+        </div>
+      )}
 
       {/* User Info */}
       <div className="p-4 border-t border-gray-100">
