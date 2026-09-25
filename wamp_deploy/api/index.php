@@ -478,6 +478,9 @@ try {
     if (($_SERVER['HTTP_X_BARPOS_REQUEST'] ?? '') !== '1') {
         xml_error('Requête API non autorisée.');
     }
+    if (!extension_loaded('simplexml')) {
+        xml_error('Extension PHP SimpleXML absente. Activez simplexml dans WAMP.');
+    }
 
     $body = file_get_contents('php://input');
     if (!is_string($body) || trim($body) === '' || strlen($body) > 25 * 1024 * 1024) {

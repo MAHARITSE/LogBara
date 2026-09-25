@@ -181,5 +181,5 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- ============================================================================
 -- FIN DE LA MISE À JOUR
 -- Ensuite : remplacez index.html, api/index.php et api/mappings.php dans le
--- dossier barpos de WAMP par ceux de wamp_deploy.
+-- dossier logbara de WAMP par ceux de wamp_deploy.
 -- ============================================================================
