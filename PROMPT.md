@@ -25,7 +25,7 @@
 
 ### Structure cible WAMP
 ```
-C:\wamp64\www\logbara\
+C:\wamp64\www\barpos\
 ├── index.html
 ├── .htaccess
 ├── api\
@@ -40,8 +40,8 @@ C:\wamp64\www\logbara\
 
 ### Accès
 ```
-http://localhost/logbara/                       → Application MySQL
-http://localhost/logbara/api/diagnostic.php     → Diagnostic MySQL
+http://localhost/barpos/                       → Application MySQL
+http://localhost/barpos/api/diagnostic.php     → Diagnostic MySQL
 ```
 Il n’existe aucun mode local : toutes les données persistantes et les sessions sont enregistrées dans MySQL.
 

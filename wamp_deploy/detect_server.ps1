@@ -38,35 +38,6 @@ function Test-BarPos([string]$hostOrIp) {
             $apiUrl = "http://$h/$appPath/api/index.php"
             $reqApi = [System.Net.HttpWebRequest]::Create($apiUrl)
             $reqApi.Timeout = 1500
-            $reqApi.Method = "HEAD"
-            $reqApi.AllowAutoRedirect = $true
-            $resApi = $reqApi.GetResponse()
-            $codeApi = [int]$resApi.StatusCode
-            $resApi.Close()
-            if ($codeApi -ge 200 -and $codeApi -lt 400) { return $true }
-        } catch {
-            # continue to HTTP URL fallback
-        }
-    }
-
-    # Test HTTP sur /logbara/
-    $url = "http://$h/logbara/"
-    try {
-        $req = [System.Net.HttpWebRequest]::Create($url)
-        $req.Timeout = 1500
-        $req.Method = "HEAD"
-        $req.AllowAutoRedirect = $true
-        $res = $req.GetResponse()
-        $code = [int]$res.StatusCode
-        $res.Close()
-        if ($code -ge 200 -and $code -lt 400) { return $true }
-    } catch {
-        # Fallback en methode GET si HEAD est refusee par la config Apache
-    }
-        try {
-            $apiUrl = "http://$h/$appPath/api/index.php"
-            $reqApi = [System.Net.HttpWebRequest]::Create($apiUrl)
-            $reqApi.Timeout = 1500
             $reqApi.Method = "GET"
             $reqApi.Headers.Add("X-BarPOS-Request", "1")
             $resApi = $reqApi.GetResponse()

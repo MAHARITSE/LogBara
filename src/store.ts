@@ -1,7 +1,6 @@
 // ============================================
-// STORE MYSQL BAR POS v4.3
-// L'API PHP/XML est la source de vérité. Le mode local n'est autorisé
-// qu'en développement Vite ; le build WAMP refuse tout repli silencieux.
+// STORE MYSQL & LOCAL FALLBACK BAR POS v4.2
+// Supporte l'API PHP/XML MySQL (WAMP) ainsi que la persistance locale (localStorage)
 // ============================================
 
 import {
@@ -10,7 +9,6 @@ import {
   Mouvement, Achat, LigneAchat, Inventaire, LigneInventaire, Consommation,
 } from './types';
 import { generateRandomSales } from './utils/seedSales';
-import { globalToast } from './utils/globalToast';
 
 type Row = Record<string, unknown>;
 type DatasetName =
@@ -21,7 +19,6 @@ type DatasetName =
   | 'consommations';
 
 const API_URL = new URL('api/index.php', document.baseURI).toString();
-const ALLOW_LOCAL_FALLBACK = import.meta.env.DEV;
 
 const SEED_SOCIETE: Societe = {
   NOM: 'Bar POS',
@@ -179,11 +176,11 @@ const sendXml = (xml: string): Element => {
   try {
     xhr.send(xml);
   } catch {
-    throw new Error('API PHP inaccessible. Ouvrez Bar POS depuis http://localhost/logbara/ et non depuis un fichier local.');
+    throw new Error('API PHP inaccessible.');
   }
 
   if (xhr.status < 200 || xhr.status >= 300) {
-    throw new Error(`API PHP indisponible (HTTP ${xhr.status || 0}). Vérifiez Apache et le dossier logbara.`);
+    throw new Error(`API PHP indisponible (HTTP ${xhr.status || 0}).`);
   }
 
   const documentXml = xhr.responseXML || new DOMParser().parseFromString(xhr.responseText, 'application/xml');
@@ -239,27 +236,6 @@ const isApiConfigured = (): boolean => {
   }
 
   // Dans l'environnement de dev / bac à sable Vite Cloud (.run.app ou port 3000 sans backend PHP WAMP local)
-  const isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.endsWith('.run.app');
-  return !isLocalDev;
-};
-
-const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
-  try {
-    const res = request('read', dataset) as T[];
-    lastError = '';
-    return res;
-  } catch (error) {
-    lastError = errorMessage(error);
-    if (!ALLOW_LOCAL_FALLBACK) {
-      throw error;
-    }
-    const seed = fallback.length > 0 ? fallback : (getDefaultSeedForDataset(dataset) as T[]);
-    return getLocalDataset<T>(dataset, seed);
-  }
-};
-  }
-
-  // Dans l'environnement de dev / bac à sable Vite Cloud (.run.app ou port 3000 sans backend PHP WAMP local)
   if (window.location.hostname.includes('.run.app') || (window.location.port === '3000' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))) {
     return false;
   }
@@ -301,26 +277,13 @@ const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
 };
 
 const sync = <T>(dataset: DatasetName, data: T[]): void => {
-const sync = <T>(dataset: DatasetName, data: T[]): void => {
   // Always update local storage first for resilience
-  // Le build WAMP ne persiste jamais les données métier dans le navigateur.
-  // Le stockage local ne sert qu'au confort du serveur Vite de développement.
-  if (ALLOW_LOCAL_FALLBACK || !isApiConfigured()) {
-    setLocalDataset(dataset, data);
-  }
-
+  setLocalDataset(dataset, data);
   if (isApiConfigured()) {
     try {
       request('sync', dataset, data as Row[]);
     } catch (error) {
       lastError = errorMessage(error);
-      if (!ALLOW_LOCAL_FALLBACK) {
-        globalToast(`Enregistrement MySQL impossible : ${lastError}`, 'error', 6000);
-        throw error;
-      }
-    }
-  }
-};
     }
   }
 };
@@ -349,12 +312,7 @@ export const store = {
   isApiConfigured: (): boolean => isApiConfigured(),
   getLastError: (): string => lastError,
 
-  getSociete: (): Societe => {
-    const societe = safeRead<Societe>('societe', [SEED_SOCIETE])[0];
-    if (societe) return societe;
-    if (ALLOW_LOCAL_FALLBACK) return SEED_SOCIETE;
-    throw new Error('La table societe est vide. Importez sql/barpos.sql dans barpos_db.');
-  },
+  getSociete: (): Societe => safeRead<Societe>('societe', [SEED_SOCIETE])[0] || SEED_SOCIETE,
   setSociete: (data: Societe): void => sync('societe', [data]),
 
   /**
@@ -449,7 +407,6 @@ export const store = {
   setConsommations: (data: Consommation[]): void => sync('consommations', data),
 
   getSession: (): Personnel | null => {
-  getSession: (): Personnel | null => {
     if (isApiConfigured()) {
       try {
         const rows = request('session');
@@ -458,25 +415,6 @@ export const store = {
         // Fallback local session
       }
     }
-
-    try {
-      const rows = request('session');
-      if (rows.length > 0) return rows[0] as unknown as Personnel;
-      if (!ALLOW_LOCAL_FALLBACK) return null;
-    } catch (error) {
-      lastError = errorMessage(error);
-      if (!ALLOW_LOCAL_FALLBACK) {
-        throw error;
-      }
-      // Le serveur Vite peut fonctionner sans Apache/PHP pendant le développement.
-      const local = getLocalDataset<Personnel>('session', []);
-      if (local.length > 0) return local[0];
-    }
-
-    return null;
-  },
-    }
-
     try {
       const saved = localStorage.getItem('barpos_session');
       return saved ? (JSON.parse(saved) as Personnel) : null;
@@ -486,14 +424,12 @@ export const store = {
   },
 
   setSession: (data: Personnel | null): void => {
-    if (!ALLOW_LOCAL_FALLBACK) return;
     try {
       if (data) localStorage.setItem('barpos_session', JSON.stringify(data));
       else localStorage.removeItem('barpos_session');
     } catch (_) { /* ignore */ }
   },
 
-  authenticate: (login: string, password: string): Personnel | null => {
   authenticate: (login: string, password: string): Personnel | null => {
     if (isApiConfigured()) {
       try {
@@ -502,27 +438,6 @@ export const store = {
       } catch {
         // Fallback local auth check
       }
-    }
-
-    try {
-      const rows = request('authenticate', undefined, undefined, { login, password });
-      // Une réponse vide est une authentification réellement refusée : elle ne
-      // doit jamais être remplacée par un compte de démonstration en production.
-      if (rows.length > 0) return rows[0] as unknown as Personnel;
-      if (!ALLOW_LOCAL_FALLBACK) return null;
-    } catch (error) {
-      lastError = errorMessage(error);
-      if (!ALLOW_LOCAL_FALLBACK) {
-        throw error;
-      }
-      // Fallback de démonstration uniquement avec le serveur Vite.
-      const demo = getLocalDataset<Personnel>('personnel', []);
-      const match = demo.find(personnel => personnel.LOGIN === login && personnel.MDP === password);
-      if (match) return match;
-    }
-
-    return null;
-  },
     }
 
     const allPersonnel = store.getPersonnel();
@@ -557,23 +472,13 @@ export const store = {
     .filter(article => article.ACTIF && article.GERE_STOCK && (article.ALERTE_STOCK !== false) && article.STOCK <= article.STOCK_MIN).length,
 
   resetAll: (): void => {
-  resetAll: (): void => {
     if (isApiConfigured()) {
       try {
         request('reset');
-      } catch (error) {
-        lastError = errorMessage(error);
-        if (!ALLOW_LOCAL_FALLBACK) {
-          throw error;
-        }
+      } catch {
+        // ignore
       }
     }
-    if (!ALLOW_LOCAL_FALLBACK) return;
-  },
-      }
-    }
-    if (!ALLOW_LOCAL_FALLBACK) return;
-
     const datasets: DatasetName[] = [
       'societe', 'personnel', 'familles', 'articles', 'tables',
       'clients', 'fournisseurs', 'ventes', 'lignes_vente',
@@ -594,23 +499,14 @@ export const store = {
 
   exportAll,
   exportSQL: (): string => {
-  exportSQL: (): string => {
     if (isApiConfigured()) {
       try {
         const root = sendXml('<request action="backup"><params/></request>');
         const content = Array.from(root.children).find(child => child.tagName === 'content')?.textContent;
         if (content) return content;
-      } catch (error) {
-        lastError = errorMessage(error);
-        if (!ALLOW_LOCAL_FALLBACK) {
-          throw error;
-        }
+      } catch {
+        // Fallback to local SQL generation
       }
-    }
-
-    // Generate valid MySQL SQL dump from local data
-    return JSON.stringify(exportAll(), null, 2);
-  },
     }
 
     // Generate valid MySQL SQL dump from local data

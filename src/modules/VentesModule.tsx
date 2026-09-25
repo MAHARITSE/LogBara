@@ -293,30 +293,6 @@ export default function VentesModule({ user }: Props) {
         </div>
       </div>
 
-      {/* KPI : ce qui reste à encaisser + ventes non clôturées affichées */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-gray-100">
-          <p className="text-xs text-gray-500 font-medium">Ventes affichées (non clôturées)</p>
-          <p className="text-lg sm:text-xl font-extrabold text-[#0D47A1] mt-0.5 tabular-nums">{formatAr(totalVentesAffichees)}</p>
-          <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{filteredVentes.length} vente(s)</p>
-        </div>
-        <div className={`rounded-2xl p-3.5 sm:p-4 shadow-xs border ${
-          tablesEnCours.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'
-        }`}>
-          <p className={`text-xs font-medium ${tablesEnCours.length > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
-            Tables en cours — à encaisser
-          </p>
-          <p className={`text-lg sm:text-xl font-extrabold mt-0.5 tabular-nums ${
-            tablesEnCours.length > 0 ? 'text-amber-700' : 'text-gray-400'
-          }`}>
-            {formatAr(tablesEnCours.reduce((s, t) => s + t.TOTAL, 0))}
-          </p>
-          <p className={`text-[11px] mt-0.5 font-medium ${tablesEnCours.length > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-            {tablesEnCours.length} table{tablesEnCours.length > 1 ? 's' : ''} · {tablesEnCours.reduce((s, t) => s + t.NB_ARTICLES, 0)} article{tablesEnCours.reduce((s, t) => s + t.NB_ARTICLES, 0) > 1 ? 's' : ''}
-          </p>
-        </div>
-      </div>
-
       {/* Stats par caissier (Admin/Gérant) */}
       {(isAdmin || isGerant) && statsByCaissier.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">

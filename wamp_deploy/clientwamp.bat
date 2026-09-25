@@ -129,8 +129,6 @@ set "USER_IP=!USER_IP:http://=!"
 set "USER_IP=!USER_IP:https://=!"
 set "USER_IP=!USER_IP:/logbara/=!"
 set "USER_IP=!USER_IP:/logbara=!"
-set "USER_IP=!USER_IP:/logbara/=!"
-set "USER_IP=!USER_IP:/logbara=!"
 set "USER_IP=!USER_IP:/barpos/=!"
 set "USER_IP=!USER_IP:/barpos=!"
 set "USER_IP=!USER_IP:/=!"
@@ -213,22 +211,6 @@ function Test-BarPos([string]$hostOrIp) {
     } catch { return $false }
 
     foreach ($appPath in @("logbara", "barpos")) {
-        $url = "http://$h/$appPath/"
-        foreach ($method in @("HEAD", "GET")) {
-            try {
-                $req = [System.Net.HttpWebRequest]::Create($url)
-                $req.Timeout = 1500
-                $req.Method = $method
-                $req.AllowAutoRedirect = $true
-                $res = $req.GetResponse()
-                $code = [int]$res.StatusCode
-                $res.Close()
-                if ($code -ge 200 -and $code -lt 400) { return $true }
-            } catch {
-                # Fallback en methode GET si HEAD est refusee par la config Apache
-            }
-        }
-    }
         try {
             $apiUrl = "http://$h/$appPath/api/index.php"
             $reqApi = [System.Net.HttpWebRequest]::Create($apiUrl)
