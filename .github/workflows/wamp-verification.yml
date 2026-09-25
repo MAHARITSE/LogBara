@@ -27,7 +27,7 @@ jobs:
           sleep 3
           mysql -uroot -proot -e "SELECT VERSION();"
 
-      - name: Préparer C:\wamp64\www\logbara (équivalent Linux : www/logbara)
+      - name: Préparer le dossier du serveur (www/logbara, équivalent wamp64/www/logbara)
         run: |
           mkdir -p www
           cp -r wamp_deploy www/logbara
