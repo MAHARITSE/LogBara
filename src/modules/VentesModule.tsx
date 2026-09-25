@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Eye, Trash2, X, Printer } from 'lucide-react';
+import { Search, Eye, Trash2, X, Printer, UtensilsCrossed } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Vente } from '../types';
 import { formatAr, dateLabel, today } from '../helpers';
@@ -23,6 +23,7 @@ export default function VentesModule({ user }: Props) {
   const lignesVente = store.getLignesVente();
   const articles = store.getArticles();
   const personnel = store.getPersonnel();
+  const tables = store.getTables();
   void store.getClotures(); // Used for filtering
 
   const isAdmin = user.ROLE === 'Administrateur';
@@ -36,21 +37,34 @@ export default function VentesModule({ user }: Props) {
   // Filtrer les ventes
   const filteredVentes = useMemo(() => {
     return ventes.filter(v => {
-      // Caissier ne voit que ses ventes non clôturées
-      if (user.ROLE === 'Caissier') {
-        if (v.IDPERSONNEL !== user.IDPERSONNEL) return false;
-        if (v.CLOTUREE) return false;
-      }
-      
+      // RÈGLE ABSOLUE : une vente clôturée n'est JAMAIS affichée dans ce module.
+      // Elle est archivée dans l'historique du module Clôture (avec son ticket).
+      if (v.CLOTUREE || v.IDCLOTURE) return false;
+
+      // Caissier : uniquement ses propres ventes en cours
+      if (user.ROLE === 'Caissier' && v.IDPERSONNEL !== user.IDPERSONNEL) return false;
+
       // Filtre date
       if (dateFilter && v.DATE_VENTE !== dateFilter) return false;
-      
+
       // Filtre recherche
       if (searchTerm && !v.NUMERO_FACTURE.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      
+
       return true;
     }).sort((a, b) => b.IDVENTE - a.IDVENTE);
   }, [ventes, user, dateFilter, searchTerm]);
+
+  /**
+   * Libellé de la colonne « Type » :
+   * - vente sur table → le NUMÉRO de la table (ex. « Table 5 »)
+   * - vente au comptoir → « Comptoir »
+   */
+  const typeLabel = (vente: Vente): { texte: string; surTable: boolean } => {
+    if (vente.TYPE !== 'Table') return { texte: 'Comptoir', surTable: false };
+    const table = tables.find(t => t.IDTABLE === vente.IDTABLE);
+    if (!table) return { texte: 'Table supprimée', surTable: true };
+    return { texte: `Table ${table.NUMERO}`, surTable: true };
+  };
 
   // Stats par caissier
   const statsByCaissier = useMemo(() => {
@@ -114,7 +128,7 @@ export default function VentesModule({ user }: Props) {
       <div class="center">${vente.NUMERO_FACTURE}</div>
       <div class="row"><span>${vente.DATE_VENTE}</span><span>${vente.HEURE}</span></div>
       <div>Caissier: ${caissier?.PRENOM} ${caissier?.NOM}</div>
-      <div>Type: ${vente.TYPE}</div>
+      <div>Type: ${typeLabel(vente).texte}</div>
       <div class="line"></div>
       <table>
         <tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>
@@ -198,17 +212,12 @@ export default function VentesModule({ user }: Props) {
                   }`}>
                     {v.STATUT}
                   </span>
-                  {v.CLOTUREE && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
-                      Clôturée
-                    </span>
-                  )}
                 </div>
               </div>
 
               <div className="flex items-center justify-between text-xs text-gray-500 font-medium pt-1 border-t border-gray-100">
                 <span>{dateLabel(v.DATE_VENTE)} · {v.HEURE}</span>
-                <span>{caissier?.PRENOM} ({v.TYPE})</span>
+                <span>{caissier?.PRENOM} ({typeLabel(v).texte})</span>
               </div>
 
               <div className="flex items-center justify-between pt-1">
@@ -247,7 +256,8 @@ export default function VentesModule({ user }: Props) {
         })}
         {filteredVentes.length === 0 && (
           <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-100">
-            Aucune vente trouvée
+            <p className="font-medium">Aucune vente trouvée</p>
+            <p className="text-xs mt-1">Les ventes clôturées sont archivées dans le module Clôture</p>
           </div>
         )}
       </div>
@@ -278,7 +288,19 @@ export default function VentesModule({ user }: Props) {
                       {dateLabel(v.DATE_VENTE)} {v.HEURE}
                     </td>
                     <td className="px-4 py-3 text-sm">{caissier?.PRENOM}</td>
-                    <td className="px-4 py-3 text-sm">{v.TYPE}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {(() => {
+                        const t = typeLabel(v);
+                        return t.surTable ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-[#0D47A1]">
+                            <UtensilsCrossed size={13} />
+                            {t.texte}
+                          </span>
+                        ) : (
+                          <span className="text-gray-600 font-medium">{t.texte}</span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold">{formatAr(v.TOTAL - v.REMISE)}</td>
                     <td className="px-4 py-3 text-right text-red-500">{v.REMISE > 0 ? `-${formatAr(v.REMISE)}` : '-'}</td>
                     <td className="px-4 py-3 text-center">
@@ -289,11 +311,6 @@ export default function VentesModule({ user }: Props) {
                       }`}>
                         {v.STATUT}
                       </span>
-                      {v.CLOTUREE && (
-                        <span className="ml-1 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                          Clôturée
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -328,7 +345,8 @@ export default function VentesModule({ user }: Props) {
               {filteredVentes.length === 0 && (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-gray-400">
-                    Aucune vente trouvée
+                    <p className="font-medium">Aucune vente trouvée</p>
+                    <p className="text-xs mt-1">Les ventes clôturées sont archivées dans le module Clôture</p>
                   </td>
                 </tr>
               )}
@@ -359,6 +377,18 @@ export default function VentesModule({ user }: Props) {
                     {personnel.find(p => p.IDPERSONNEL === selectedVente.IDPERSONNEL)?.PRENOM}
                   </p>
                 </div>
+              </div>
+
+              <div className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs sm:text-sm ${
+                typeLabel(selectedVente).surTable
+                  ? 'bg-blue-50 border-blue-100'
+                  : 'bg-gray-50 border-gray-100'
+              }`}>
+                <UtensilsCrossed size={15} className={typeLabel(selectedVente).surTable ? 'text-[#0D47A1]' : 'text-gray-400'} />
+                <span className="text-gray-500 font-medium">Type :</span>
+                <span className={`font-bold ${typeLabel(selectedVente).surTable ? 'text-[#0D47A1]' : 'text-gray-700'}`}>
+                  {typeLabel(selectedVente).texte}
+                </span>
               </div>
 
               <div className="bg-gray-50 rounded-xl p-3.5 sm:p-4 border border-gray-100">
