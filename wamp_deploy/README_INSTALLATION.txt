@@ -75,6 +75,36 @@ Détails :
   * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing) via profil dédié %LOCALAPPDATA%\LogBara\KioskProfile.
   * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset  (alias: clientwamp.bat -c)
 - L'ancien lancer-impression-directe.bat est supprimé : clientwamp.bat fonctionne indifféremment en local et en réseau.
+- clientwamp.bat peut être copié SEUL sur un poste client : le script de détection PowerShell
+  est intégré (detect_server.ps1 est utilisé en priorité s'il se trouve à côté).
+- En cas d'erreur, la fenêtre reste ouverte et affiche le message au lieu de se fermer.
+- Si vous éditez clientwamp.bat, gardez les fins de ligne Windows (CRLF) et aucun accent.
+
+CLOTURE DE CAISSE : RATTACHEMENT DES OPERATIONS (ANTI-VOL)
+----------------------------------------------------------
+- Chaque vente (et ses lignes), chaque achat (et ses lignes) et chaque
+  remboursement est rattaché à UNE clôture (colonne idcloture).
+- Une opération saisie APRES la clôture du jour n'entre PAS dans cette clôture :
+  elle est reportée automatiquement sur la PROCHAINE clôture (le lendemain).
+  L'écran « Caisse déjà clôturée » affiche ces opérations en attente.
+- La réimpression d'un ticket de clôture n'affiche que les ventes/achats
+  rattachés à cette clôture.
+- Côté serveur (API PHP), sauf pour l'Administrateur : une vente, un achat,
+  leurs lignes, leurs paiements et les clôtures déjà enregistrées ne peuvent
+  plus être modifiés ni supprimés, et on ne peut plus ajouter de ligne à une
+  vente ou un achat clôturé.
+- Une seule clôture par jour et par caissier. La caisse peut rester ouverte
+  plusieurs jours : la clôture suivante regroupe tout ce qui n'a pas été clôturé.
+- Les ventes et achats saisis après la clôture restent visibles (Ventes, Achats).
+
+MISE A JOUR D'UNE INSTALLATION EXISTANTE (SANS PERTE DE DONNEES)
+----------------------------------------------------------------
+1. Sauvegarde : phpMyAdmin > barpos_db > Exporter (ou menu Sauvegarde).
+2. phpMyAdmin > base barpos_db > Importer > sql/mise_a_jour_v4.3.sql > Exécuter.
+   (NE PAS importer barpos.sql : il recrée la base VIDE.)
+3. Remplacer index.html, api/index.php et api/mappings.php dans le dossier barpos.
+Le script peut être relancé sans risque. Sans lui, l'API ajoute quand même la
+colonne automatiquement au premier appel.
 
 DEPANNAGE
 ---------

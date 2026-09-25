@@ -229,13 +229,85 @@ function existing_password(PDO $pdo, array $mapping, int $id): ?string
     return $password === false ? null : (string) $password;
 }
 
-function sync_dataset(PDO $pdo, array $mapping, array $incomingRows): void
+/**
+ * Mise à niveau automatique du schéma pour les bases déjà installées.
+ * Ajoute paiements.idcloture (rattachement des remboursements à une clôture).
+ * Retourne false si la colonne est absente et n'a pas pu être créée
+ * (droits MySQL insuffisants) : l'API continue alors de fonctionner sans elle.
+ */
+function ensure_schema(PDO $pdo): bool
+{
+    try {
+        $check = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $check->execute(['paiements', 'idcloture']);
+        if ((int) $check->fetchColumn() > 0) {
+            return true;
+        }
+        $pdo->exec('ALTER TABLE paiements ADD COLUMN idcloture INT DEFAULT NULL, ADD INDEX idx_paiement_cloture (idcloture)');
+        // Reprise de l'historique (identique à sql/mise_a_jour_v4.3.sql) : les remboursements
+        // déjà comptés dans une ancienne clôture y sont rattachés pour ne pas être recomptés.
+        $pdo->exec(
+            'UPDATE paiements p SET p.idcloture = (
+                 SELECT c.idcloture FROM clotures c
+                 WHERE c.idpersonnel = p.idpersonnel AND c.date_cloture = p.date_paiement AND c.heure >= p.heure
+                 ORDER BY c.heure ASC, c.idcloture ASC LIMIT 1)
+             WHERE p.idvente IS NULL AND p.idcloture IS NULL'
+        );
+        return true;
+    } catch (Throwable $error) {
+        return false;
+    }
+}
+
+/** Identifiants (clé primaire) des lignes verrouillées car rattachées à une clôture. */
+function locked_ids(PDO $pdo, array $mapping): array
+{
+    if (empty($mapping['locked_where'])) {
+        return [];
+    }
+    $sql = 'SELECT `' . $mapping['primary_db'] . '` FROM `' . $mapping['table'] . '` WHERE ' . $mapping['locked_where'];
+    $ids = [];
+    foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_COLUMN) as $id) {
+        $ids[(string) $id] = true;
+    }
+    return $ids;
+}
+
+function sync_dataset(PDO $pdo, array $mapping, array $incomingRows, bool $enforceLocks = true): void
 {
     $pdo->beginTransaction();
     try {
         $retainedIds = [];
 
+        // Lignes rattachées à une clôture : conservées telles quelles en base
+        $lockedIds = $enforceLocks ? locked_ids($pdo, $mapping) : [];
+        foreach (array_keys($lockedIds) as $lockedId) {
+            $retainedIds[] = $lockedId;
+        }
+        $lockedParents = [];
+        if ($enforceLocks && !empty($mapping['locked_parent'])) {
+            foreach ($pdo->query($mapping['locked_parent']['sql'])->fetchAll(PDO::FETCH_COLUMN) as $parentId) {
+                $lockedParents[(string) $parentId] = true;
+            }
+        }
+
         foreach ($incomingRows as $incomingRow) {
+            if ($enforceLocks && !isset($mapping['fixed_primary'])) {
+                $incomingId = (string) (int) ($incomingRow[$mapping['primary_front']] ?? 0);
+                if (isset($lockedIds[$incomingId])) {
+                    continue; // ligne clôturée : aucune modification possible
+                }
+                if (!empty($mapping['locked_parent'])) {
+                    $parentValue = $incomingRow[$mapping['locked_parent']['front']] ?? null;
+                    if ($parentValue !== null && isset($lockedParents[(string) (int) $parentValue])) {
+                        continue; // ajout interdit sur une vente / un achat déjà clôturé
+                    }
+                }
+            }
+
             $dbRow = [];
             if (isset($mapping['fixed_primary'])) {
                 $dbRow[$mapping['primary_db']] = $mapping['fixed_primary'];
@@ -406,6 +478,11 @@ try {
     $config = require __DIR__ . '/config.php';
     $pdo = barpos_database($config);
     $mappings = barpos_mappings();
+    if (!ensure_schema($pdo)) {
+        // Base ancienne non mise à niveau : on ignore paiements.idcloture
+        unset($mappings['paiements']['columns']['IDCLOTURE']);
+        $mappings['paiements']['locked_where'] = 'idvente IN (SELECT idvente FROM ventes WHERE cloturee = 1)';
+    }
 
     if ($action === 'authenticate') {
         $params = request_parameters($request);
@@ -503,7 +580,7 @@ try {
         if (!can_write_dataset((string) $user['role'], $dataset)) {
             xml_error('Votre rôle ne permet pas de modifier ces données.');
         }
-        sync_dataset($pdo, $mappings[$dataset], request_rows($request));
+        sync_dataset($pdo, $mappings[$dataset], request_rows($request), (string) $user['role'] !== 'Administrateur');
         xml_success_start();
         echo '<rows/></response>';
         exit;

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Lock, AlertTriangle, Printer, Check } from 'lucide-react';
 import { store } from '../store';
-import { Personnel } from '../types';
+import { Personnel, Cloture } from '../types';
 import { formatAr, today, nowTime, nextId } from '../helpers';
 import { printTicket, buildSocieteHeaderHtml } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
@@ -9,6 +9,22 @@ import ConfirmModal from '../components/ConfirmModal';
 interface Props {
   user: Personnel;
 }
+
+/**
+ * Une opération (horodatée date + heure) est-elle postérieure à une clôture ?
+ * Sans clôture de référence, tout est considéré comme postérieur.
+ */
+const isAfterCloture = (date: string, heure: string | undefined, ref?: Cloture): boolean => {
+  if (!ref) return true;
+  if (date !== ref.DATE_CLOTURE) return date > ref.DATE_CLOTURE;
+  return (heure || '') > (ref.HEURE || '');
+};
+
+/** Dernière clôture (par IDCLOTURE) d'une liste, éventuellement filtrée par caissier. */
+const lastClotureOf = (list: Cloture[], idPersonnel?: number): Cloture | undefined =>
+  list
+    .filter(c => idPersonnel === undefined || c.IDPERSONNEL === idPersonnel)
+    .reduce<Cloture | undefined>((last, c) => (!last || c.IDCLOTURE > last.IDCLOTURE ? c : last), undefined);
 
 export default function ClotureModule({ user }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
@@ -39,14 +55,29 @@ export default function ClotureModule({ user }: Props) {
   );
 
   // Calculs
+  // ---------------------------------------------------------------------------
+  // RATTACHEMENT À LA CLÔTURE (anti-vol) :
+  // On ne sélectionne plus « les opérations d'aujourd'hui » mais « les opérations
+  // qui ne sont rattachées à AUCUNE clôture ». Ainsi, une vente / un achat /
+  // un remboursement saisi APRÈS la clôture du jour n'est jamais perdu ni
+  // ajouté à la clôture déjà faite : il part automatiquement dans la
+  // PROCHAINE clôture (celle du lendemain).
+  // Borne basse : date de la dernière clôture, pour ne pas ramasser de très
+  // anciennes opérations orphelines datant d'avant cette correction.
+  // ---------------------------------------------------------------------------
   const stats = useMemo(() => {
-    const ventesJour = ventes.filter(
-      v => v.DATE_VENTE === today() && v.IDPERSONNEL === user.IDPERSONNEL && v.STATUT === 'Payée' && !v.CLOTUREE
-    );
+    const lastUserCloture = lastClotureOf(clotures, user.IDPERSONNEL);
+    const lastGlobalCloture = lastClotureOf(clotures);
 
+    const ventesJour = ventes.filter(
+      v => v.IDPERSONNEL === user.IDPERSONNEL && v.STATUT === 'Payée' && !v.CLOTUREE && !v.IDCLOTURE &&
+        (!lastUserCloture || v.DATE_VENTE >= lastUserCloture.DATE_CLOTURE)
+    );
+    const idsVentesJour = new Set(ventesJour.map(v => v.IDVENTE));
+
+    // Paiements des ventes à clôturer (quelle que soit leur date)
     const paiementsJour = paiements.filter(
-      p => p.DATE_PAIEMENT === today() && p.IDPERSONNEL === user.IDPERSONNEL &&
-        ventesJour.some(v => v.IDVENTE === p.IDVENTE)
+      p => p.IDVENTE !== null && p.IDVENTE !== undefined && idsVentesJour.has(p.IDVENTE)
     );
 
     const totalVentes = ventesJour.reduce((s, v) => s + v.TOTAL - v.REMISE, 0);
@@ -71,9 +102,10 @@ export default function ClotureModule({ user }: Props) {
       }
     });
 
-    // Remboursements reçus (paiements sans vente)
+    // Remboursements reçus (paiements sans vente) non encore rattachés à une clôture
     const remboursements = paiements.filter(
-      p => p.DATE_PAIEMENT === today() && p.IDPERSONNEL === user.IDPERSONNEL && !p.IDVENTE
+      p => !p.IDVENTE && p.IDPERSONNEL === user.IDPERSONNEL && !p.IDCLOTURE &&
+        isAfterCloture(p.DATE_PAIEMENT, p.HEURE, lastUserCloture)
     );
     const totalRemboursements = remboursements.reduce((s, p) => s + p.MONTANT, 0);
 
@@ -87,9 +119,10 @@ export default function ClotureModule({ user }: Props) {
       else { remboursementDetails.push({ client: nom, montant: p.MONTANT }); }
     });
 
-    // Achats du jour
+    // Achats non encore rattachés à une clôture (depuis la dernière clôture)
     const achatsJour = achats.filter(
-      a => a.DATE_ACHAT === today() && !a.CLOTUREE
+      a => !a.CLOTUREE && !a.IDCLOTURE &&
+        (!lastGlobalCloture || a.DATE_ACHAT >= lastGlobalCloture.DATE_CLOTURE)
     );
     const totalAchats = achatsJour.reduce((s, a) => s + a.TOTAL, 0);
 
@@ -110,8 +143,14 @@ export default function ClotureModule({ user }: Props) {
       especesAttendues,
       ventesJour,
       achatsJour,
+      remboursements,
+      // Date de la plus ancienne opération en attente (caisse ouverte depuis…)
+      ouverteDepuis: [
+        ...ventesJour.map(v => v.DATE_VENTE),
+        ...remboursements.map(p => p.DATE_PAIEMENT),
+      ].sort()[0] || '',
     };
-  }, [ventes, paiements, clients, achats, user.IDPERSONNEL]);
+  }, [ventes, paiements, clients, achats, clotures, user.IDPERSONNEL]);
 
   // Effectuer la clôture
   const handleCloture = () => {
@@ -150,9 +189,17 @@ export default function ClotureModule({ user }: Props) {
         : a
     );
 
+    // Marquer les remboursements comme rattachés à cette clôture
+    const idsRemb = new Set(stats.remboursements.map(p => p.IDPAIEMENT));
+    const updatedPaiements = paiements.map(p =>
+      idsRemb.has(p.IDPAIEMENT) ? { ...p, IDCLOTURE: idCloture } : p
+    );
+
+    // La clôture doit exister avant d'y rattacher ventes / achats / paiements
     store.setClotures([...clotures, newCloture]);
     store.setVentes(updatedVentes);
     store.setAchats(updatedAchats);
+    if (idsRemb.size > 0) store.setPaiements(updatedPaiements);
 
     setShowConfirm(false);
     showMsg('Caisse clôturée avec succès !');
@@ -172,9 +219,11 @@ export default function ClotureModule({ user }: Props) {
 
     const caissier = allPersonnel.find(p => p.IDPERSONNEL === cloture.IDPERSONNEL) || user;
 
-    // Ventes et récap par article
+    // Ventes et récap par article : UNIQUEMENT les ventes rattachées à cette clôture.
+    // (Avant : toutes les ventes du jour du caissier → une réimpression intégrait
+    // aussi les ventes saisies après la clôture.)
     const ventesJour = freshVentes.filter(
-      v => v.DATE_VENTE === cloture.DATE_CLOTURE && (v.IDCLOTURE === cloture.IDCLOTURE || v.IDPERSONNEL === cloture.IDPERSONNEL) && v.STATUT === 'Payée'
+      v => v.IDCLOTURE === cloture.IDCLOTURE && v.STATUT === 'Payée'
     );
     const lignesJour = allLignes.filter(l => ventesJour.some(v => v.IDVENTE === l.IDVENTE));
 
@@ -395,12 +444,22 @@ export default function ClotureModule({ user }: Props) {
       {toast && <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0D47A1] text-white px-5 py-3 rounded-xl shadow-lg z-50">{toast}</div>}
 
       <h1 className="text-2xl font-bold text-gray-900">🔒 Clôture de caisse</h1>
+      {!alreadyClosed && stats.ouverteDepuis && stats.ouverteDepuis < today() && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+          📅 Caisse ouverte depuis le <b>{stats.ouverteDepuis.split('-').reverse().join('/')}</b> :
+          cette clôture regroupe toutes les opérations non clôturées depuis cette date.
+        </div>
+      )}
 
       {alreadyClosed ? (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center space-y-4">
           <Check size={48} className="mx-auto text-green-500 mb-2" />
           <h2 className="text-xl font-bold text-green-700">Caisse déjà clôturée</h2>
           <p className="text-green-600">Vous avez déjà effectué votre clôture aujourd'hui.</p>
+          <p className="text-sm text-green-700">
+            Une seule clôture par jour : la prochaine sera possible <b>demain</b>.
+            Vous pouvez continuer à vendre et à saisir des achats en attendant.
+          </p>
           {clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL) && (
             <button
               onClick={() => {
@@ -412,6 +471,29 @@ export default function ClotureModule({ user }: Props) {
               <Printer size={18} />
               Imprimer le ticket de clôture
             </button>
+          )}
+
+          {(stats.nbVentes > 0 || stats.achatsJour.length > 0 || stats.remboursements.length > 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mt-4">
+              <p className="font-semibold text-amber-800 flex items-center gap-2">
+                <AlertTriangle size={18} />
+                Opérations saisies après la clôture
+              </p>
+              <p className="text-sm text-amber-700 mt-1">
+                Elles ne modifient pas la clôture déjà faite : elles seront incluses dans la <b>prochaine clôture</b>.
+              </p>
+              <div className="mt-3 space-y-1 text-sm text-amber-900">
+                {stats.nbVentes > 0 && (
+                  <div className="flex justify-between"><span>🧾 {stats.nbVentes} vente{stats.nbVentes > 1 ? 's' : ''}</span><span className="font-semibold">{formatAr(stats.totalVentes)}</span></div>
+                )}
+                {stats.remboursements.length > 0 && (
+                  <div className="flex justify-between"><span>🔄 {stats.remboursements.length} remboursement{stats.remboursements.length > 1 ? 's' : ''}</span><span className="font-semibold">{formatAr(stats.totalRemboursements)}</span></div>
+                )}
+                {stats.achatsJour.length > 0 && (
+                  <div className="flex justify-between"><span>🛒 {stats.achatsJour.length} achat{stats.achatsJour.length > 1 ? 's' : ''}</span><span className="font-semibold">{formatAr(stats.totalAchats)}</span></div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       ) : (

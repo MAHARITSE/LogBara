@@ -4,6 +4,13 @@ declare(strict_types=1);
 /**
  * Correspondance explicite entre les objets de l'interface et les colonnes MySQL.
  * Aucun nom de table ou de colonne fourni par le navigateur n'est injecté en SQL.
+ *
+ * Verrouillage des données clôturées (anti-fraude), hors Administrateur :
+ * - 'locked_where'  : condition SQL (constante, jamais issue du navigateur) désignant
+ *                     les lignes rattachées à une clôture. Elles ne peuvent être
+ *                     ni modifiées ni supprimées par une synchronisation.
+ * - 'locked_parent' : une nouvelle ligne ne peut pas être ajoutée à un parent
+ *                     (vente / achat) déjà clôturé.
  */
 function barpos_mappings(): array
 {
@@ -99,6 +106,8 @@ function barpos_mappings(): array
             'integers' => ['IDCLOTURE', 'IDPERSONNEL', 'NB_VENTES'],
             'decimals' => ['TOTAL_VENTES', 'TOTAL_REMISES', 'TOTAL_ESPECES', 'TOTAL_MOBILE', 'TOTAL_CREDIT', 'TOTAL_REMBOURSEMENTS'],
             'booleans' => [],
+            // Une clôture enregistrée ne peut plus être modifiée ni supprimée (sauf administrateur)
+            'locked_where' => '1 = 1',
         ],
         'ventes' => [
             'table' => 'ventes',
@@ -112,6 +121,7 @@ function barpos_mappings(): array
             ],
             'integers' => ['IDVENTE', 'IDPERSONNEL', 'IDTABLE', 'IDCLOTURE'],
             'decimals' => ['TOTAL', 'REMISE'], 'booleans' => ['CLOTUREE'],
+            'locked_where' => 'cloturee = 1',
         ],
         'lignes_vente' => [
             'table' => 'lignes_vente',
@@ -123,6 +133,9 @@ function barpos_mappings(): array
             ],
             'integers' => ['IDLIGNEVENTE', 'IDVENTE', 'IDARTICLE', 'QUANTITE'],
             'decimals' => ['PRIX_UNITAIRE', 'MONTANT'], 'booleans' => [],
+            // Lignes rattachées (via leur vente) à une clôture
+            'locked_where' => 'idvente IN (SELECT idvente FROM ventes WHERE cloturee = 1)',
+            'locked_parent' => ['front' => 'IDVENTE', 'sql' => 'SELECT idvente FROM ventes WHERE cloturee = 1'],
         ],
         'paiements' => [
             'table' => 'paiements',
@@ -131,9 +144,13 @@ function barpos_mappings(): array
                 'IDPAIEMENT' => 'idpaiement', 'DATE_PAIEMENT' => 'date_paiement',
                 'HEURE' => 'heure', 'IDVENTE' => 'idvente', 'IDPERSONNEL' => 'idpersonnel',
                 'MONTANT' => 'montant', 'MODE_PAIEMENT' => 'mode_paiement', 'IDCLIENT' => 'idclient',
+                'IDCLOTURE' => 'idcloture',
             ],
-            'integers' => ['IDPAIEMENT', 'IDVENTE', 'IDPERSONNEL', 'IDCLIENT'],
+            'integers' => ['IDPAIEMENT', 'IDVENTE', 'IDPERSONNEL', 'IDCLIENT', 'IDCLOTURE'],
             'decimals' => ['MONTANT'], 'booleans' => [],
+            // Paiement verrouillé : remboursement rattaché à une clôture, ou paiement d'une vente clôturée
+            'locked_where' => 'idcloture IS NOT NULL OR idvente IN (SELECT idvente FROM ventes WHERE cloturee = 1)',
+            'locked_parent' => ['front' => 'IDVENTE', 'sql' => 'SELECT idvente FROM ventes WHERE cloturee = 1'],
         ],
         'mouvements' => [
             'table' => 'mouvements',
@@ -157,6 +174,7 @@ function barpos_mappings(): array
             ],
             'integers' => ['IDACHAT', 'IDFOURNISSEUR', 'IDPERSONNEL', 'IDCLOTURE'],
             'decimals' => ['TOTAL'], 'booleans' => ['CLOTUREE'],
+            'locked_where' => 'cloturee = 1',
         ],
         'lignes_achat' => [
             'table' => 'lignes_achat',
@@ -168,6 +186,9 @@ function barpos_mappings(): array
             ],
             'integers' => ['IDLIGNEACHAT', 'IDACHAT', 'IDARTICLE', 'QUANTITE'],
             'decimals' => ['PRIX_ACHAT', 'PRIX_VENTE', 'MONTANT'], 'booleans' => [],
+            // Lignes rattachées (via leur achat) à une clôture
+            'locked_where' => 'idachat IN (SELECT idachat FROM achats WHERE cloturee = 1)',
+            'locked_parent' => ['front' => 'IDACHAT', 'sql' => 'SELECT idachat FROM achats WHERE cloturee = 1'],
         ],
         'inventaires' => [
             'table' => 'inventaires',
