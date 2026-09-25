@@ -1,4 +1,4 @@
-# Installation WAMP — Bar POS v4.2 (MySQL uniquement)
+# Installation WAMP — LogBara v4.3 (MySQL uniquement)
 
 **Développeur** : MAHARITSE Hiacinthe Bertrand — 038 34 092 61
 
@@ -20,26 +20,28 @@ Cette version ne possède aucun mode de stockage navigateur. Les articles, vente
 2. Copier le dossier prêt à déployer :
 
    ```text
-   wamp_deploy  ->  C:\wamp64\www\barpos
+   wamp_deploy  ->  C:\wamp64\www\logbara
    ```
 
 3. Ouvrir <http://localhost/phpmyadmin>.
 4. Choisir **Importer**, puis sélectionner :
 
    ```text
-   C:\wamp64\www\barpos\sql\barpos.sql
+   C:\wamp64\www\logbara\sql\logbara.sql
    ```
 
-   Attention : le script recrée entièrement la base `barpos_db`. Sauvegardez une base existante avant de le réimporter.
+   Attention : le script recrée entièrement la base `logbara`. Sauvegardez une base existante avant de le réimporter.
 
 5. Avec l’installation WAMP standard (`root` sans mot de passe), aucune modification n’est nécessaire. Sinon, modifier :
 
    ```text
-   C:\wamp64\www\barpos\api\config.php
+   C:\wamp64\www\logbara\api\config.php
    ```
 
-6. Tester MySQL avec <http://localhost/barpos/api/diagnostic.php>.
-7. Ouvrir l’application : <http://localhost/barpos/>.
+6. Tester MySQL avec <http://localhost/logbara/api/diagnostic.php>.
+7. Ouvrir l’application : <http://localhost/logbara/>.
+
+   Le menu latéral doit afficher « MySQL connecté — données centralisées ».
 
 ## Comptes initiaux
 
@@ -69,7 +71,9 @@ wamp_deploy/
 │   ├── mappings.php           correspondance interface/tables
 │   └── diagnostic.php         contrôle d’installation
 ├── sql/
-│   └── barpos.sql             schéma et données initiales
+│   ├── sql/
+│   ├── logbara.sql           schéma et données initiales (base « logbara »)
+│   └── mise_a_jour_v4.3.sql  mise à niveau d'une base existante
 └── README_INSTALLATION.txt
 ```
 
@@ -91,8 +95,13 @@ wamp_deploy/
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
 - Supprime le `lancer-impression-directe.bat` au profit de ce lanceur universel.
 
+Modes d'impression par poste (menu latéral ou écran d'encaissement) :
+- « Directe » : impression kiosque silencieuse (aucune page affichée, imprimante par défaut) ;
+- « Choisir » : la fenêtre de choix de l'imprimante s'ouvre à chaque ticket — lancer le poste via `clientwamp.bat --dialogue` (sans `--kiosk-printing`) ;
+- « Aucune » : aucune impression kiosque (ventes et clôtures enregistrées sans ticket ; impression automatique de la clôture désactivée).
+
 Détails techniques :
-- Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/barpos/`.
+- Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/logbara/`.
 - Si aucune détection automatique : invite à saisir manuellement l'IP (ex. `192.168.1.50` ou `localhost`) et la mémorise.
 - Lance Google Chrome ou Microsoft Edge en mode application avec `--kiosk-printing` : les tickets partent directement sur l'imprimante Windows par défaut, sans aperçu d'impression. Utilise un profil dédié `%LOCALAPPDATA%\LogBara\KioskProfile` (`--user-data-dir`) pour ne pas interférer avec la navigation personnelle.
 
@@ -112,7 +121,7 @@ Prérequis : une imprimante ticket 80 mm définie comme imprimante Windows **par
 
 ## Sauvegarde
 
-Dans le module **Sauvegarde**, utiliser **Export SQL**. Le fichier obtenu contient les vraies colonnes MySQL et les mots de passe hachés. Pour le restaurer, l’importer dans phpMyAdmin après avoir installé le schéma `sql/barpos.sql`.
+Dans le module **Sauvegarde**, utiliser **Export SQL**. Le fichier obtenu contient les vraies colonnes MySQL et les mots de passe hachés. Pour le restaurer, l’importer dans phpMyAdmin après avoir installé le schéma `sql/logbara.sql`.
 
 La réinitialisation est réservée à l’administrateur. Elle efface les opérations (ventes, achats, paiements, mouvements, inventaires, clôtures et consommations), remet stocks et crédits à zéro et conserve les comptes et référentiels.
 
@@ -121,7 +130,7 @@ La réinitialisation est réservée à l’administrateur. Elle efface les opér
 | Symptôme | Vérification |
 |---|---|
 | « API PHP inaccessible » | WAMP vert, Apache démarré, URL sous `http://localhost` |
-| « Erreur MySQL » | importer `sql/barpos.sql`, puis vérifier `api/config.php` |
+| « Erreur MySQL » | importer `sql/logbara.sql`, puis vérifier `api/config.php` |
 | SimpleXML absent | activer l’extension PHP `simplexml` dans WAMP |
 | Connexion PDO impossible | activer `pdo_mysql` et vérifier le port MySQL |
 | Page blanche | consulter les journaux Apache/PHP de WAMP |
@@ -136,4 +145,15 @@ npm ci
 npm run build
 ```
 
-Copier ensuite le `dist/index.html` généré vers `wamp_deploy/index.html`. Les fichiers PHP et SQL restent ceux du dossier `wamp_deploy`.
+Pour la version WAMP, utiliser plutôt :
+
+```bash
+npm run build:wamp
+```
+
+qui copie `dist/index.html` vers `wamp_deploy/index.html` ET y injecte le
+drapeau « MySQL forcé » (`__BARPOS_USE_API__ = true`) : dans cette version,
+l'application fonctionne EXCLUSIVEMENT avec MySQL — jamais de repli en mode
+local navigateur (erreurs affichées au lieu d'un basculement silencieux).
+
+Les fichiers PHP et SQL restent ceux du dossier `wamp_deploy`.

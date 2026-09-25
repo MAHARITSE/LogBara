@@ -1,5 +1,5 @@
 -- ============================================
--- BASE DE DONNÉES BAR POS v4.2
+-- BASE DE DONNÉES LOGBARA (BAR POS) v4.3
 -- Pour WAMP Server (MySQL 8)
 -- Développeur: MAHARITSE Hiacinthe Bertrand
 -- Contact: 038 34 092 61
@@ -9,9 +9,9 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- Supprimer la base si existe
-DROP DATABASE IF EXISTS barpos_db;
-CREATE DATABASE barpos_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE barpos_db;
+DROP DATABASE IF EXISTS logbara;
+CREATE DATABASE logbara CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE logbara;
 
 -- ============================================
 -- TABLE: societe (paramètres société)
@@ -95,6 +95,7 @@ CREATE TABLE articles (
     actif BOOLEAN DEFAULT TRUE,
     gere_stock BOOLEAN DEFAULT TRUE,
     saisie_prix_vente BOOLEAN DEFAULT FALSE,
+    alerte_stock BOOLEAN DEFAULT TRUE,
     ne_plus_vendre BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

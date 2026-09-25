@@ -3,7 +3,7 @@ import { Lock, AlertTriangle, Printer, Check } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Cloture } from '../types';
 import { formatAr, today, nowTime, nextId } from '../helpers';
-import { printTicket, buildSocieteHeaderHtml } from '../components/PrintTicket';
+import { printClotureTicket, buildSocieteHeaderHtml } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface Props {
@@ -208,7 +208,11 @@ export default function ClotureModule({ user }: Props) {
     printClotureComplete(newCloture);
   };
 
-  // Ticket unique : clôture + récap ventes par article (+ achats du jour sur page séparée)
+  // Ticket unique : clôture + récap ventes par article (+ achats du jour sur page séparée).
+  // Règle d'impression clôture :
+  //   - imprimante COCHÉE sur ce poste  -> impression DIRECTE silencieuse ;
+  //   - imprimante PAS COCHÉE           -> ouverture de la PAGE D'IMPRESSION
+  //     (fenêtre du ticket + boîte de dialogue pour choisir l'imprimante).
   const printClotureComplete = (cloture: typeof clotures[0]) => {
     const freshVentes = store.getVentes();
     const allArticles = store.getArticles();
@@ -285,7 +289,7 @@ export default function ClotureModule({ user }: Props) {
       `;
     }
 
-    printTicket(`
+    printClotureTicket(`
       <div class="center bold">CLOTURE DE CAISSE</div>
       <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
       <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
@@ -318,10 +322,10 @@ export default function ClotureModule({ user }: Props) {
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
       ${achatsSection}
-    `, true);
+    `, user.IDPERSONNEL);
   };
 
-  // Réutilisé par l'historique admin
+  // Réutilisé par l'historique admin (même règle : cochée = direct, sinon page d'impression)
   const printCloture = (cloture: typeof clotures[0]) => {
     printClotureComplete(cloture);
   };

@@ -18,6 +18,9 @@ type DatasetName =
   | 'lignes_achat' | 'inventaires' | 'lignes_inventaire'
   | 'consommations';
 
+/** Mode d'impression des tickets, propre à chaque poste / utilisateur. */
+export type PrinterMode = 'directe' | 'choix' | 'aucune';
+
 const API_URL = new URL('api/index.php', document.baseURI).toString();
 
 const SEED_SOCIETE: Societe = {
@@ -225,6 +228,29 @@ const getDefaultSeedForDataset = (dataset: DatasetName): any[] => {
 };
 
 let _cachedApiStatus: boolean | null = null;
+let _apiStatusMessage = '';
+
+/**
+ * Drapeau « MySQL FORCÉ » (version WAMP wamp_deploy uniquement) :
+ * injecté dans wamp_deploy/index.html sous la forme
+ * window.__BARPOS_USE_API__ = true. Dans ce mode, l'application ne fait
+ * AUCUN repli vers le stockage navigateur : toutes les lectures/écritures
+ * passent obligatoirement par l'API PHP + MySQL.
+ */
+const isForcedApi = (): boolean =>
+  typeof window !== 'undefined' &&
+  (window as unknown as { __BARPOS_USE_API__?: boolean }).__BARPOS_USE_API__ === true;
+
+/**
+ * Statut de la connexion MySQL (WAMP), exposé à l'interface.
+ * - connected=true  : l'API PHP a répondu et MySQL fonctionne.
+ * - connected=false : mode local (données dans ce navigateur uniquement),
+ *   _apiStatusMessage explique la raison exacte.
+ */
+export const getApiStatus = (): { connected: boolean; message: string } => ({
+  connected: isApiConfigured(),
+  message: _apiStatusMessage,
+});
 
 const isApiConfigured = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -232,15 +258,20 @@ const isApiConfigured = (): boolean => {
   // Contrôle explicite via drapeau global si nécessaire
   const win = window as unknown as { __BARPOS_USE_API__?: boolean };
   if (typeof win.__BARPOS_USE_API__ === 'boolean') {
+    if (!win.__BARPOS_USE_API__ && _cachedApiStatus === null) {
+      _apiStatusMessage = 'Mode local forcé par la configuration.';
+    }
     return win.__BARPOS_USE_API__;
   }
 
   // Dans l'environnement de dev / bac à sable Vite Cloud (.run.app ou port 3000 sans backend PHP WAMP local)
   if (window.location.hostname.includes('.run.app') || (window.location.port === '3000' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))) {
+    _cachedApiStatus = false;
+    _apiStatusMessage = 'Environnement de démonstration : MySQL (WAMP) n\'est pas utilisé ici.';
     return false;
   }
 
-  // En environnement WAMP / Apache (ex: http://localhost/barpos/ ou adresse IP LAN en production)
+  // En environnement WAMP / Apache (ex: http://localhost/logbara/ ou adresse IP LAN en production)
   if (_cachedApiStatus !== null) return _cachedApiStatus;
 
   try {
@@ -248,18 +279,35 @@ const isApiConfigured = (): boolean => {
     xhr.open('POST', API_URL, false);
     xhr.setRequestHeader('Content-Type', 'application/xml; charset=UTF-8');
     xhr.setRequestHeader('X-BarPOS-Request', '1');
-    xhr.timeout = 1000;
+    // NB : aucun xhr.timeout ici — sur une requête synchrone, sa définition
+    // lève InvalidAccessError et faisait échouer TOUTE détection de l'API WAMP.
     xhr.send('<request action="session"><params/></request>');
     if (xhr.status >= 200 && xhr.status < 400 && xhr.responseXML) {
-      _cachedApiStatus = true;
-      return true;
+      const root = xhr.responseXML.documentElement;
+      if (root && root.tagName === 'response' && root.getAttribute('success') === '1') {
+        _cachedApiStatus = true;
+        _apiStatusMessage = '';
+        return true;
+      }
+      // L'API PHP répond mais MySQL renvoie une erreur (base absente, identifiants...)
+      const apiMessage = root
+        ? Array.from(root.children).find(child => child.tagName === 'message')?.textContent
+        : '';
+      _cachedApiStatus = false;
+      _apiStatusMessage = apiMessage
+        ? `L'API PHP répond mais MySQL a renvoyé une erreur : ${apiMessage}`
+        : 'Réponse non XML reçue de api/index.php : le PHP n\'est pas exécuté par ce serveur (WAMP requis).';
+      return false;
     }
+    _cachedApiStatus = false;
+    _apiStatusMessage = `API PHP injoignable (HTTP ${xhr.status || 0}) — vérifiez WAMP (Apache + MySQL) et l'adresse http://localhost/logbara/.`;
   } catch {
     // API PHP WAMP non joignable
+    _cachedApiStatus = false;
+    _apiStatusMessage = 'API PHP inaccessible — vérifiez que WAMP est démarré (icône verte) et que l\'application est ouverte via http://localhost/logbara/.';
   }
 
-  _cachedApiStatus = false;
-  return false;
+  return _cachedApiStatus;
 };
 
 const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
@@ -268,7 +316,12 @@ const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
       const res = request('read', dataset) as T[];
       lastError = '';
       return res;
-    } catch {
+    } catch (error) {
+      if (isForcedApi()) {
+        // Version WAMP : MySQL uniquement — JAMAIS de repli local silencieux.
+        lastError = errorMessage(error);
+        return [];
+      }
       lastError = '';
     }
   }
@@ -277,6 +330,20 @@ const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
 };
 
 const sync = <T>(dataset: DatasetName, data: T[]): void => {
+  if (isForcedApi()) {
+    // Version WAMP : aucune écriture dans le navigateur, MySQL obligatoire.
+    if (isApiConfigured()) {
+      try {
+        request('sync', dataset, data as Row[]);
+        lastError = '';
+      } catch (error) {
+        lastError = errorMessage(error);
+      }
+    } else {
+      lastError = 'MySQL indisponible : données non enregistrées.';
+    }
+    return;
+  }
   // Always update local storage first for resilience
   setLocalDataset(dataset, data);
   if (isApiConfigured()) {
@@ -310,6 +377,7 @@ const exportAll = () => ({
 
 export const store = {
   isApiConfigured: (): boolean => isApiConfigured(),
+  getApiStatus: (): { connected: boolean; message: string } => getApiStatus(),
   getLastError: (): string => lastError,
 
   getSociete: (): Societe => safeRead<Societe>('societe', [SEED_SOCIETE])[0] || SEED_SOCIETE,
@@ -317,34 +385,55 @@ export const store = {
 
   /**
    * Multi-poste / par utilisateur :
-   * Détermine si l'impression directe des tickets est activée pour un utilisateur spécifique ou ce poste.
+   * Détermine le mode d'impression des tickets pour un utilisateur spécifique ou ce poste.
    * Ne modifie pas la base de données partagée pour ne pas impacter les autres postes/caissiers.
+   *
+   * Modes :
+   * - 'directe' : impression kiosque silencieuse (aucune page d'impression affichée)
+   * - 'choix'   : la boîte de dialogue s'ouvre à chaque impression pour choisir l'imprimante
+   *               (nécessite le lanceur clientwamp.bat --dialogue, sans --kiosk-printing)
+   * - 'aucune'  : AUCUNE impression kiosque automatique (caisse / clôture) sur ce poste
    */
-  isUserPrinterEnabled: (userId?: number): boolean => {
+  getUserPrinterMode: (userId?: number): PrinterMode => {
     try {
       const uid = userId || store.getSession()?.IDPERSONNEL;
       if (uid) {
+        const modePref = localStorage.getItem(`barpos_printer_mode_user_${uid}`);
+        if (modePref === 'directe' || modePref === 'choix' || modePref === 'aucune') {
+          return modePref;
+        }
+        // Compatibilité ancien réglage booléen
         const userPref = localStorage.getItem(`barpos_printer_user_${uid}`);
         if (userPref !== null) {
-          return userPref === 'true';
+          return userPref === 'true' ? 'directe' : 'aucune';
         }
+      }
+      const modeLocal = localStorage.getItem('barpos_printer_mode_local');
+      if (modeLocal === 'directe' || modeLocal === 'choix' || modeLocal === 'aucune') {
+        return modeLocal;
       }
       const localPref = localStorage.getItem('barpos_printer_local');
       if (localPref !== null) {
-        return localPref === 'true';
+        return localPref === 'true' ? 'directe' : 'aucune';
       }
     } catch (_) { /* ignore */ }
-    return store.getSociete().UTILISER_IMPRIMANTE ?? true;
+    return (store.getSociete().UTILISER_IMPRIMANTE ?? true) ? 'directe' : 'aucune';
   },
 
-  setUserPrinterEnabled: (enabled: boolean, userId?: number): void => {
+  setUserPrinterMode: (mode: PrinterMode, userId?: number): void => {
     try {
       const uid = userId || store.getSession()?.IDPERSONNEL;
       if (uid) {
-        localStorage.setItem(`barpos_printer_user_${uid}`, String(enabled));
+        localStorage.setItem(`barpos_printer_mode_user_${uid}`, mode);
       }
-      localStorage.setItem('barpos_printer_local', String(enabled));
+      localStorage.setItem('barpos_printer_mode_local', mode);
     } catch (_) { /* ignore */ }
+  },
+
+  isUserPrinterEnabled: (userId?: number): boolean => store.getUserPrinterMode(userId) !== 'aucune',
+
+  setUserPrinterEnabled: (enabled: boolean, userId?: number): void => {
+    store.setUserPrinterMode(enabled ? 'directe' : 'aucune', userId);
   },
 
   getPersonnel: (): Personnel[] => safeRead<Personnel>('personnel', SEED_PERSONNEL),
@@ -435,8 +524,17 @@ export const store = {
       try {
         const rows = request('authenticate', undefined, undefined, { login, password });
         if (rows.length > 0) return rows[0] as unknown as Personnel;
-      } catch {
-        // Fallback local auth check
+        lastError = '';
+        // Identifiants incorrects selon MySQL. En mode forcé (WAMP), on ne
+        // tente JAMAIS une connexion sur les comptes de démonstration locaux.
+        if (isForcedApi()) return null;
+      } catch (error) {
+        // MySQL injoignable ou en erreur : on mémorise le message pour
+        // l'afficher à l'utilisateur.
+        lastError = errorMessage(error);
+        // Version WAMP : MySQL obligatoire — l'erreur est propagée à l'écran
+        // de connexion au lieu d'une connexion locale silencieuse.
+        if (isForcedApi()) throw error;
       }
     }
 

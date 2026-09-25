@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:wamp": "vite build && node scripts/inject-wamp-flag.mjs"
   },
   "dependencies": {
     "clsx": "2.1.1",

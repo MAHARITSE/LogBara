@@ -35,13 +35,13 @@ C:\wamp64\www\barpos\
 │   ├── diagnostic.php
 │   └── index.php
 └── sql\
-    └── barpos.sql
+    └── logbara.sql
 ```
 
 ### Accès
 ```
-http://localhost/barpos/                       → Application MySQL
-http://localhost/barpos/api/diagnostic.php     → Diagnostic MySQL
+http://localhost/logbara/                       → Application MySQL
+http://localhost/logbara/api/diagnostic.php     → Diagnostic MySQL
 ```
 Il n’existe aucun mode local : toutes les données persistantes et les sessions sont enregistrées dans MySQL.
 

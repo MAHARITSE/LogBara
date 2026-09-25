@@ -6,16 +6,16 @@
 -- ✅ Peut être exécuté plusieurs fois sans risque (le script vérifie avant d'agir).
 --
 -- COMMENT L'EXÉCUTER (WAMP / phpMyAdmin) :
---   1. Faites d'abord une sauvegarde : phpMyAdmin > barpos_db > Exporter
+--   1. Faites d'abord une sauvegarde : phpMyAdmin > logbara > Exporter
 --      (ou menu Sauvegarde de Bar POS).
---   2. phpMyAdmin > cliquez sur la base « barpos_db » > onglet « Importer »
+--   2. phpMyAdmin > cliquez sur la base « logbara » > onglet « Importer »
 --      > choisissez ce fichier > Exécuter.
 --      (ou onglet « SQL » : collez tout le contenu puis Exécuter)
---   Si votre base ne s'appelle pas barpos_db, modifiez la ligne USE ci-dessous.
+--   Si votre base ne s'appelle pas logbara, modifiez la ligne USE ci-dessous.
 -- ============================================================================
 
 SET NAMES utf8mb4;
-USE barpos_db;
+USE logbara;
 
 -- ----------------------------------------------------------------------------
 -- 1. Nouvelle colonne paiements.idcloture
@@ -166,8 +166,32 @@ INNER JOIN personnel pe ON pe.idpersonnel = v.idpersonnel
 WHERE v.statut = 'Payée' AND v.cloturee = FALSE
 GROUP BY v.idpersonnel, pe.prenom, pe.nom;
 
+-- ----------------------------------------------------------------------------
+-- 5. Nouvelle colonne articles.ne_plus_vendre (masquage en caisse POS)
+-- ----------------------------------------------------------------------------
+SET @existe := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'articles' AND COLUMN_NAME = 'ne_plus_vendre'
+);
+SET @sql := IF(@existe = 0,
+    'ALTER TABLE articles ADD COLUMN ne_plus_vendre BOOLEAN DEFAULT FALSE',
+    'SELECT ''Colonne articles.ne_plus_vendre deja presente'' AS info');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ----------------------------------------------------------------------------
+-- 6. Nouvelle colonne articles.alerte_stock (alerte de stock bas par article)
+-- ----------------------------------------------------------------------------
+SET @existe := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'articles' AND COLUMN_NAME = 'alerte_stock'
+);
+SET @sql := IF(@existe = 0,
+    'ALTER TABLE articles ADD COLUMN alerte_stock BOOLEAN DEFAULT TRUE',
+    'SELECT ''Colonne articles.alerte_stock deja presente'' AS info');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- ============================================================================
 -- FIN DE LA MISE À JOUR
 -- Ensuite : remplacez index.html, api/index.php et api/mappings.php dans le
--- dossier barpos de WAMP par ceux de wamp_deploy.
+-- dossier logbara de WAMP par ceux de wamp_deploy.
 -- ============================================================================
