@@ -30,8 +30,8 @@ export default function LoginPage({ onLogin }: Props) {
         setError('Identifiants incorrects ou compte désactivé');
         setLoading(false);
       }
-    } catch {
-      setError('Identifiants incorrects ou compte désactivé');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Connexion MySQL impossible');
       setLoading(false);
     }
   };

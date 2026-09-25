@@ -28,22 +28,34 @@ function App() {
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
 
   useEffect(() => {
-    // Check for existing session
-    const session = store.getSession();
-    if (session) {
-      setUser(session);
-      // Set default module based on role
-      if (session.ROLE === 'Caissier') {
-        setActiveModule('caisse');
-      } else if (session.ROLE === 'Serveur') {
-        setActiveModule('tables');
-      } else if (session.ROLE === 'Magasinier') {
-        setActiveModule('articles');
+    // En production, cette vérification force un premier aller-retour vers PHP
+    // avant d'afficher la page de connexion. Ainsi un WAMP mal configuré ne peut
+    // pas être confondu avec un fonctionnement local du navigateur.
+    try {
+      const session = store.getSession();
+      if (session) {
+        setUser(session);
+        // Set default module based on role
+        if (session.ROLE === 'Caissier') {
+          setActiveModule('caisse');
+        } else if (session.ROLE === 'Serveur') {
+          setActiveModule('tables');
+        } else if (session.ROLE === 'Magasinier') {
+          setActiveModule('articles');
+        }
       }
+    } catch (error) {
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : store.getLastError() || 'Connexion à l’API PHP impossible.'
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const handleLogin = (loggedUser: Personnel) => {
@@ -77,6 +89,42 @@ function App() {
         <div className="text-center text-white">
           <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-lg font-medium">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (apiError) {
+    const diagnosticUrl = new URL('api/diagnostic.php', document.baseURI).toString();
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#0a3b75] via-[#0d4f9e] to-[#072952]">
+        <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
+          <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-3xl mb-5">!</div>
+          <h1 className="text-2xl font-extrabold text-gray-900">Connexion MySQL indisponible</h1>
+          <p className="mt-3 text-gray-600">
+            Bar POS n’utilise pas de stockage local en production. Vérifiez WAMP, l’import de
+            <strong> barpos_db </strong> et <strong>api/config.php</strong>.
+          </p>
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 break-words">
+            <strong>Détail détecté :</strong> {apiError}
+          </div>
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="flex-1 rounded-xl bg-[#0D47A1] px-4 py-3 font-bold text-white hover:bg-[#1565C0]"
+            >
+              Réessayer
+            </button>
+            <a
+              href={diagnosticUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 rounded-xl border border-[#0D47A1] px-4 py-3 text-center font-bold text-[#0D47A1] hover:bg-blue-50"
+            >
+              Ouvrir le diagnostic WAMP
+            </a>
+          </div>
         </div>
       </div>
     );

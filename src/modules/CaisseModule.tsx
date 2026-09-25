@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Printer, Package, ArrowLeft } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, CartItem, TableR } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
