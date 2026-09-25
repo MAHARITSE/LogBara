@@ -187,6 +187,12 @@ if (getenv('TEST_SELF_REPAIR') === '1') {
         $testConfig = require $apiDir . '/config.php';
         $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $testConfig['host'], (int) $testConfig['port'], $testConfig['database']);
         $admin = new PDO($dsn, $testConfig['username'], $testConfig['password'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        // S'assure que la colonne existe avant de la supprimer (le scénario
+        // simule une base ancienne importée avant l'ajout de la colonne).
+        $has = $admin->query("SHOW COLUMNS FROM articles LIKE 'alerte_stock'")->fetch();
+        if (!$has) {
+            $admin->exec('ALTER TABLE articles ADD COLUMN alerte_stock BOOLEAN DEFAULT TRUE');
+        }
         $admin->exec('ALTER TABLE articles DROP COLUMN alerte_stock');
         // Un simple « read articles » doit réparer la colonne automatiquement.
         [$resp, $articles] = api_read($urlApi, $cookieJar, 'articles');
@@ -231,7 +237,7 @@ check((string) $resp['success'] === '1' && count(xml_rows($resp)) === 0, 'T3b ma
 // T4. Connexion administrateur + cookie limité au dossier /logbara/
 // ---------------------------------------------------------------------------
 echo "\n[T4] Authentification administrateur\n";
-[$resp, $headers] = api_login($urlApi, $cookieJar, 'admin', 'admin123');
+[$resp, $headers] = api_post($urlApi, xml_request('authenticate', '', null, ['login' => 'admin', 'password' => 'admin123']), $cookieJar);
 $adminRows = xml_rows($resp);
 check((string) $resp['success'] === '1' && count($adminRows) === 1 && (string) ($adminRows[0]['ROLE'] ?? '') === 'Administrateur', 'T4a login admin/admin123 -> Administrateur');
 $cookiePathOk = false;
