@@ -394,46 +394,54 @@ export const store = {
    *               (nécessite le lanceur clientwamp.bat --dialogue, sans --kiosk-printing)
    * - 'aucune'  : AUCUNE impression kiosque automatique (caisse / clôture) sur ce poste
    */
-  getUserPrinterMode: (userId?: number): PrinterMode => {
+  /**
+   * Multi-poste / par utilisateur :
+   * Détermine si l'impression directe des tickets est activée pour un utilisateur spécifique ou ce poste (case à cocher).
+   * Ne modifie pas la base de données partagée pour ne pas impacter les autres postes/caissiers.
+   */
+  isUserPrinterEnabled: (userId?: number): boolean => {
     try {
       const uid = userId || store.getSession()?.IDPERSONNEL;
       if (uid) {
-        const modePref = localStorage.getItem(`barpos_printer_mode_user_${uid}`);
-        if (modePref === 'directe' || modePref === 'choix' || modePref === 'aucune') {
-          return modePref;
-        }
-        // Compatibilité ancien réglage booléen
         const userPref = localStorage.getItem(`barpos_printer_user_${uid}`);
         if (userPref !== null) {
-          return userPref === 'true' ? 'directe' : 'aucune';
+          return userPref === 'true';
         }
-      }
-      const modeLocal = localStorage.getItem('barpos_printer_mode_local');
-      if (modeLocal === 'directe' || modeLocal === 'choix' || modeLocal === 'aucune') {
-        return modeLocal;
+        const modePref = localStorage.getItem(`barpos_printer_mode_user_${uid}`);
+        if (modePref !== null) {
+          return modePref !== 'aucune';
+        }
       }
       const localPref = localStorage.getItem('barpos_printer_local');
       if (localPref !== null) {
-        return localPref === 'true' ? 'directe' : 'aucune';
+        return localPref === 'true';
+      }
+      const modeLocal = localStorage.getItem('barpos_printer_mode_local');
+      if (modeLocal !== null) {
+        return modeLocal !== 'aucune';
       }
     } catch (_) { /* ignore */ }
-    return (store.getSociete().UTILISER_IMPRIMANTE ?? true) ? 'directe' : 'aucune';
+    return store.getSociete().UTILISER_IMPRIMANTE ?? true;
   },
 
-  setUserPrinterMode: (mode: PrinterMode, userId?: number): void => {
+  setUserPrinterEnabled: (enabled: boolean, userId?: number): void => {
     try {
       const uid = userId || store.getSession()?.IDPERSONNEL;
       if (uid) {
-        localStorage.setItem(`barpos_printer_mode_user_${uid}`, mode);
+        localStorage.setItem(`barpos_printer_user_${uid}`, String(enabled));
+        localStorage.setItem(`barpos_printer_mode_user_${uid}`, enabled ? 'directe' : 'aucune');
       }
-      localStorage.setItem('barpos_printer_mode_local', mode);
+      localStorage.setItem('barpos_printer_local', String(enabled));
+      localStorage.setItem('barpos_printer_mode_local', enabled ? 'directe' : 'aucune');
     } catch (_) { /* ignore */ }
   },
 
-  isUserPrinterEnabled: (userId?: number): boolean => store.getUserPrinterMode(userId) !== 'aucune',
+  getUserPrinterMode: (userId?: number): PrinterMode => {
+    return store.isUserPrinterEnabled(userId) ? 'directe' : 'aucune';
+  },
 
-  setUserPrinterEnabled: (enabled: boolean, userId?: number): void => {
-    store.setUserPrinterMode(enabled ? 'directe' : 'aucune', userId);
+  setUserPrinterMode: (mode: PrinterMode, userId?: number): void => {
+    store.setUserPrinterEnabled(mode !== 'aucune', userId);
   },
 
   getPersonnel: (): Personnel[] => safeRead<Personnel>('personnel', SEED_PERSONNEL),

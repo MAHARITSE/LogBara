@@ -62,11 +62,6 @@ INSTALLATION
 7. Ouvrir l'application :
    http://localhost/logbara/
 
-   Le menu latéral affiche « MySQL connecté — données centralisées ».
-   S'il affiche « Mode local — MySQL non connecté », suivre la section
-   DÉPANNAGE ci-dessous : le message exact de l'erreur est aussi affiché
-   sur l'écran de connexion.
-
 COMPTES INITIAUX
 ----------------
 admin    / admin123   Administrateur
@@ -91,13 +86,10 @@ Lanceur universel unique (clientwamp.bat) :
 - Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
 
-MODES D'IMPRESSION (par poste, réglable dans le menu latéral ou l'écran d'encaissement) :
-- « Directe »  : le ticket part immédiatement sur l'imprimante PAR DÉFAUT de Windows,
-  sans aucune page ni fenêtre affichée (mode kiosque, défaut).
-- « Choisir »  : à chaque ticket, la fenêtre d'impression s'ouvre pour CHOISIR
-  l'imprimante. Nécessite de lancer le poste via : clientwamp.bat --dialogue
-  (alias --choix ou -d), qui ouvre l'application SANS --kiosk-printing.
-- « Aucune »   : en CAISSE, aucun ticket kiosque (vente enregistrée sans impression).
+IMPRESSION PAR POSTE (case à cocher dans le menu latéral) :
+- Cochée   : le ticket part immédiatement sur l'imprimante PAR DÉFAUT de Windows,
+  sans aucune page ni fenêtre affichée (mode kiosque silencieux).
+- Décochée : en CAISSE, aucun ticket kiosque (vente enregistrée sans impression).
   Pour la CLÔTURE, règle spécifique : imprimante non cochée -> la PAGE
   D'IMPRESSION s'ouvre (fenêtre du ticket + boîte de dialogue pour choisir
   l'imprimante) ; imprimante cochée -> impression directe silencieuse.

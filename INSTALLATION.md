@@ -41,8 +41,6 @@ Cette version ne possède aucun mode de stockage navigateur. Les articles, vente
 6. Tester MySQL avec <http://localhost/logbara/api/diagnostic.php>.
 7. Ouvrir l’application : <http://localhost/logbara/>.
 
-   Le menu latéral doit afficher « MySQL connecté — données centralisées ».
-
 ## Comptes initiaux
 
 | Login | Mot de passe | Rôle |
@@ -95,10 +93,9 @@ wamp_deploy/
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
 - Supprime le `lancer-impression-directe.bat` au profit de ce lanceur universel.
 
-Modes d'impression par poste (menu latéral ou écran d'encaissement) :
-- « Directe » : impression kiosque silencieuse (aucune page affichée, imprimante par défaut) ;
-- « Choisir » : la fenêtre de choix de l'imprimante s'ouvre à chaque ticket — lancer le poste via `clientwamp.bat --dialogue` (sans `--kiosk-printing`) ;
-- « Aucune » : aucune impression kiosque (ventes et clôtures enregistrées sans ticket ; impression automatique de la clôture désactivée).
+Case à cocher « Utiliser l'imprimante » par poste (menu latéral) :
+- Cochée : impression directe silencieuse sur l'imprimante par défaut (aucune page affichée) ;
+- Décochée : aucune impression kiosque sur ce poste (ventes enregistrées sans ticket ; pour la clôture, ouverture de la page d'impression avec choix de l'imprimante).
 
 Détails techniques :
 - Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/logbara/`.
