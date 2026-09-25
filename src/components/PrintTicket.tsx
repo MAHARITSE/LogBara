@@ -179,21 +179,19 @@ export const openPrintPage = (html: string) => {
 };
 
 /**
- * Impression d'un ticket, en respectant le mode du poste / utilisateur :
+ * Impression d'un ticket, en respectant la préférence du poste / utilisateur :
  *
- * - 'directe' : impression silencieuse immédiate (kiosque), aucune page affichée.
- * - 'choix'   : impression via la boîte de dialogue (choix de l'imprimante) ;
- *               nécessite le lanceur clientwamp.bat --dialogue (sans --kiosk-printing).
- * - 'aucune'  : AUCUNE impression kiosque (paiement en caisse, clôture automatique) :
- *               simple notification d'enregistrement. Un appel forcé (force=true,
- *               ex. bouton « Réimprimer » cliqué par l'utilisateur) reste ignoré
- *               en mode kiosque : l'impression silencieuse est désactivée sur ce
- *               poste ; un message invite à réactiver l'imprimante.
+ * - Imprimante activée (case cochée) : impression directe silencieuse immédiate (kiosque), aucune page affichée.
+ * - Imprimante désactivée (case non cochée) : AUCUNE impression kiosque (paiement en caisse, clôture automatique) :
+ *   simple notification d'enregistrement. Un appel forcé (force=true,
+ *   ex. bouton « Réimprimer » cliqué par l'utilisateur) reste ignoré
+ *   en mode kiosque : l'impression silencieuse est désactivée sur ce
+ *   poste ; un message invite à réactiver l'imprimante.
  */
 export const printTicket = (content: string, force: boolean = false, userId?: number) => {
-  const mode = store.getUserPrinterMode(userId);
+  const enabled = store.isUserPrinterEnabled(userId);
 
-  if (mode === 'aucune') {
+  if (!enabled) {
     // Imprimante désactivée sur ce poste : jamais d'impression kiosque silencieuse.
     globalToast(
       force
@@ -220,15 +218,15 @@ export const printPreview = (content: string, autoPrint: boolean = true) => {
 
 /**
  * Impression du ticket de CLÔTURE DE CAISSE (règle spécifique) :
- * - imprimante COCHÉE (mode 'directe' ou 'choix' sur ce poste)
+ * - imprimante COCHÉE sur ce poste
  *     -> impression DIRECTE silencieuse, aucune page affichée ;
- * - imprimante PAS COCHÉE (mode 'aucune')
+ * - imprimante PAS COCHÉE (décochée)
  *     -> ouverture de la PAGE D'IMPRESSION (fenêtre du ticket + boîte de
  *        dialogue d'impression : l'utilisateur choisit son imprimante).
  */
 export const printClotureTicket = (content: string, userId?: number) => {
   const html = buildTicketHtml(content);
-  if (store.getUserPrinterMode(userId) === 'directe') {
+  if (store.isUserPrinterEnabled(userId)) {
     executeDirectPrint(html);
   } else {
     openPrintPage(html);

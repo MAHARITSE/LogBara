@@ -4,7 +4,7 @@ import {
   Package, Tag, Warehouse, ShoppingBag, ClipboardList, Truck, Users,
   UserCircle, CreditCard, Building2, HardDrive, LogOut, Menu, X, AlertTriangle, Printer
 } from 'lucide-react';
-import { store, PrinterMode } from '../store';
+import { store } from '../store';
 import { Personnel, ModuleType } from '../types';
 import { dateLongFr, roleColors } from '../helpers';
 
@@ -71,10 +71,10 @@ const menuGroups: { title?: string; items: MenuItem[] }[] = [
 export default function Sidebar({ user, activeModule, onModuleChange, onLogout, mobileOpen, onMobileToggle }: Props) {
   const societe = store.getSociete();
   const [stockAlerts, setStockAlerts] = useState(() => store.getStockAlerts());
-  const [printerMode, setPrinterMode] = useState<PrinterMode>(() => store.getUserPrinterMode(user.IDPERSONNEL));
+  const [utiliserImprimante, setUtiliserImprimante] = useState(() => store.isUserPrinterEnabled(user.IDPERSONNEL));
 
   useEffect(() => {
-    setPrinterMode(store.getUserPrinterMode(user.IDPERSONNEL));
+    setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
   }, [user.IDPERSONNEL]);
 
   useEffect(() => {
@@ -97,17 +97,17 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
     const handleUpdate = (e: Event) => {
       const custom = e as CustomEvent<{ userId?: number; enabled?: boolean }>;
       if (!custom.detail || custom.detail.userId === user.IDPERSONNEL) {
-        setPrinterMode(store.getUserPrinterMode(user.IDPERSONNEL));
+        setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
       }
     };
     window.addEventListener('barpos-printer-pref-change', handleUpdate);
     return () => window.removeEventListener('barpos-printer-pref-change', handleUpdate);
   }, [user.IDPERSONNEL]);
 
-  const handlePrinterModeChange = (mode: PrinterMode) => {
-    store.setUserPrinterMode(mode, user.IDPERSONNEL);
-    setPrinterMode(mode);
-    window.dispatchEvent(new CustomEvent('barpos-printer-pref-change', { detail: { userId: user.IDPERSONNEL, enabled: mode !== 'aucune' } }));
+  const handleToggleImprimante = (checked: boolean) => {
+    store.setUserPrinterEnabled(checked, user.IDPERSONNEL);
+    setUtiliserImprimante(checked);
+    window.dispatchEvent(new CustomEvent('barpos-printer-pref-change', { detail: { userId: user.IDPERSONNEL, enabled: checked } }));
   };
 
   const renderLogo = () => {
@@ -177,38 +177,28 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
         ))}
       </nav>
 
-      {/* Imprimante - mode propre à ce poste et utilisateur */}
+      {/* Utiliser l'imprimante - propre à ce poste et utilisateur */}
       <div className="p-3 border-t border-gray-100 bg-gray-50/70">
-        <div className="flex items-center justify-between gap-1 mb-1.5">
-          <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
-            <Printer size={13} className="text-[#0D47A1]" />
-            Imprimante
-          </p>
-          <span className="text-[9px] text-blue-700 bg-blue-50 px-1 rounded shrink-0">Ce poste</span>
-        </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {([
-            { id: 'directe' as PrinterMode, label: 'Directe' },
-            { id: 'choix' as PrinterMode, label: 'Choisir' },
-            { id: 'aucune' as PrinterMode, label: 'Aucune' },
-          ]).map(opt => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => handlePrinterModeChange(opt.id)}
-              className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all min-h-[30px] ${
-                printerMode === opt.id ? 'bg-[#0D47A1] text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] text-gray-500 leading-snug mt-1.5">
-          {printerMode === 'directe' && "Impression directe silencieuse sur l'imprimante par défaut — aucune page affichée."}
-          {printerMode === 'choix' && "La fenêtre de choix de l'imprimante s'ouvre à chaque impression (lancer via clientwamp.bat --dialogue)."}
-          {printerMode === 'aucune' && "Aucune impression kiosque sur ce poste : ventes et clôtures enregistrées sans ticket."}
-        </p>
+        <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={utiliserImprimante}
+            onChange={e => handleToggleImprimante(e.target.checked)}
+            className="w-4 h-4 mt-0.5 rounded text-[#0D47A1] focus:ring-[#0D47A1] cursor-pointer"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                <Printer size={13} className="text-[#0D47A1]" />
+                Utiliser l'imprimante
+              </p>
+              <span className="text-[9px] text-blue-700 bg-blue-50 px-1 rounded shrink-0">Ce poste</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+              {utiliserImprimante ? 'Impression directe sur ce poste' : 'Désactivée sur ce poste'}
+            </p>
+          </div>
+        </label>
       </div>
 
       {/* User Info */}
@@ -224,22 +214,6 @@ export default function Sidebar({ user, activeModule, onModuleChange, onLogout, 
             </span>
           </div>
         </div>
-        {(() => {
-          const status = store.getApiStatus();
-          return (
-            <div
-              className={`flex items-center gap-2 mb-2 px-3 py-2 rounded-xl text-[11px] font-medium ${
-                status.connected ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-              }`}
-              title={status.connected ? 'Données enregistrées dans MySQL (WAMP)' : status.message}
-            >
-              <span className={`w-2 h-2 rounded-full shrink-0 ${status.connected ? 'bg-green-500' : 'bg-amber-500'}`} />
-              {status.connected
-                ? 'MySQL connecté — données centralisées'
-                : 'Mode local — MySQL non connecté'}
-            </div>
-          );
-        })()}
         <button
           onClick={onLogout}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-all"
