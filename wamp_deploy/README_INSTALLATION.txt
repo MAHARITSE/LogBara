@@ -39,9 +39,17 @@ INSTALLATION
 
 6. Vérifier l'installation :
    http://localhost/barpos/api/diagnostic.php
+   Cette page teste une par une PDO, pdo_mysql, SimpleXML, MySQL, les tables,
+   les colonnes et les modules. Toutes les lignes doivent être OK.
+   Pour un contrôle automatisé :
+   http://localhost/barpos/api/diagnostic.php?format=json
 
 7. Ouvrir l'application :
    http://localhost/barpos/
+
+IMPORTANT : ne pas ouvrir index.html par double-clic (file:///...). Le build
+WAMP refuse volontairement le stockage local : si PHP/MySQL est arrêté, il
+montre l'erreur au lieu de travailler sur des données locales.
 
 COMPTES INITIAUX
 ----------------

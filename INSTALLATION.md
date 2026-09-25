@@ -39,7 +39,15 @@ Cette version ne possède aucun mode de stockage navigateur. Les articles, vente
    ```
 
 6. Tester MySQL avec <http://localhost/barpos/api/diagnostic.php>.
+   La page vérifie séparément PDO, pdo_mysql, SimpleXML, la connexion, chaque
+   table/colonne et chaque module. Elle doit afficher **OK** partout. Une
+   version exploitable par un outil est disponible avec `?format=json`.
 7. Ouvrir l’application : <http://localhost/barpos/>.
+
+**Important :** ne pas ouvrir `index.html` par double-clic (`file:///...`). Le
+build WAMP refuse volontairement le stockage local : si PHP/MySQL est arrêté,
+la page affiche l’erreur de connexion au lieu de fonctionner sur des données
+locales.
 
 ## Comptes initiaux
 
