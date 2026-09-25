@@ -72,15 +72,18 @@ jobs:
           TEST_SELF_REPAIR: '1'
         run: |
           set -o pipefail
-          php tests/wamp_api_test.php http://127.0.0.1:8099/logbara/api/index.php www/logbara/api 2>&1 | tee /tmp/wamp_test.log
+          php -d display_errors=1 -d error_reporting=E_ALL tests/wamp_api_test.php http://127.0.0.1:8099/logbara/api/index.php www/logbara/api 2>&1 | tee /tmp/wamp_test.log
           status=$?
           {
             echo "### Vérification WAMP"
             echo '```'
-            tail -n 60 /tmp/wamp_test.log
+            cat /tmp/wamp_test.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          grep -E "\[FAIL\]" /tmp/wamp_test.log | sed 's/^/::error::/; s/$//' || true
+          grep -E "\[FAIL\]" /tmp/wamp_test.log | sed 's/^/::error::/' || true
+          if [ $status -ne 0 ]; then
+            tail -n 20 /tmp/wamp_test.log | while IFS= read -r line; do echo "::error::$line"; done
+          fi
           exit $status
 
       - name: Journal du serveur PHP en cas d'échec
