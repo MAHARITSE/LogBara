@@ -451,12 +451,13 @@ test_roundtrip('lignes_inventaire', [
 
 // Modification d'un parent puis nettoyage (enfants déjà supprimés)
 [$resp] = api_sync($urlApi, $cookieJar, 'ventes', function (array $rows) {
-    foreach ($rows as $r) {
+    foreach ($rows as &$r) {
         if ((string) $r['IDVENTE'] === '9001') {
             $r['TOTAL'] = 2000;
             $r['STATUT'] = 'Payée';
         }
     }
+    unset($r);
     return $rows;
 });
 [, $ventesRows] = api_read($urlApi, $cookieJar, 'ventes');
@@ -547,11 +548,12 @@ check(count($loginRows) === 1 && ($loginRows[0]['ROLE'] ?? '') === 'Caissier', '
 
 // Un caissier ne peut pas modifier une clôture existante (ligne ignorée)
 [$resp] = api_sync($urlApi, $cookieJar, 'clotures', function (array $rows) {
-    foreach ($rows as $r) {
+    foreach ($rows as &$r) {
         if ((string) $r['IDCLOTURE'] === '9001') {
             $r['TOTAL_VENTES'] = 999999;
         }
     }
+    unset($r);
     return $rows;
 });
 [, $cloturesRows] = api_read($urlApi, $cookieJar, 'clotures');
