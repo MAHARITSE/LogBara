@@ -6,6 +6,18 @@ sessions applicatives sont stockées dans MySQL. Aucun fichier de données JSON
 et aucun stockage navigateur ne sont utilisés. L'API PHP échange en XML avec
 l'application.
 
+MYSQL FORCÉ — JAMAIS DE MODE LOCAL
+----------------------------------
+La version WAMP (wamp_deploy) est compilée avec le drapeau « MySQL forcé » :
+- TOUTES les lectures et écritures passent obligatoirement par l'API PHP + MySQL ;
+- AUCUN repli silencieux vers le stockage du navigateur : si MySQL est
+  inaccessible, un message d'erreur précis s'affiche (écran de connexion,
+  page de diagnostic) au lieu de basculer en mode local ;
+- les données de démonstration ne sont jamais chargées ni enregistrées
+  dans le navigateur.
+Si la connexion MySQL échoue : ouvrir
+http://localhost/logbara/api/diagnostic.php et suivre son message.
+
 URL de l'application : http://localhost/logbara/
 Dossier WAMP :         C:\wamp64\www\logbara\
 Base MySQL :           logbara
@@ -85,9 +97,10 @@ MODES D'IMPRESSION (par poste, réglable dans le menu latéral ou l'écran d'enc
 - « Choisir »  : à chaque ticket, la fenêtre d'impression s'ouvre pour CHOISIR
   l'imprimante. Nécessite de lancer le poste via : clientwamp.bat --dialogue
   (alias --choix ou -d), qui ouvre l'application SANS --kiosk-printing.
-- « Aucune »   : AUCUNE impression kiosque sur ce poste. Les ventes et les clôtures
-  sont enregistrées sans ticket ; l'impression automatique de la clôture et
-  l'impression kiosque en caisse sont désactivées (un message l'indique).
+- « Aucune »   : en CAISSE, aucun ticket kiosque (vente enregistrée sans impression).
+  Pour la CLÔTURE, règle spécifique : imprimante non cochée -> la PAGE
+  D'IMPRESSION s'ouvre (fenêtre du ticket + boîte de dialogue pour choisir
+  l'imprimante) ; imprimante cochée -> impression directe silencieuse.
 Le réglage est mémorisé par utilisateur et par poste (pas de modification de la base).
 
 Détails :

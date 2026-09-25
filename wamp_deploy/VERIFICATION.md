@@ -66,6 +66,24 @@ Contrôles transverses également vérifiés :
   l'événement `afterprint` (avant : retiré à 3 s, ce qui annulait l'impression
   et faisait clignoter la page d'impression).
 
+## MySQL forcé dans wamp_deploy (jamais de mode local)
+
+Le bundle `wamp_deploy/index.html` embarque `window.__BARPOS_USE_API__ = true`
+(injecté par `npm run build:wamp`, script `scripts/inject-wamp-flag.mjs`) :
+
+- lectures/écritures EXCLUSIVEMENT via l'API PHP + MySQL ;
+- aucun repli localStorage : en cas d'indisponibilité de MySQL, message d'erreur
+  affiché (connexion, badge) au lieu du mode local silencieux ;
+- pas de connexion possible sur les comptes de démonstration locaux ;
+- pas de données de démonstration générées.
+
+## Impression clôture (règle spécifique)
+
+- Imprimante COCHÉE sur le poste -> impression DIRECTE silencieuse (kiosque).
+- Imprimante NON COCHÉE -> ouverture de la PAGE D'IMPRESSION (fenêtre du ticket
+  avec boîte de dialogue : choix de l'imprimante). Applicable à l'impression
+  automatique après clôture ET aux réimpressions.
+
 ## Comment relancer cette vérification
 
 ```bash

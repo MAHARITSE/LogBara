@@ -135,12 +135,46 @@ const executeDirectPrint = (html: string) => {
       } catch (err) {
         console.warn('Erreur impression iframe', err);
         cleanup();
-        globalToast("Impression impossible dans cet environnement.", 'warning');
+        openPrintPage(html);
       }
     }, 250);
   } catch (e) {
     console.warn('Erreur déclenchement impression directe', e);
-    globalToast("Impression impossible dans cet environnement.", 'warning');
+    openPrintPage(html);
+  }
+};
+
+/**
+ * Ouvre la PAGE D'IMPRESSION visible : fenêtre contenant le ticket, avec
+ * déclenchement automatique de l'impression et fermeture automatique après.
+ * - Avec un lanceur SANS --kiosk-printing (clientwamp.bat --dialogue) :
+ *   la boîte de dialogue s'ouvre -> l'utilisateur choisit son imprimante.
+ * - En mode kiosque : le ticket part directement sur l'imprimante par défaut.
+ */
+export const openPrintPage = (html: string) => {
+  try {
+    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    if (printWindow) {
+      const autoPrintHtml = html.replace(
+        '</body>',
+        `<script>
+          window.focus();
+          setTimeout(function() {
+            window.print();
+          }, 150);
+          window.onafterprint = function() {
+            setTimeout(function() { window.close(); }, 300);
+          };
+        </script></body>`
+      );
+      printWindow.document.open();
+      printWindow.document.write(autoPrintHtml);
+      printWindow.document.close();
+    } else {
+      globalToast('Fenêtre d\'impression bloquée. Veuillez autoriser les popups.', 'warning');
+    }
+  } catch {
+    globalToast('Impression non disponible dans cet environnement', 'info');
   }
 };
 
@@ -182,4 +216,21 @@ export const printTicket = (content: string, force: boolean = false, userId?: nu
 export const printPreview = (content: string, autoPrint: boolean = true) => {
   const html = buildTicketHtml(content);
   executeDirectPrint(html);
+};
+
+/**
+ * Impression du ticket de CLÔTURE DE CAISSE (règle spécifique) :
+ * - imprimante COCHÉE (mode 'directe' ou 'choix' sur ce poste)
+ *     -> impression DIRECTE silencieuse, aucune page affichée ;
+ * - imprimante PAS COCHÉE (mode 'aucune')
+ *     -> ouverture de la PAGE D'IMPRESSION (fenêtre du ticket + boîte de
+ *        dialogue d'impression : l'utilisateur choisit son imprimante).
+ */
+export const printClotureTicket = (content: string, userId?: number) => {
+  const html = buildTicketHtml(content);
+  if (store.getUserPrinterMode(userId) === 'directe') {
+    executeDirectPrint(html);
+  } else {
+    openPrintPage(html);
+  }
 };

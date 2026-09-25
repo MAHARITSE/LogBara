@@ -231,6 +231,17 @@ let _cachedApiStatus: boolean | null = null;
 let _apiStatusMessage = '';
 
 /**
+ * Drapeau « MySQL FORCÉ » (version WAMP wamp_deploy uniquement) :
+ * injecté dans wamp_deploy/index.html sous la forme
+ * window.__BARPOS_USE_API__ = true. Dans ce mode, l'application ne fait
+ * AUCUN repli vers le stockage navigateur : toutes les lectures/écritures
+ * passent obligatoirement par l'API PHP + MySQL.
+ */
+const isForcedApi = (): boolean =>
+  typeof window !== 'undefined' &&
+  (window as unknown as { __BARPOS_USE_API__?: boolean }).__BARPOS_USE_API__ === true;
+
+/**
  * Statut de la connexion MySQL (WAMP), exposé à l'interface.
  * - connected=true  : l'API PHP a répondu et MySQL fonctionne.
  * - connected=false : mode local (données dans ce navigateur uniquement),
@@ -305,7 +316,12 @@ const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
       const res = request('read', dataset) as T[];
       lastError = '';
       return res;
-    } catch {
+    } catch (error) {
+      if (isForcedApi()) {
+        // Version WAMP : MySQL uniquement — JAMAIS de repli local silencieux.
+        lastError = errorMessage(error);
+        return [];
+      }
       lastError = '';
     }
   }
@@ -314,6 +330,20 @@ const safeRead = <T>(dataset: DatasetName, fallback: T[]): T[] => {
 };
 
 const sync = <T>(dataset: DatasetName, data: T[]): void => {
+  if (isForcedApi()) {
+    // Version WAMP : aucune écriture dans le navigateur, MySQL obligatoire.
+    if (isApiConfigured()) {
+      try {
+        request('sync', dataset, data as Row[]);
+        lastError = '';
+      } catch (error) {
+        lastError = errorMessage(error);
+      }
+    } else {
+      lastError = 'MySQL indisponible : données non enregistrées.';
+    }
+    return;
+  }
   // Always update local storage first for resilience
   setLocalDataset(dataset, data);
   if (isApiConfigured()) {
@@ -494,8 +524,17 @@ export const store = {
       try {
         const rows = request('authenticate', undefined, undefined, { login, password });
         if (rows.length > 0) return rows[0] as unknown as Personnel;
-      } catch {
-        // Fallback local auth check
+        lastError = '';
+        // Identifiants incorrects selon MySQL. En mode forcé (WAMP), on ne
+        // tente JAMAIS une connexion sur les comptes de démonstration locaux.
+        if (isForcedApi()) return null;
+      } catch (error) {
+        // MySQL injoignable ou en erreur : on mémorise le message pour
+        // l'afficher à l'utilisateur.
+        lastError = errorMessage(error);
+        // Version WAMP : MySQL obligatoire — l'erreur est propagée à l'écran
+        // de connexion au lieu d'une connexion locale silencieuse.
+        if (isForcedApi()) throw error;
       }
     }
 

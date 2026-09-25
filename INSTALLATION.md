@@ -145,4 +145,15 @@ npm ci
 npm run build
 ```
 
-Copier ensuite le `dist/index.html` généré vers `wamp_deploy/index.html`. Les fichiers PHP et SQL restent ceux du dossier `wamp_deploy`.
+Pour la version WAMP, utiliser plutôt :
+
+```bash
+npm run build:wamp
+```
+
+qui copie `dist/index.html` vers `wamp_deploy/index.html` ET y injecte le
+drapeau « MySQL forcé » (`__BARPOS_USE_API__ = true`) : dans cette version,
+l'application fonctionne EXCLUSIVEMENT avec MySQL — jamais de repli en mode
+local navigateur (erreurs affichées au lieu d'un basculement silencieux).
+
+Les fichiers PHP et SQL restent ceux du dossier `wamp_deploy`.

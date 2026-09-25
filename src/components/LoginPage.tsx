@@ -31,8 +31,14 @@ export default function LoginPage({ onLogin }: Props) {
         setError('Identifiants incorrects ou compte désactivé');
         setLoading(false);
       }
-    } catch {
-      setError('Identifiants incorrects ou compte désactivé');
+    } catch (err) {
+      // Version WAMP (MySQL forcé) : affiche le vrai message (API/MySQL
+      // injoignable, base absente...) au lieu du message d'identifiants.
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Identifiants incorrects ou compte désactivé'
+      );
       setLoading(false);
     }
   };
