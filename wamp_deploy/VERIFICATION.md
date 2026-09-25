@@ -52,6 +52,20 @@ Contrôles transverses également vérifiés :
 - **Réinitialisation** : réservée à l'admin ; ventes vides après reset ; déconnexion propre.
 - **Bundle front** : reconstruit (`wamp_deploy/index.html`), appels API 100 % relatifs → fonctionne dans **tout** sous-dossier (`/logbara/`, `/barpos/`, racine, IP LAN).
 
+## Impression (caisse & clôture)
+
+- Modes par poste / utilisateur : **Directe** (kiosque silencieux, défaut), **Choisir**
+  (fenêtre de choix de l'imprimante à chaque ticket, via `clientwamp.bat --dialogue`),
+  **Aucune** (aucune impression kiosque). Réglage disponible dans le menu latéral
+  **et directement dans l'écran d'encaissement de la caisse**.
+- L'impression automatique de la **clôture** respecte le mode du poste : imprimante
+  désactivée ⇒ aucun ticket kiosque (les réimpressions explicites restent possibles
+  via les boutons « Imprimer / Réimprimer »).
+- Plus aucun « affichage bref » : la fenêtre popup de secours a été supprimée ;
+  l'impression se fait dans un iframe invisible retiré uniquement après
+  l'événement `afterprint` (avant : retiré à 3 s, ce qui annulait l'impression
+  et faisait clignoter la page d'impression).
+
 ## Comment relancer cette vérification
 
 ```bash

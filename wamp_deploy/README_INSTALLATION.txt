@@ -72,12 +72,23 @@ Le module Sauvegarde produit un fichier SQL directement depuis MySQL.
 Pour restaurer, installer d'abord le schéma logbara.sql puis importer la
 sauvegarde dans phpMyAdmin (elle contient la ligne « USE logbara; »).
 
-LANCEUR UNIVERSEL UNIQUE (clientwamp.bat) & IMPRESSION DIRECTE
+LANCEUR UNIVERSEL UNIQUE (clientwamp.bat) & IMPRESSION
 ---------------------------------------------------------
 Lanceur universel unique (clientwamp.bat) :
 - Ouvre automatiquement http://<serveur>/logbara/ (localhost ou IP réseau).
 - Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
 - Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
+
+MODES D'IMPRESSION (par poste, réglable dans le menu latéral ou l'écran d'encaissement) :
+- « Directe »  : le ticket part immédiatement sur l'imprimante PAR DÉFAUT de Windows,
+  sans aucune page ni fenêtre affichée (mode kiosque, défaut).
+- « Choisir »  : à chaque ticket, la fenêtre d'impression s'ouvre pour CHOISIR
+  l'imprimante. Nécessite de lancer le poste via : clientwamp.bat --dialogue
+  (alias --choix ou -d), qui ouvre l'application SANS --kiosk-printing.
+- « Aucune »   : AUCUNE impression kiosque sur ce poste. Les ventes et les clôtures
+  sont enregistrées sans ticket ; l'impression automatique de la clôture et
+  l'impression kiosque en caisse sont désactivées (un message l'indique).
+Le réglage est mémorisé par utilisateur et par poste (pas de modification de la base).
 
 Détails :
 - Lancer clientwamp.bat sur n'importe quel poste :
@@ -86,6 +97,7 @@ Détails :
   * Si nécessaire, vous propose la saisie directe de l'IP et la mémorise automatiquement (%LOCALAPPDATA%\LogBara\server_ip.txt).
   * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing) via profil dédié %LOCALAPPDATA%\LogBara\KioskProfile.
   * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset  (alias: clientwamp.bat -c)
+  * Pour ouvrir la fenêtre de CHOIX DE L'IMPRIMANTE à chaque ticket : clientwamp.bat --dialogue (alias: --choix ou -d)
 - clientwamp.bat peut être copié SEUL sur un poste client : le script de détection PowerShell
   est intégré (detect_server.ps1 est utilisé en priorité s'il se trouve à côté).
 - En cas d'erreur, la fenêtre reste ouverte et affiche le message au lieu de se fermer.

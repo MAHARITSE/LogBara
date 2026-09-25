@@ -78,41 +78,16 @@ export const buildTicketHtml = (content: string) => {
 };
 
 /**
- * Fallback si iframe d'impression non supporté :
- * Ouvre une fenêtre popup avec auto-print et auto-close immédiat.
- */
-const fallbackPrintWindow = (html: string) => {
-  try {
-    const printWindow = window.open('', '_blank', 'width=350,height=600');
-    if (printWindow) {
-      const autoPrintHtml = html.replace(
-        '</body>',
-        `<script>
-          window.focus();
-          setTimeout(function() {
-            window.print();
-          }, 150);
-          window.onafterprint = function() {
-            setTimeout(function() { window.close(); }, 300);
-          };
-        </script></body>`
-      );
-      printWindow.document.open();
-      printWindow.document.write(autoPrintHtml);
-      printWindow.document.close();
-    } else {
-      globalToast('Fenêtre d\'impression bloquée. Veuillez autoriser les popups.', 'warning');
-    }
-  } catch {
-    globalToast('Impression non disponible dans cet environnement', 'info');
-  }
-};
-
-/**
- * Exécute l'impression directe dans la page actuelle via un iframe invisible.
- * - Ne crée AUCUNE autre fenêtre d'application ni onglet dans le navigateur
- * - Affiche directement la boîte de dialogue d'impression système/navigateur
- * - En mode Kiosk (--kiosk-printing), imprime directement sans ouvrir de fenêtre
+ * Impression SILENCIEUSE : iframe invisible hors écran, AUCUNE fenêtre ni
+ * popup affichée (plus d'« affichage bref de la page d'impression »).
+ *
+ * - Avec le lanceur clientwamp.bat (--kiosk-printing, comportement par défaut) :
+ *   le ticket part DIRECTEMENT sur l'imprimante par défaut, sans rien afficher.
+ * - Sans le mode kiosque (lanceur clientwamp.bat --dialogue) : le navigateur
+ *   ouvre sa boîte de dialogue : l'utilisateur choisit l'imprimante.
+ *
+ * L'iframe n'est retiré qu'APRÈS l'événement afterprint (ou 60 s au maximum) :
+ * le retirer trop tôt annulait l'impression en cours.
  */
 const executeDirectPrint = (html: string) => {
   try {
@@ -123,6 +98,7 @@ const executeDirectPrint = (html: string) => {
 
     const iframe = document.createElement('iframe');
     iframe.id = 'barpos-direct-print-frame';
+    iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute(
       'style',
       'position:fixed;top:-10000px;left:-10000px;width:80mm;height:100px;border:none;visibility:hidden;pointer-events:none;'
@@ -130,8 +106,9 @@ const executeDirectPrint = (html: string) => {
     document.body.appendChild(iframe);
 
     const frameDoc = iframe.contentWindow?.document || iframe.contentDocument;
-    if (!frameDoc) {
-      fallbackPrintWindow(html);
+    if (!frameDoc || !iframe.contentWindow) {
+      globalToast("Impression impossible dans cet environnement (iframe bloqué).", 'warning');
+      iframe.remove();
       return;
     }
 
@@ -139,45 +116,59 @@ const executeDirectPrint = (html: string) => {
     frameDoc.write(html);
     frameDoc.close();
 
+    // Retire l'iframe seulement une fois l'impression terminée (afterprint),
+    // avec une sécurité à 60 s. Supprimer l'iframe trop tôt annulait
+    // l'impression / fermait brutalement la boîte de dialogue.
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      iframe.remove();
+    };
+    iframe.contentWindow.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 60000);
+
     setTimeout(() => {
       try {
-        if (iframe.contentWindow) {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-        } else {
-          fallbackPrintWindow(html);
-        }
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
       } catch (err) {
-        console.warn('Erreur impression iframe, recours au fallback', err);
-        fallbackPrintWindow(html);
-      } finally {
-        setTimeout(() => {
-          const f = document.getElementById('barpos-direct-print-frame');
-          if (f) f.remove();
-        }, 3000);
+        console.warn('Erreur impression iframe', err);
+        cleanup();
+        globalToast("Impression impossible dans cet environnement.", 'warning');
       }
     }, 250);
   } catch (e) {
     console.warn('Erreur déclenchement impression directe', e);
-    fallbackPrintWindow(html);
+    globalToast("Impression impossible dans cet environnement.", 'warning');
   }
 };
 
 /**
- * Impression DIRECTE :
- * Déclenche directement la fenêtre d'impression native du navigateur/système
- * sans ouvrir d'autre fenêtre d'application.
+ * Impression d'un ticket, en respectant le mode du poste / utilisateur :
  *
- * Si force est true (comme pour la clôture de caisse), l'impression se déclenche TOUJOURS.
- * En multi-poste, l'état d'imprimante est vérifié par utilisateur/poste (store.isUserPrinterEnabled).
+ * - 'directe' : impression silencieuse immédiate (kiosque), aucune page affichée.
+ * - 'choix'   : impression via la boîte de dialogue (choix de l'imprimante) ;
+ *               nécessite le lanceur clientwamp.bat --dialogue (sans --kiosk-printing).
+ * - 'aucune'  : AUCUNE impression kiosque (paiement en caisse, clôture automatique) :
+ *               simple notification d'enregistrement. Un appel forcé (force=true,
+ *               ex. bouton « Réimprimer » cliqué par l'utilisateur) reste ignoré
+ *               en mode kiosque : l'impression silencieuse est désactivée sur ce
+ *               poste ; un message invite à réactiver l'imprimante.
  */
 export const printTicket = (content: string, force: boolean = false, userId?: number) => {
-  const isPrinterActive = store.isUserPrinterEnabled(userId);
+  const mode = store.getUserPrinterMode(userId);
 
-  // Si l'imprimante est désactivée pour cet utilisateur/poste ET que l'impression n'est pas forcée :
-  // afficher uniquement la notification d'enregistrement
-  if (!isPrinterActive && !force) {
-    globalToast('✓ Paiement enregistré (sans ticket imprimé)', 'success', 3000, 'center');
+  if (mode === 'aucune') {
+    // Imprimante désactivée sur ce poste : jamais d'impression kiosque silencieuse.
+    globalToast(
+      force
+        ? "Impression désactivée sur ce poste — activez-la dans le menu latéral ou dans l'écran d'encaissement."
+        : 'Impression désactivée sur ce poste — ticket non imprimé.',
+      force ? 'warning' : 'info',
+      3500,
+      'center',
+    );
     return;
   }
 
@@ -186,13 +177,9 @@ export const printTicket = (content: string, force: boolean = false, userId?: nu
 };
 
 /**
- * Aperçu / réimpression directe du ticket
+ * Aperçu / réimpression directe du ticket (impression silencieuse, sans page affichée)
  */
 export const printPreview = (content: string, autoPrint: boolean = true) => {
   const html = buildTicketHtml(content);
-  if (autoPrint) {
-    executeDirectPrint(html);
-  } else {
-    fallbackPrintWindow(html);
-  }
+  executeDirectPrint(html);
 };

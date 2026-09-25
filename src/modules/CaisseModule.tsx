@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { store } from '../store';
+import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle, Printer } from 'lucide-react';
+import { store, PrinterMode } from '../store';
 import { Personnel, CartItem, TableR } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
@@ -27,6 +27,12 @@ export default function CaisseModule({ user }: Props) {
   const [toast, setToast] = useState('');
   const [rk, setRk] = useState(0);
   const [showAlertModal, setShowAlertModal] = useState(false);
+  // Mode d'impression du poste (choix de l'imprimante possible directement dans la caisse)
+  const [printerMode, setPrinterMode] = useState<PrinterMode>(() => store.getUserPrinterMode(user.IDPERSONNEL));
+  const changePrinterMode = (m: PrinterMode) => {
+    setPrinterMode(m);
+    store.setUserPrinterMode(m, user.IDPERSONNEL);
+  };
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -738,6 +744,39 @@ export default function CaisseModule({ user }: Props) {
                   </div>
                 </div>
               )}
+              {/* Choix de l'imprimante / du ticket — propre à ce poste */}
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <label className="text-xs font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Printer size={13} className="text-[#0D47A1]" />
+                    Ticket / Imprimante
+                  </span>
+                  <span className="text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">Ce poste</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    { id: 'directe' as PrinterMode, label: 'Directe' },
+                    { id: 'choix' as PrinterMode, label: 'Choisir' },
+                    { id: 'aucune' as PrinterMode, label: 'Aucune' },
+                  ]).map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => changePrinterMode(opt.id)}
+                      className={`py-2 px-1 rounded-lg text-[11px] font-bold transition-all min-h-[36px] ${
+                        printerMode === opt.id ? 'bg-[#0D47A1] text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 leading-snug mt-1.5">
+                  {printerMode === 'directe' && "Impression immédiate sur l'imprimante par défaut, sans aucune page affichée."}
+                  {printerMode === 'choix' && "La fenêtre de choix de l'imprimante s'ouvre à chaque ticket (lancer via clientwamp.bat --dialogue)."}
+                  {printerMode === 'aucune' && 'Aucun ticket imprimé sur ce poste (ventes et clôtures enregistrées sans impression).'}
+                </p>
+              </div>
               <button
                 onClick={handlePayment}
                 disabled={

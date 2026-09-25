@@ -209,7 +209,10 @@ export default function ClotureModule({ user }: Props) {
   };
 
   // Ticket unique : clôture + récap ventes par article (+ achats du jour sur page séparée)
-  const printClotureComplete = (cloture: typeof clotures[0]) => {
+  // force=false : impression AUTOMATIQUE (après clôture) -> respecte le mode du poste
+  // (si l'imprimante est désactivée, AUCUNE impression kiosque n'est déclenchée).
+  // force=true : réimpression explicite demandée par un clic sur un bouton.
+  const printClotureComplete = (cloture: typeof clotures[0], force: boolean = false) => {
     const freshVentes = store.getVentes();
     const allArticles = store.getArticles();
     const allLignes = store.getLignesVente();
@@ -318,12 +321,12 @@ export default function ClotureModule({ user }: Props) {
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
       ${achatsSection}
-    `, true);
+    `, force, user.IDPERSONNEL);
   };
 
-  // Réutilisé par l'historique admin
+  // Réutilisé par l'historique admin (clic explicite : force l'impression)
   const printCloture = (cloture: typeof clotures[0]) => {
-    printClotureComplete(cloture);
+    printClotureComplete(cloture, true);
   };
 
   // Admin: Historique des clôtures
@@ -464,7 +467,7 @@ export default function ClotureModule({ user }: Props) {
             <button
               onClick={() => {
                 const todayCloture = clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL);
-                if (todayCloture) printClotureComplete(todayCloture);
+                if (todayCloture) printClotureComplete(todayCloture, true);
               }}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0D47A1] text-white rounded-xl font-medium shadow-md hover:bg-[#0b3c88] transition-colors mt-2"
             >

@@ -5,6 +5,8 @@ REM - Detecte automatiquement si le serveur WAMP tourne en local (localhost)
 REM   ou sur le reseau (Wi-Fi, Ethernet, Hotspot)
 REM - Gere la memorisation de l'IP du serveur et le lancement de
 REM   Chrome/Edge avec --kiosk-printing (impression directe)
+REM - Option --dialogue (alias -d) : lance SANS --kiosk-printing pour
+REM   ouvrir la fenetre de choix de l'imprimante a chaque ticket
 REM
 REM IMPORTANT : ce fichier doit rester en fins de ligne Windows (CRLF) et en
 REM ASCII pur (pas d'accents). Voir .gitattributes.
@@ -41,6 +43,14 @@ REM Reinitialisation manuelle de l'IP si demande via --reset ou -c
 set "DO_RESET="
 if /i "%~1"=="--reset" set "DO_RESET=1"
 if /i "%~1"=="-c" set "DO_RESET=1"
+
+REM Mode "choix de l'imprimante" : --dialogue (alias -d ou --choix)
+REM lance le navigateur SANS --kiosk-printing : a chaque ticket, la
+REM fenetre d'impression s'ouvre pour choisir l'imprimante.
+set "PRINT_DIALOG="
+if /i "%~1"=="--dialogue" set "PRINT_DIALOG=1"
+if /i "%~1"=="--choix" set "PRINT_DIALOG=1"
+if /i "%~1"=="-d" set "PRINT_DIALOG=1"
 if defined DO_RESET (
     if exist "%IP_FILE%" del /f /q "%IP_FILE%" >nul 2>&1
     echo Configuration de l'IP reinitialisee.
@@ -172,7 +182,12 @@ if defined BROWSER_EXE (
     echo        Navigateur utilise : !BROWSER_EXE!
     REM Fenetre d'application distincte, plein ecran, profil dedie pour ne pas
     REM reutiliser une fenetre deja ouverte du navigateur.
-    start "Bar POS" "!BROWSER_EXE!" --user-data-dir="%KIOSK_PROFILE%" --no-first-run --no-default-browser-check --disable-session-crashed-bubble --kiosk-printing --new-window --start-fullscreen --app="!APP_URL!"
+    if defined PRINT_DIALOG (
+        echo        Mode choix d'imprimante : fenetre d'impression a chaque ticket.
+        start "Bar POS" "!BROWSER_EXE!" --user-data-dir="%KIOSK_PROFILE%" --no-first-run --no-default-browser-check --disable-session-crashed-bubble --new-window --start-fullscreen --app="!APP_URL!"
+    ) else (
+        start "Bar POS" "!BROWSER_EXE!" --user-data-dir="%KIOSK_PROFILE%" --no-first-run --no-default-browser-check --disable-session-crashed-bubble --kiosk-printing --new-window --start-fullscreen --app="!APP_URL!"
+    )
 ) else (
     echo        Ouverture avec le navigateur par defaut de Windows...
     start "" "!APP_URL!"
@@ -183,6 +198,8 @@ echo ===========================================================================
 echo   Bar POS est en cours d'execution !
 echo   Pour reconfigurer l'adresse IP une prochaine fois :
 echo   clientwamp.bat --reset
+echo   Pour ouvrir la fenetre de choix de l'imprimante a chaque ticket :
+echo   clientwamp.bat --dialogue
 echo ============================================================================
 echo.
 timeout /t 3 >nul 2>&1
