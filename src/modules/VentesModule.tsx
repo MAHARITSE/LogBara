@@ -103,11 +103,6 @@ export default function VentesModule({ user }: Props) {
       const table = tables.find(t => t.IDTABLE === idTable);
       if (!table) return; // consommations orphelines (table supprimée)
 
-      // Caissier : uniquement les tables qu'il gère / a servies
-      if (user.ROLE === 'Caissier'
-        && table.IDCAISSIER !== user.IDPERSONNEL
-        && !consos.some(c => c.IDPERSONNEL === user.IDPERSONNEL)) return;
-
       // Regroupement par article ET prix (un article à prix libre peut avoir plusieurs prix)
       const items: CartItem[] = [];
       consos.forEach(c => {
@@ -136,7 +131,8 @@ export default function VentesModule({ user }: Props) {
     });
 
     return resultat.sort((a, b) => a.NUMERO - b.NUMERO);
-  }, [consommations, tables, articles, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consommations, tables, articles]);
 
   // Les tables en cours n'ont pas de date : on ne les montre que si le filtre
   // porte sur aujourd'hui (ou sur toutes les dates).
@@ -155,6 +151,14 @@ export default function VentesModule({ user }: Props) {
 
   const totalEnCours = tablesEnCoursAffichees.reduce((s, t) => s + t.TOTAL, 0);
   const nbArticlesEnCours = tablesEnCoursAffichees.reduce((s, t) => s + t.NB_ARTICLES, 0);
+
+  // Tables en cours masquées par le filtre de date (elles n'ont pas de date de vente)
+  const tablesEnCoursMasquees = !dateOkPourEnCours && tablesEnCours.length > 0;
+
+  // Total des ventes non clôturées actuellement affichées
+  const totalVentesAffichees = filteredVentes
+    .filter(v => v.STATUT === 'Payée')
+    .reduce((s, v) => s + v.TOTAL - v.REMISE, 0);
 
   // Stats par caissier
   const statsByCaissier = useMemo(() => {
@@ -262,6 +266,30 @@ export default function VentesModule({ user }: Props) {
         <h1 className="text-2xl font-bold text-gray-900">🧾 Ventes</h1>
       </div>
 
+      {/* KPI : ce qui reste à encaisser + ventes non clôturées affichées */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 shadow-xs border border-gray-100">
+          <p className="text-xs text-gray-500 font-medium">Ventes affichées (non clôturées)</p>
+          <p className="text-lg sm:text-xl font-extrabold text-[#0D47A1] mt-0.5 tabular-nums">{formatAr(totalVentesAffichees)}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{filteredVentes.length} vente(s)</p>
+        </div>
+        <div className={`rounded-2xl p-3.5 sm:p-4 shadow-xs border ${
+          tablesEnCours.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'
+        }`}>
+          <p className={`text-xs font-medium ${tablesEnCours.length > 0 ? 'text-amber-700' : 'text-gray-500'}`}>
+            Tables en cours — à encaisser
+          </p>
+          <p className={`text-lg sm:text-xl font-extrabold mt-0.5 tabular-nums ${
+            tablesEnCours.length > 0 ? 'text-amber-700' : 'text-gray-400'
+          }`}>
+            {formatAr(tablesEnCours.reduce((s, t) => s + t.TOTAL, 0))}
+          </p>
+          <p className={`text-[11px] mt-0.5 font-medium ${tablesEnCours.length > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+            {tablesEnCours.length} table{tablesEnCours.length > 1 ? 's' : ''} · {tablesEnCours.reduce((s, t) => s + t.NB_ARTICLES, 0)} article{tablesEnCours.reduce((s, t) => s + t.NB_ARTICLES, 0) > 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+
       {/* Stats par caissier (Admin/Gérant) */}
       {(isAdmin || isGerant) && statsByCaissier.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
@@ -309,6 +337,23 @@ export default function VentesModule({ user }: Props) {
           )}
         </div>
       </div>
+
+      {/* Tables en cours masquées par le filtre de date */}
+      {tablesEnCoursMasquees && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-800 font-medium">
+            ⏳ {tablesEnCours.length} table{tablesEnCours.length > 1 ? 's' : ''} en cours non payée{tablesEnCours.length > 1 ? 's' : ''}
+            {' '}(<b className="tabular-nums">{formatAr(tablesEnCours.reduce((s, t) => s + t.TOTAL, 0))}</b>)
+            — masquée{tablesEnCours.length > 1 ? 's' : ''} par le filtre de date.
+          </p>
+          <button
+            onClick={() => setDateFilter(today())}
+            className="shrink-0 text-xs font-bold px-3 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 active:scale-95 transition-transform"
+          >
+            Voir aujourd'hui
+          </button>
+        </div>
+      )}
 
       {/* Bandeau : tables en cours non encaissées */}
       {tablesEnCoursAffichees.length > 0 && (
@@ -470,7 +515,12 @@ export default function VentesModule({ user }: Props) {
                     <td className="px-4 py-3 text-sm text-amber-800 font-medium">
                       {t.HEURE ? `Aujourd'hui ${t.HEURE}` : "Aujourd'hui"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-amber-800">{serveur?.PRENOM || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-amber-800">
+                      {serveur?.PRENOM || '-'}
+                      {user.ROLE === 'Caissier' && t.IDCAISSIER !== user.IDPERSONNEL && (
+                        <span className="block text-[10px] text-amber-600 font-medium">autre caissier</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm">
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-200 text-amber-900">
                         <UtensilsCrossed size={13} />
