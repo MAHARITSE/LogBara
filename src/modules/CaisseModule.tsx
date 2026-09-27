@@ -178,6 +178,33 @@ export default function CaisseModule({ user }: Props) {
     // On AJOUTE les consommations (pas remplacement)
     store.setConsommations([...allConso, ...newConsommations]);
 
+    // Sortie de stock lors de l'envoi en table + mouvement
+    const artList = store.getArticles();
+    const mvts = store.getMouvements();
+    let mvtId = nextId(mvts, 'IDMOUVEMENT');
+    const newMvts = [...mvts];
+
+    const updatedArticles = artList.map(a => {
+      if (!a.GERE_STOCK) return a;
+      const cartItem = cart.find(c => c.IDARTICLE === a.IDARTICLE);
+      if (cartItem && cartItem.QUANTITE > 0) {
+        newMvts.push({
+          IDMOUVEMENT: mvtId++,
+          DATE_MOUVEMENT: today(),
+          HEURE: nowTime(),
+          IDARTICLE: a.IDARTICLE,
+          TYPE: 'Sortie' as const,
+          QUANTITE: cartItem.QUANTITE,
+          REFERENCE: `Commande Table ${selectedTable.NUMERO}`,
+        });
+        return { ...a, STOCK: a.STOCK - cartItem.QUANTITE };
+      }
+      return a;
+    });
+
+    store.setArticles(updatedArticles);
+    store.setMouvements(newMvts);
+
     const freshTables = store.getTables();
     store.setTables(freshTables.map(t =>
       t.IDTABLE === selectedTable.IDTABLE
@@ -234,12 +261,35 @@ export default function CaisseModule({ user }: Props) {
       newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: nap, MODE_PAIEMENT: paymentMode });
     }
 
-    // Sortie de stock pour tout ce qui est encaissé (un même article peut apparaître à plusieurs prix)
-    const updatedArticles = articlesList.map(a => {
-      if (!a.GERE_STOCK) return a;
-      const qte = items.filter(c => c.IDARTICLE === a.IDARTICLE).reduce((s, c) => s + c.QUANTITE, 0);
-      return qte > 0 ? { ...a, STOCK: a.STOCK - qte } : a;
-    });
+    // Sortie de stock lors de l'encaissement (seulement pour la vente comptoir directe ou articles de panier direct)
+    // Pour une table, le stock a déjà été déduit lors de l'envoi en table et réajusté lors des retours.
+    if (mode === 'comptoir') {
+      const artList = store.getArticles();
+      const mvts = store.getMouvements();
+      let mvtId = nextId(mvts, 'IDMOUVEMENT');
+      const newMvts = [...mvts];
+
+      const updatedArticles = artList.map(a => {
+        if (!a.GERE_STOCK) return a;
+        const qte = items.filter(c => c.IDARTICLE === a.IDARTICLE).reduce((s, c) => s + c.QUANTITE, 0);
+        if (qte > 0) {
+          newMvts.push({
+            IDMOUVEMENT: mvtId++,
+            DATE_MOUVEMENT: today(),
+            HEURE: nowTime(),
+            IDARTICLE: a.IDARTICLE,
+            TYPE: 'Sortie' as const,
+            QUANTITE: qte,
+            REFERENCE: `Vente Comptoir ${numeroFacture}`,
+          });
+          return { ...a, STOCK: a.STOCK - qte };
+        }
+        return a;
+      });
+
+      store.setArticles(updatedArticles);
+      store.setMouvements(newMvts);
+    }
 
     store.setVentes([...ventes, newVente]);
     store.setLignesVente([...lignesVente, ...newLignes]);

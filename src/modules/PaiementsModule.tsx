@@ -3,7 +3,7 @@ import { Search, Calendar, Filter, Eye, Printer, X, Wallet, DollarSign, Smartpho
 import { store } from '../store';
 import { Personnel, Paiement, Vente } from '../types';
 import { formatAr, dateLabel, today } from '../helpers';
-import { printTicket } from '../components/PrintTicket';
+import { printPreview } from '../components/PrintTicket';
 
 interface Props {
   user: Personnel;
@@ -126,7 +126,7 @@ export default function PaiementsModule({ user }: Props) {
       <div class="center italic mt-2">Merci pour votre confiance !</div>
     `;
 
-    printTicket(htmlContent, true);
+    printPreview(htmlContent);
   };
 
   return (
@@ -160,7 +160,7 @@ export default function PaiementsModule({ user }: Props) {
                 </tr>`;
               }).join('');
 
-              printTicket(`
+              printPreview(`
                 <div class="center bold">RAPPORT DES PAIEMENTS</div>
                 <div class="center">${dateFilter ? `Date: ${dateFilter}` : 'Toutes les dates'} - Mode: ${modeFilter}</div>
                 <div class="line"></div>
@@ -170,7 +170,7 @@ export default function PaiementsModule({ user }: Props) {
                 </table>
                 <div class="line"></div>
                 <div class="row bold"><span>TOTAL ENCAISSÉ</span><span>${formatAr(stats.totalEncaisse)}</span></div>
-              `, true);
+              `);
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl font-medium text-gray-700 shadow-sm transition-all"
           >

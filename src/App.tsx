@@ -117,7 +117,7 @@ function App() {
         }
         return <PaiementsModule user={user} />;
       case 'cloture':
-        return <ClotureModule user={user} />;
+        return <ClotureModule user={user} onLogout={handleLogout} />;
       case 'articles':
         return <ArticlesModule user={user} />;
       case 'familles':

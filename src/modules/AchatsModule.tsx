@@ -3,7 +3,7 @@ import { Plus, Printer, Search, X, Trash2, Keyboard, Edit2, UserPlus, Lock } fro
 import { store } from '../store';
 import { Personnel, LigneAchat, Achat, Fournisseur } from '../types';
 import { formatAr, today, nowTime, nextId, dateLabel, capitalize } from '../helpers';
-import { printTicket } from '../components/PrintTicket';
+import { printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import PhoneInput from '../components/PhoneInput';
 import MoneyInput from '../components/MoneyInput';
@@ -429,7 +429,7 @@ export default function AchatsModule({ user }: Props) {
       return `<tr><td>${art?.NOM || '-'}</td><td style="text-align:right">${l.QUANTITE}</td><td style="text-align:right">${formatAr(l.PRIX_ACHAT)}</td><td style="text-align:right">${formatAr(l.MONTANT)}</td></tr>`;
     }).join('');
 
-    printTicket(`
+    printPreview(`
       <div class="center bold">BON D'ACHAT</div>
       <div class="center">${achat.REFERENCE}</div>
       <div class="row"><span>${achat.DATE_ACHAT}</span></div>
@@ -442,7 +442,7 @@ export default function AchatsModule({ user }: Props) {
       <div class="line"></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(achat.TOTAL)}</span></div>
       ${achat.OBSERVATION ? `<div>Obs: ${achat.OBSERVATION}</div>` : ''}
-    `, true);
+    `);
   };
 
   return (

@@ -3,7 +3,7 @@ import { Search, Eye, Trash2, X, Printer, UtensilsCrossed } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Vente, CartItem } from '../types';
 import { formatAr, dateLabel, today } from '../helpers';
-import { printTicket } from '../components/PrintTicket';
+import { printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 
 interface Props {
@@ -190,12 +190,25 @@ export default function VentesModule({ user }: Props) {
       v.IDVENTE === vente.IDVENTE ? { ...v, STATUT: 'Annulée' as const } : v
     );
 
-    // Restaurer le stock
+    // Restaurer le stock + enregistrer le mouvement
     const venteLignes = lignesVente.filter(l => l.IDVENTE === vente.IDVENTE);
     const articlesList = store.getArticles();
+    const mvts = store.getMouvements();
+    let mvtId = nextId(mvts, 'IDMOUVEMENT');
+    const newMvts = [...mvts];
+
     const updatedArticles = articlesList.map(a => {
       const ligne = venteLignes.find(l => l.IDARTICLE === a.IDARTICLE);
-      if (ligne && a.GERE_STOCK) {
+      if (ligne && a.GERE_STOCK && ligne.QUANTITE > 0) {
+        newMvts.push({
+          IDMOUVEMENT: mvtId++,
+          DATE_MOUVEMENT: today(),
+          HEURE: nowTime(),
+          IDARTICLE: a.IDARTICLE,
+          TYPE: 'Entrée' as const,
+          QUANTITE: ligne.QUANTITE,
+          REFERENCE: `Annulation ${vente.NUMERO_FACTURE}`,
+        });
         return { ...a, STOCK: a.STOCK + ligne.QUANTITE };
       }
       return a;
@@ -203,6 +216,7 @@ export default function VentesModule({ user }: Props) {
 
     store.setVentes(updatedVentes);
     store.setArticles(updatedArticles);
+    store.setMouvements(newMvts);
     setConfirmAnnuler(null);
     showMsg('Vente annulée');
   };
@@ -217,7 +231,7 @@ export default function VentesModule({ user }: Props) {
       return `<tr><td>${art?.NOM || '-'}</td><td class="right">${l.QUANTITE}</td><td class="right">${formatAr(l.PRIX_UNITAIRE)}</td><td class="right">${formatAr(l.MONTANT)}</td></tr>`;
     }).join('');
 
-    printTicket(`
+    printPreview(`
       <div class="center bold">FACTURE</div>
       <div class="center">${vente.NUMERO_FACTURE}</div>
       <div class="row"><span>${vente.DATE_VENTE}</span><span>${vente.HEURE}</span></div>
@@ -231,7 +245,7 @@ export default function VentesModule({ user }: Props) {
       <div class="line"></div>
       ${vente.REMISE > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(vente.REMISE)}</span></div>` : ''}
       <div class="row bold"><span>TOTAL</span><span>${formatAr(vente.TOTAL - vente.REMISE)}</span></div>
-    `, true);
+    `);
   };
 
   // Imprimer le bon de la table en cours (non payée) — pour contrôle / suivi
@@ -241,7 +255,7 @@ export default function VentesModule({ user }: Props) {
       `<tr><td>${i.NOM}</td><td class="right">${i.QUANTITE}</td><td class="right">${formatAr(i.PRIX_UNITAIRE)}</td><td class="right">${formatAr(i.QUANTITE * i.PRIX_UNITAIRE)}</td></tr>`
     ).join('');
 
-    printTicket(`
+    printPreview(`
       <div class="center bold">COMMANDE TABLE</div>
       <div class="center bold">*** NON PAYEE ***</div>
       <div>Table: ${t.NUMERO} - ${t.DESCRIPTION}</div>
@@ -255,7 +269,7 @@ export default function VentesModule({ user }: Props) {
       <div class="line"></div>
       <div class="row"><span>Total articles</span><span>${t.NB_ARTICLES}</span></div>
       <div class="row bold"><span>TOTAL A PAYER</span><span>${formatAr(t.TOTAL)}</span></div>
-    `, true);
+    `);
   };
 
   return (

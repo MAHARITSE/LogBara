@@ -145,89 +145,94 @@ const executeDirectPrint = (html: string) => {
 };
 
 /**
- * Ouvre la PAGE D'IMPRESSION visible : fenêtre contenant le ticket, avec
- * déclenchement automatique de l'impression et fermeture automatique après.
- * - Avec un lanceur SANS --kiosk-printing (clientwamp.bat --dialogue) :
- *   la boîte de dialogue s'ouvre -> l'utilisateur choisit son imprimante.
- * - En mode kiosque : le ticket part directement sur l'imprimante par défaut.
+ * Ouvre la FENÊTRE D'APERÇU VISIBLE :
+ * Affiche le document à l'écran sans déclencher d'impression automatique ni de fermeture automatique,
+ * afin d'éviter que le mode kiosque de Chrome (--kiosk-printing) n'intercepte et ne ferme l'aperçu.
  */
-export const openPrintPage = (html: string) => {
+export const openPreviewPage = (html: string) => {
   try {
-    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    const printWindow = window.open('', '_blank', 'width=420,height=680,scrollbars=yes,resizable=yes');
     if (printWindow) {
-      const autoPrintHtml = html.replace(
-        '</body>',
-        `<script>
-          window.focus();
-          setTimeout(function() {
-            window.print();
-          }, 150);
-          window.onafterprint = function() {
-            setTimeout(function() { window.close(); }, 300);
-          };
-        </script></body>`
-      );
+      const barHtml = `
+        <div class="no-print" style="position: sticky; top: 0; left: 0; right: 0; background: #0D47A1; color: #fff; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; font-family: system-ui, -apple-system, sans-serif; font-size: 13px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10000; border-bottom: 1px solid rgba(255,255,255,0.2);">
+          <span style="display: flex; align-items: center; gap: 6px;">👁️ Aperçu du document</span>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="window.print()" style="background: #22c55e; color: white; border: none; padding: 6px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+              🖨️ Imprimer
+            </button>
+            <button onclick="window.close()" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px;">
+              ❌ Fermer
+            </button>
+          </div>
+        </div>
+      `;
+
+      const previewHtml = html
+        .replace('</style>', `@media print { .no-print { display: none !important; } }</style>`)
+        .replace('<body>', `<body>${barHtml}`);
+
       printWindow.document.open();
-      printWindow.document.write(autoPrintHtml);
+      printWindow.document.write(previewHtml);
       printWindow.document.close();
+      printWindow.focus();
     } else {
-      globalToast('Fenêtre d\'impression bloquée. Veuillez autoriser les popups.', 'warning');
+      globalToast('Fenêtre d\'aperçu bloquée. Veuillez autoriser les popups.', 'warning');
     }
   } catch {
-    globalToast('Impression non disponible dans cet environnement', 'info');
+    globalToast('Aperçu non disponible dans cet environnement', 'info');
   }
 };
+
+/**
+ * Alias de compatibilité
+ */
+export const openPrintPage = (html: string) => openPreviewPage(html);
 
 /**
  * Impression d'un ticket, en respectant la préférence du poste / utilisateur :
  *
  * - Imprimante activée (case cochée) : impression directe silencieuse immédiate (kiosque), aucune page affichée.
  * - Imprimante désactivée (case non cochée) : AUCUNE impression kiosque (paiement en caisse, clôture automatique) :
- *   simple notification d'enregistrement. Un appel forcé (force=true,
- *   ex. bouton « Réimprimer » cliqué par l'utilisateur) reste ignoré
- *   en mode kiosque : l'impression silencieuse est désactivée sur ce
- *   poste ; un message invite à réactiver l'imprimante.
+ *   simple notification d'enregistrement. Un appel forcé (force=true)
+ *   ouvre la fenêtre d'aperçu du document.
  */
 export const printTicket = (content: string, force: boolean = false, userId?: number) => {
   const isPrinterActive = store.isUserPrinterEnabled(userId);
 
-  // Si l'imprimante est désactivée pour cet utilisateur/poste ET que l'impression n'est pas forcée :
-  // afficher la notification d'enregistrement au centre de l'interface
   if (!isPrinterActive && !force) {
     globalToast('✓ Paiement enregistré (sans ticket imprimé)', 'success', 3000, 'center');
     return;
   }
 
-  if (!isPrinterActive && force) {
-    globalToast("Impression désactivée sur ce poste — activez-la dans le menu latéral.", 'warning', 3500, 'center');
-    return;
-  }
-
   const html = buildTicketHtml(content);
-  executeDirectPrint(html);
-};
 
-/**
- * Aperçu / réimpression directe du ticket (impression silencieuse, sans page affichée)
- */
-export const printPreview = (content: string, autoPrint: boolean = true) => {
-  const html = buildTicketHtml(content);
-  executeDirectPrint(html);
-};
-
-/**
- * Impression du ticket de CLÔTURE DE CAISSE (règle spécifique) :
- * - imprimante COCHÉE sur ce poste
- *     -> impression DIRECTE silencieuse, aucune page affichée ;
- * - imprimante PAS COCHÉE (décochée)
- *     -> ouverture de la PAGE D'IMPRESSION (fenêtre du ticket + boîte de
- *        dialogue d'impression : l'utilisateur choisit son imprimante).
- */
-export const printClotureTicket = (content: string, userId?: number) => {
-  const html = buildTicketHtml(content);
-  if (store.isUserPrinterEnabled(userId)) {
+  if (isPrinterActive) {
     executeDirectPrint(html);
   } else {
-    openPrintPage(html);
+    openPreviewPage(html);
+  }
+};
+
+/**
+ * APERÇU / REPRINTS / RAPPORTS / TABLES SUIVI / VENTES / ACHATS / ETC.
+ * Ouvre TOUJOURS la fenêtre d'aperçu d'impression (openPreviewPage)
+ * sans auto-print/auto-close pour qu'elle reste affichée à l'écran.
+ */
+export const printPreview = (content: string) => {
+  const html = buildTicketHtml(content);
+  openPreviewPage(html);
+};
+
+/**
+ * Impression du ticket de CLÔTURE DE CAISSE :
+ * - Imprimante activée -> impression DIRECTE silencieuse (kiosque) ;
+ * - Imprimante désactivée -> ouverture de la FENÊTRE D'APERÇU.
+ */
+export const printClotureTicket = (content: string, userId?: number, directPrint: boolean = false) => {
+  const html = buildTicketHtml(content);
+  if (directPrint && store.isUserPrinterEnabled(userId)) {
+    executeDirectPrint(html);
+  } else {
+    openPreviewPage(html);
   }
 };

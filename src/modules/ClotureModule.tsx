@@ -8,6 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 
 interface Props {
   user: Personnel;
+  onLogout?: () => void;
 }
 
 /**
@@ -26,7 +27,7 @@ const lastClotureOf = (list: Cloture[], idPersonnel?: number): Cloture | undefin
     .filter(c => idPersonnel === undefined || c.IDPERSONNEL === idPersonnel)
     .reduce<Cloture | undefined>((last, c) => (!last || c.IDCLOTURE > last.IDCLOTURE ? c : last), undefined);
 
-export default function ClotureModule({ user }: Props) {
+export default function ClotureModule({ user, onLogout }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [toast, setToast] = useState('');
 
@@ -202,10 +203,24 @@ export default function ClotureModule({ user }: Props) {
     if (idsRemb.size > 0) store.setPaiements(updatedPaiements);
 
     setShowConfirm(false);
-    showMsg('Caisse clôturée avec succès !');
+    showMsg('Caisse clôturée avec succès ! Déconnexion...');
+
+    const isPrinterActive = store.isUserPrinterEnabled(user.IDPERSONNEL);
 
     // Imprimer un seul ticket : clôture + récap par article
-    printClotureComplete(newCloture);
+    // Si imprimante activée -> mode kiosque direct (uniquement lors de la clôture active)
+    // Sinon -> ouverture de la fenêtre d'aperçu
+    printClotureComplete(newCloture, true);
+
+    // Déconnexion automatique après clôture
+    setTimeout(() => {
+      if (onLogout) {
+        onLogout();
+      } else {
+        store.logout();
+        window.location.reload();
+      }
+    }, isPrinterActive ? 1800 : 3000);
   };
 
   // Ticket unique : clôture + récap ventes par article (+ achats du jour sur page séparée).
@@ -213,7 +228,7 @@ export default function ClotureModule({ user }: Props) {
   //   - imprimante COCHÉE sur ce poste  -> impression DIRECTE silencieuse ;
   //   - imprimante PAS COCHÉE           -> ouverture de la PAGE D'IMPRESSION
   //     (fenêtre du ticket + boîte de dialogue pour choisir l'imprimante).
-  const printClotureComplete = (cloture: typeof clotures[0]) => {
+  const printClotureComplete = (cloture: typeof clotures[0], isAutoCloture: boolean = false) => {
     const freshVentes = store.getVentes();
     const allArticles = store.getArticles();
     const allLignes = store.getLignesVente();
@@ -322,7 +337,7 @@ export default function ClotureModule({ user }: Props) {
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
       ${achatsSection}
-    `, user.IDPERSONNEL);
+    `, user.IDPERSONNEL, isAutoCloture);
   };
 
   // Réutilisé par l'historique admin (même règle : cochée = direct, sinon page d'impression)

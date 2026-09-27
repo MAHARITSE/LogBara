@@ -3,7 +3,7 @@ import { Plus, Users, Trash2, Wallet, X, Eye, Minus, RotateCcw } from 'lucide-re
 import { store } from '../store';
 import { Personnel, TableR, CartItem, Paiement } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
-import { printTicket } from '../components/PrintTicket';
+import { printTicket, printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import MoneyInput from '../components/MoneyInput';
 
@@ -21,6 +21,8 @@ export default function TablesModule({ user }: Props) {
   const [rk, setRk] = useState(0);
   const tables = useMemo(() => store.getTables(), [rk]);
   const [selectedTable, setSelectedTable] = useState<TableR | null>(null);
+  const [previewTable, setPreviewTable] = useState<TableR | null>(null);
+  const [previewReturnMap, setPreviewReturnMap] = useState<Record<number, number>>({});
   const [showForm, setShowForm] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showReturn, setShowReturn] = useState(false);
@@ -102,6 +104,32 @@ export default function TablesModule({ user }: Props) {
     });
     store.setConsommations(allConso);
 
+    // 2. RÉINCRÉMENTER LE STOCK des articles retournés & enregistrer les mouvements
+    const artList = store.getArticles();
+    const mvts = store.getMouvements();
+    let mvtId = nextId(mvts, 'IDMOUVEMENT');
+    const newMvts = [...mvts];
+
+    const updatedArticles = artList.map(a => {
+      const ret = toReturn.find(r => r.IDARTICLE === a.IDARTICLE);
+      if (ret && ret.QUANTITE_RETOUR > 0 && a.GERE_STOCK) {
+        newMvts.push({
+          IDMOUVEMENT: mvtId++,
+          DATE_MOUVEMENT: today(),
+          HEURE: nowTime(),
+          IDARTICLE: a.IDARTICLE,
+          TYPE: 'Entrée' as const,
+          QUANTITE: ret.QUANTITE_RETOUR,
+          REFERENCE: `Retour Table ${returnTable.NUMERO}`,
+        });
+        return { ...a, STOCK: a.STOCK + ret.QUANTITE_RETOUR };
+      }
+      return a;
+    });
+
+    store.setArticles(updatedArticles);
+    store.setMouvements(newMvts);
+
     // Si la table n'a plus de consommations, la libérer
     const remaining = allConso.filter(c => c.IDTABLE === returnTable.IDTABLE);
     if (remaining.length === 0) {
@@ -114,6 +142,83 @@ export default function TablesModule({ user }: Props) {
     setShowReturn(false); setReturnTable(null); setReturnItems([]);
     refresh();
     showMsg(`Retour effectué : ${detail}`);
+  };
+
+  const canManageTable = (table: TableR) => canEncaisser && (user.ROLE === 'Gérant' || table.IDCAISSIER === user.IDPERSONNEL);
+
+  const updatePreviewReturnQty = (artId: number, delta: number, maxQty: number) => {
+    setPreviewReturnMap(prev => {
+      const current = prev[artId] || 0;
+      const nextVal = Math.max(0, Math.min(maxQty, current + delta));
+      return { ...prev, [artId]: nextVal };
+    });
+  };
+
+  const confirmPreviewReturn = (tableId: number) => {
+    const toReturnEntries = Object.entries(previewReturnMap).filter(([_, qty]) => qty > 0);
+    if (toReturnEntries.length === 0) return;
+
+    let allConso = store.getConsommations();
+    const returnSummary: string[] = [];
+
+    toReturnEntries.forEach(([artIdStr, qtyToReturn]) => {
+      const artId = Number(artIdStr);
+      let remaining = qtyToReturn;
+      const art = articles.find(a => a.IDARTICLE === artId);
+      if (art && remaining > 0) {
+        returnSummary.push(`${remaining}x ${art.NOM}`);
+      }
+
+      allConso = allConso.map(c => {
+        if (c.IDTABLE !== tableId || c.IDARTICLE !== artId || remaining <= 0) return c;
+        const deduct = Math.min(c.QUANTITE, remaining);
+        remaining -= deduct;
+        return { ...c, QUANTITE: c.QUANTITE - deduct };
+      }).filter(c => c.QUANTITE > 0);
+    });
+
+    store.setConsommations(allConso);
+
+    // RÉINCRÉMENTER LE STOCK des articles retournés & enregistrer les mouvements
+    const artList = store.getArticles();
+    const mvts = store.getMouvements();
+    let mvtId = nextId(mvts, 'IDMOUVEMENT');
+    const newMvts = [...mvts];
+
+    const updatedArticles = artList.map(a => {
+      const retEntry = toReturnEntries.find(([idStr]) => Number(idStr) === a.IDARTICLE);
+      if (retEntry) {
+        const qtyToReturn = retEntry[1];
+        if (qtyToReturn > 0 && a.GERE_STOCK) {
+          newMvts.push({
+            IDMOUVEMENT: mvtId++,
+            DATE_MOUVEMENT: today(),
+            HEURE: nowTime(),
+            IDARTICLE: a.IDARTICLE,
+            TYPE: 'Entrée' as const,
+            QUANTITE: qtyToReturn,
+            REFERENCE: `Retour Table ${previewTable?.NUMERO || tableId}`,
+          });
+          return { ...a, STOCK: a.STOCK + qtyToReturn };
+        }
+      }
+      return a;
+    });
+
+    store.setArticles(updatedArticles);
+    store.setMouvements(newMvts);
+
+    const remainingTableConso = allConso.filter(c => c.IDTABLE === tableId);
+    if (remainingTableConso.length === 0) {
+      store.setTables(store.getTables().map(t =>
+        t.IDTABLE === tableId ? { ...t, ETAT: 'Libre' as const, IDCAISSIER: undefined } : t
+      ));
+      setPreviewTable(null);
+    }
+
+    setPreviewReturnMap({});
+    refresh();
+    showMsg(`✓ Retour effectué : ${returnSummary.join(', ')}`);
   };
 
   // ========= PAIEMENT (simple, sans retour) =========
@@ -181,18 +286,11 @@ export default function TablesModule({ user }: Props) {
       newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: netAPayer, MODE_PAIEMENT: paymentMode });
     }
 
-    const updatedArticles = articlesList.map(a => {
-      const item = items.find(c => c.IDARTICLE === a.IDARTICLE);
-      if (item && a.GERE_STOCK) return { ...a, STOCK: a.STOCK - item.QUANTITE };
-      return a;
-    });
-
     store.setTables(store.getTables().map(t => t.IDTABLE === selectedTable.IDTABLE ? { ...t, ETAT: 'Libre' as const, IDCAISSIER: undefined } : t));
     store.setConsommations(store.getConsommations().filter(c => c.IDTABLE !== selectedTable.IDTABLE));
     store.setVentes([...ventes, newVente]);
     store.setLignesVente([...lignesVente, ...newLignes]);
     store.setPaiements([...paiements, ...newPaiements]);
-    store.setArticles(updatedArticles);
 
     const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printTicket(`
@@ -217,7 +315,7 @@ export default function TablesModule({ user }: Props) {
     const total = getTableTotal(table.IDTABLE);
     const caissier = personnel.find(p => p.IDPERSONNEL === table.IDCAISSIER);
     const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
-    printTicket(`
+    printPreview(`
       <div class="center bold">SUIVI TABLE</div>
       <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
       <div>Table: ${table.DESCRIPTION}</div>
@@ -226,7 +324,7 @@ export default function TablesModule({ user }: Props) {
       <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(total)}</span></div>
-    `, true);
+    `);
   };
 
   const visibleTables = tables.filter(t => {
@@ -320,10 +418,10 @@ export default function TablesModule({ user }: Props) {
                 <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-gray-100">
                   {isOccupied && (
                     <button 
-                      onClick={() => printTablePreview(table)} 
+                      onClick={() => { setPreviewReturnMap({}); setPreviewTable(table); }} 
                       className="py-2.5 px-3 min-h-[44px] min-w-[44px] rounded-xl bg-gray-100 text-gray-700 text-sm hover:bg-gray-200 flex items-center justify-center active:scale-95 transition-transform" 
-                      title="Aperçu ticket"
-                      aria-label="Aperçu ticket"
+                      title="Aperçu & Addition table"
+                      aria-label="Aperçu & Addition table"
                     >
                       <Eye size={18} />
                     </button>
@@ -528,6 +626,191 @@ export default function TablesModule({ user }: Props) {
                 className="w-full bg-green-600 text-white py-4 rounded-xl font-extrabold text-base hover:bg-green-700 transition-colors min-h-[48px] active:scale-[0.98] shadow-md"
               >
                 ✅ Valider le paiement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL APERÇU & ADDITION TABLE AVEC OPTION RETOUR SUR CHAQUE LIGNE ===== */}
+      {previewTable && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+            
+            {/* Header */}
+            <div className="bg-[#0D47A1] text-white px-5 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center font-bold text-lg">
+                  🍽️
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg leading-tight">
+                    Aperçu Table {previewTable.NUMERO} — {previewTable.DESCRIPTION}
+                  </h3>
+                  <p className="text-xs text-blue-200 font-medium mt-0.5">
+                    {personnel.find(p => p.IDPERSONNEL === previewTable.IDCAISSIER)
+                      ? `Serveur: ${personnel.find(p => p.IDPERSONNEL === previewTable.IDCAISSIER)?.PRENOM}`
+                      : 'Consommations en cours'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setPreviewTable(null)} className="p-1.5 rounded-xl hover:bg-white/20 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
+              {(() => {
+                const items = getTableItems(previewTable.IDTABLE);
+                const total = getTableTotal(previewTable.IDTABLE);
+
+                if (items.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-gray-400 font-medium">
+                      Aucune consommation sur cette table.
+                    </div>
+                  );
+                }
+
+                const totalReturnItemsCount = Object.values(previewReturnMap).reduce((s, q) => s + q, 0);
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-gray-500 font-semibold uppercase tracking-wider px-1">
+                      <span>Addition ({items.reduce((s, i) => s + i.QUANTITE, 0)} articles)</span>
+                      <span>Prix & Quantité à retourner</span>
+                    </div>
+
+                    {/* Liste des lignes avec sélecteur de quantité à retourner */}
+                    <div className="space-y-2.5">
+                      {items.map(item => {
+                        const lineTotal = item.QUANTITE * item.PRIX_UNITAIRE;
+                        const returnQty = previewReturnMap[item.IDARTICLE] || 0;
+
+                        return (
+                          <div 
+                            key={item.IDARTICLE}
+                            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border transition-colors ${
+                              returnQty > 0 ? 'bg-orange-50/80 border-orange-300' : 'bg-gray-50 border-gray-100 hover:bg-blue-50/40'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className="text-xl shrink-0">{item.EMOJI || '📦'}</span>
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm text-gray-900 truncate">{item.NOM}</p>
+                                <p className="text-xs text-gray-500 font-medium">
+                                  {item.QUANTITE}x à {formatAr(item.PRIX_UNITAIRE)}
+                                  {returnQty > 0 && <span className="text-orange-700 font-bold ml-1.5">(↩ {returnQty} sélectionné{returnQty > 1 ? 's' : ''})</span>}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-gray-200/60">
+                              <span className="font-extrabold text-sm text-gray-900 tabular-nums">
+                                {formatAr(lineTotal)}
+                              </span>
+
+                              {/* Contrôle de la quantité à retourner */}
+                              {canManageTable(previewTable) && (
+                                <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-2xs">
+                                  <button
+                                    onClick={() => updatePreviewReturnQty(item.IDARTICLE, -1, item.QUANTITE)}
+                                    disabled={returnQty === 0}
+                                    className="w-7 h-7 rounded-lg border bg-gray-50 hover:bg-gray-100 flex items-center justify-center disabled:opacity-30 text-gray-700 active:scale-95 transition-all cursor-pointer"
+                                    title="Réduire le retour"
+                                  >
+                                    <Minus size={14} />
+                                  </button>
+
+                                  <span className={`w-6 text-center text-xs font-bold tabular-nums ${returnQty > 0 ? 'text-orange-600 font-extrabold' : 'text-gray-400'}`}>
+                                    {returnQty}
+                                  </span>
+
+                                  <button
+                                    onClick={() => updatePreviewReturnQty(item.IDARTICLE, 1, item.QUANTITE)}
+                                    disabled={returnQty >= item.QUANTITE}
+                                    className="w-7 h-7 rounded-lg border bg-gray-50 hover:bg-gray-100 flex items-center justify-center disabled:opacity-30 text-gray-700 active:scale-95 transition-all cursor-pointer"
+                                    title="Ajouter au retour"
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bloc résumé & bouton de confirmation du retour */}
+                    {totalReturnItemsCount > 0 && (
+                      <div className="bg-orange-50 border-2 border-orange-300 rounded-2xl p-4 space-y-3 animate-fadeIn">
+                        <div className="flex items-center justify-between text-xs font-bold text-orange-900">
+                          <span className="flex items-center gap-1.5"><RotateCcw size={16} /> Articles à retourner :</span>
+                          <span className="bg-orange-200 text-orange-900 px-2.5 py-0.5 rounded-full">{totalReturnItemsCount} au total</span>
+                        </div>
+                        <div className="text-xs text-orange-800 space-y-1 font-medium pl-1">
+                          {Object.entries(previewReturnMap)
+                            .filter(([_, q]) => q > 0)
+                            .map(([artIdStr, q]) => {
+                              const a = articles.find(art => art.IDARTICLE === Number(artIdStr));
+                              return <p key={artIdStr}>• {q}x {a?.NOM}</p>;
+                            })}
+                        </div>
+                        <button
+                          onClick={() => confirmPreviewReturn(previewTable.IDTABLE)}
+                          className="w-full bg-orange-600 hover:bg-orange-700 active:scale-95 text-white py-3 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                        >
+                          <RotateCcw size={18} />
+                          <span>Confirmer le retour ({totalReturnItemsCount} article{totalReturnItemsCount > 1 ? 's' : ''})</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Total addition */}
+                    <div className="bg-[#0D47A1] text-white rounded-2xl p-4 flex items-center justify-between shadow-xs mt-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-blue-200 font-semibold">Total Addition</p>
+                        <p className="text-2xl sm:text-3xl font-extrabold tabular-nums mt-0.5">{formatAr(total)}</p>
+                      </div>
+                      {canManageTable(previewTable) && (
+                        <button
+                          onClick={() => {
+                            const t = previewTable;
+                            setPreviewReturnMap({});
+                            setPreviewTable(null);
+                            openPayment(t);
+                          }}
+                          className="bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                        >
+                          <Wallet size={18} />
+                          <span>Encaisser</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Footer avec Bouton Impression */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
+              <button
+                onClick={() => setPreviewTable(null)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-100 transition-colors"
+              >
+                Fermer
+              </button>
+
+              <button
+                onClick={() => {
+                  if (previewTable) printTablePreview(previewTable);
+                }}
+                className="flex-1 bg-[#0D47A1] hover:bg-[#1565C0] active:scale-95 text-white py-2.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all"
+              >
+                🖨️ Imprimer l'addition
               </button>
             </div>
           </div>
