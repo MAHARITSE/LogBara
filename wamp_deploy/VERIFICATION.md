@@ -54,13 +54,11 @@ Contrôles transverses également vérifiés :
 
 ## Impression (caisse & clôture)
 
-- Modes par poste / utilisateur : **Directe** (kiosque silencieux, défaut), **Choisir**
-  (fenêtre de choix de l'imprimante à chaque ticket, via `clientwamp.bat --dialogue`),
-  **Aucune** (aucune impression kiosque). Réglage disponible dans le menu latéral
-  **et directement dans l'écran d'encaissement de la caisse**.
-- L'impression automatique de la **clôture** respecte le mode du poste : imprimante
-  désactivée ⇒ aucun ticket kiosque (les réimpressions explicites restent possibles
-  via les boutons « Imprimer / Réimprimer »).
+- Impression par poste / utilisateur : case à cocher **« Utiliser l'imprimante »** disponible dans le menu latéral
+  (accessible aux caissiers et administrateurs).
+- L'impression automatique de la **clôture** respecte le choix du poste : imprimante
+  cochée ⇒ impression directe silencieuse ; imprimante non cochée ⇒ ouverture de la
+  page d'impression pour choisir l'imprimante.
 - Plus aucun « affichage bref » : la fenêtre popup de secours a été supprimée ;
   l'impression se fait dans un iframe invisible retiré uniquement après
   l'événement `afterprint` (avant : retiré à 3 s, ce qui annulait l'impression

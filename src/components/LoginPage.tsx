@@ -68,6 +68,10 @@ export default function LoginPage({ onLogin }: Props) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} autoComplete="off" className="p-8 space-y-5">
+          {/* Dummy inputs to defeat Google Chrome / browser password save prompts */}
+          <input type="text" name="prevent_autofill_user" id="prevent_autofill_user" className="hidden" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+          <input type="password" name="prevent_autofill_pass" id="prevent_autofill_pass" className="hidden" tabIndex={-1} autoComplete="new-password" aria-hidden="true" />
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm text-center">
               {error}
@@ -89,6 +93,8 @@ export default function LoginPage({ onLogin }: Props) {
             <label className="block text-sm font-semibold text-gray-700 mb-2">Identifiant</label>
             <input
               type="text"
+              name="user_login_pos"
+              id="user_login_pos"
               value={login}
               onChange={e => setLogin(e.target.value)}
               className="w-full px-4 py-3 bg-[#f8fafc] border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1976D2] focus:border-transparent outline-none transition-all text-gray-800"
@@ -105,11 +111,13 @@ export default function LoginPage({ onLogin }: Props) {
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="user_pass_pos"
+                id="user_pass_pos"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-[#f8fafc] border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1976D2] focus:border-transparent outline-none transition-all pr-12 text-gray-800"
                 placeholder="••••••••"
-                autoComplete="new-password"
+                autoComplete="off"
                 data-lpignore="true"
                 data-1p-ignore="true"
                 data-bwignore="true"

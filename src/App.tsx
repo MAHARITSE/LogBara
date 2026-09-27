@@ -112,6 +112,9 @@ function App() {
       case 'ventes':
         return <VentesModule user={user} />;
       case 'paiements':
+        if (user.ROLE !== 'Administrateur' && user.ROLE !== 'Gérant') {
+          return <CaisseModule user={user} />;
+        }
         return <PaiementsModule user={user} />;
       case 'cloture':
         return <ClotureModule user={user} />;
