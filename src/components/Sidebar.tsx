@@ -1,294 +1,361 @@
-import { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, ShoppingCart, UtensilsCrossed, Receipt, Calculator, Wallet,
-  Package, Tag, Warehouse, ShoppingBag, ClipboardList, Truck, Users,
-  UserCircle, CreditCard, Building2, HardDrive, LogOut, Menu, X, AlertTriangle, Printer
+import React from 'react';
+import {
+  Inbox,
+  Star,
+  Send,
+  FileText,
+  AlertOctagon,
+  Trash2,
+  Tag,
+  PenSquare,
+  ChevronDown,
+  ChevronRight,
+  Paperclip,
+  Users,
+  FileSignature,
+  CalendarDays,
+  LogOut,
 } from 'lucide-react';
-import { store } from '../store';
-import { Personnel, ModuleType } from '../types';
-import { dateLongFr, roleColors } from '../helpers';
+import { GmailLabel } from '../types/gmail';
+import { useTheme } from '../context/ThemeContext';
+import { EmailCategory } from '../services/emailClassifier';
 
-interface Props {
-  user: Personnel;
-  activeModule: ModuleType;
-  onModuleChange: (module: ModuleType) => void;
-  onLogout: () => void;
-  mobileOpen: boolean;
-  onMobileToggle: () => void;
+interface SidebarProps {
+  selectedLabelId: string;
+  onSelectLabel: (labelId: string) => void;
+  selectedCategory?: EmailCategory;
+  onSelectCategory?: (cat: EmailCategory) => void;
+  labels: GmailLabel[];
+  onOpenCompose: () => void;
+  isOpenMobile: boolean;
+  onCloseMobile: () => void;
+  unreadCount: number;
+  categoryCounts?: { pro: number; personal: number; sites: number; other: number };
+  onOpenContacts?: () => void;
+  contactsCount?: number;
+  onOpenSignatures?: () => void;
+  signaturesCount?: number;
+  onOpenAgenda?: () => void;
+  agendaCount?: number;
+  onSignOut?: () => void;
 }
 
-interface MenuItem {
-  id: ModuleType;
-  label: string;
-  icon: React.ReactNode;
-  roles: string[];
-}
+export const Sidebar: React.FC<SidebarProps> = ({
+  selectedLabelId,
+  onSelectLabel,
+  selectedCategory,
+  onSelectCategory,
+  labels,
+  onOpenCompose,
+  isOpenMobile,
+  onCloseMobile,
+  unreadCount,
+  categoryCounts = { pro: 0, personal: 0, sites: 0, other: 0 },
+  onOpenContacts,
+  contactsCount = 0,
+  onOpenSignatures,
+  signaturesCount = 0,
+  onOpenAgenda,
+  agendaCount = 0,
+  onSignOut,
+}) => {
+  const { isDark } = useTheme();
+  const [showCustomLabels, setShowCustomLabels] = React.useState(true);
 
-const menuGroups: { title?: string; items: MenuItem[] }[] = [
-  {
-    items: [
-      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['Administrateur', 'Gérant'] },
-      { id: 'caisse', label: 'Caisse POS', icon: <ShoppingCart size={20} />, roles: ['Gérant', 'Caissier'] },
-      { id: 'tables', label: 'Tables', icon: <UtensilsCrossed size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier', 'Serveur'] },
-    ]
-  },
-  {
-    title: 'Ventes & Finance',
-    items: [
-      { id: 'ventes', label: 'Ventes', icon: <Receipt size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
-      { id: 'paiements', label: 'Paiements', icon: <Wallet size={20} />, roles: ['Administrateur', 'Gérant'] },
-      { id: 'cloture', label: 'Clôture', icon: <Calculator size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
-      { id: 'credits', label: 'Crédits', icon: <CreditCard size={20} />, roles: ['Administrateur'] },
-    ]
-  },
-  {
-    title: 'Articles & Stock',
-    items: [
-      { id: 'articles', label: 'Articles', icon: <Package size={20} />, roles: ['Administrateur', 'Gérant', 'Magasinier'] },
-      { id: 'familles', label: 'Familles', icon: <Tag size={20} />, roles: ['Administrateur', 'Gérant'] },
-      { id: 'stock', label: 'Stock', icon: <Warehouse size={20} />, roles: ['Administrateur', 'Gérant', 'Magasinier'] },
-      { id: 'achats', label: 'Achats', icon: <ShoppingBag size={20} />, roles: ['Administrateur', 'Magasinier', 'Caissier'] },
-      { id: 'inventaire', label: 'Inventaire', icon: <ClipboardList size={20} />, roles: ['Administrateur', 'Gérant', 'Magasinier'] },
-    ]
-  },
-  {
-    title: 'Gestion',
-    items: [
-      { id: 'fournisseurs', label: 'Fournisseurs', icon: <Truck size={20} />, roles: ['Administrateur', 'Gérant'] },
-      { id: 'personnel', label: 'Personnel', icon: <Users size={20} />, roles: ['Administrateur'] },
-      { id: 'clients', label: 'Clients', icon: <UserCircle size={20} />, roles: ['Administrateur', 'Gérant'] },
-    ]
-  },
-  {
-    title: 'Système',
-    items: [
-      { id: 'societe', label: 'Société', icon: <Building2 size={20} />, roles: ['Administrateur', 'Gérant'] },
-      { id: 'sauvegarde', label: 'Sauvegarde', icon: <HardDrive size={20} />, roles: ['Administrateur', 'Gérant'] },
-    ]
-  },
-];
+  // Helper to extract count for any folder label (prioritizing threadsUnread for exact Gmail count parity)
+  const getFolderCount = (id: string, fallback = 0): number => {
+    const found = labels.find((l) => l.id.toUpperCase() === id.toUpperCase());
+    if (!found) return fallback;
 
-export default function Sidebar({ user, activeModule, onModuleChange, onLogout, mobileOpen, onMobileToggle }: Props) {
-  const societe = store.getSociete();
-  const [stockAlerts, setStockAlerts] = useState(() => store.getStockAlerts());
-  const [utiliserImprimante, setUtiliserImprimante] = useState(() => store.isUserPrinterEnabled(user.IDPERSONNEL));
+    if (id === 'SPAM' || id === 'TRASH' || id === 'DRAFT') {
+      const total = typeof found.threadsTotal === 'number' ? found.threadsTotal : (found.messagesTotal || 0);
+      const unread = typeof found.threadsUnread === 'number' ? found.threadsUnread : (found.messagesUnread || 0);
+      return Math.max(0, Math.max(total, unread));
+    }
 
-  useEffect(() => {
-    setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
-  }, [user.IDPERSONNEL]);
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      setStockAlerts(store.getStockAlerts());
-    };
-    window.addEventListener('barpos-articles-updated', handleUpdate);
-    window.addEventListener('barpos-data-updated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
-    window.addEventListener('focus', handleUpdate);
-    return () => {
-      window.removeEventListener('barpos-articles-updated', handleUpdate);
-      window.removeEventListener('barpos-data-updated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
-      window.removeEventListener('focus', handleUpdate);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleUpdate = (e: Event) => {
-      const custom = e as CustomEvent<{ userId?: number; enabled?: boolean }>;
-      if (!custom.detail || custom.detail.userId === user.IDPERSONNEL) {
-        setUtiliserImprimante(store.isUserPrinterEnabled(user.IDPERSONNEL));
-      }
-    };
-    window.addEventListener('barpos-printer-pref-change', handleUpdate);
-    return () => window.removeEventListener('barpos-printer-pref-change', handleUpdate);
-  }, [user.IDPERSONNEL]);
-
-  const handleToggleImprimante = (checked: boolean) => {
-    store.setUserPrinterEnabled(checked, user.IDPERSONNEL);
-    setUtiliserImprimante(checked);
-    window.dispatchEvent(new CustomEvent('barpos-printer-pref-change', { detail: { userId: user.IDPERSONNEL, enabled: checked } }));
+    if (typeof found.threadsUnread === 'number') {
+      return Math.max(0, found.threadsUnread);
+    }
+    if (typeof found.messagesUnread === 'number') {
+      return Math.max(0, found.messagesUnread);
+    }
+    return Math.max(0, fallback);
   };
 
-  const renderLogo = () => {
-    if (societe.LOGO_TYPE === 'image' && societe.LOGO_IMAGE) {
-      return <img src={societe.LOGO_IMAGE} alt="Logo" className="w-10 h-10 object-contain" />;
-    }
-    if (societe.LOGO_TYPE === 'emoji' && societe.LOGO_EMOJI) {
-      return <span className="text-2xl">{societe.LOGO_EMOJI}</span>;
-    }
-    return <span className="text-xl font-bold text-white">{societe.NOM.charAt(0)}</span>;
+  const inboxUnread = getFolderCount('INBOX', unreadCount);
+  const starredUnread = getFolderCount('STARRED', 0);
+  const sentUnread = getFolderCount('SENT', 0);
+  const draftCount = getFolderCount('DRAFT', 0);
+  const spamCount = getFolderCount('SPAM', 0);
+  const trashCount = getFolderCount('TRASH', 0);
+
+  // System items with their respective message counts
+  const systemNav = [
+    { id: 'INBOX', name: 'Boîte de réception', icon: Inbox, count: inboxUnread },
+    { id: 'ATTACHMENTS', name: 'Pièces jointes', icon: Paperclip, count: 0 },
+    { id: 'STARRED', name: 'Messages suivis', icon: Star, count: starredUnread },
+    { id: 'SENT', name: 'Messages envoyés', icon: Send, count: sentUnread },
+    { id: 'DRAFT', name: 'Brouillons', icon: FileText, count: draftCount },
+    { id: 'SPAM', name: 'Spam', icon: AlertOctagon, count: spamCount },
+    { id: 'TRASH', name: 'Corbeille', icon: Trash2, count: trashCount },
+  ];
+
+  // User custom labels
+  const userLabels = labels.filter(
+    (l) => l.type === 'user' && !['CHAT', 'UNREAD', 'IMPORTANT'].includes(l.id)
+  );
+
+  const handleNavClick = (id: string) => {
+    onSelectLabel(id);
+    onCloseMobile();
   };
 
-  const sidebarContent = (
-    <div className="flex flex-col h-full">
-      {/* Logo & Company */}
-      <div className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0D47A1] to-[#1976D2] flex items-center justify-center shadow-lg">
-            {renderLogo()}
-          </div>
-          <div>
-            <h2 className="font-bold text-gray-900">{societe.NOM}</h2>
-            <p className="text-xs text-gray-500 capitalize">{dateLongFr()}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stock Alert Banner */}
-      {stockAlerts > 0 && (
-        <div 
-          onClick={() => onModuleChange('stock')}
-          className="mx-4 mb-2 p-3 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl cursor-pointer hover:border-red-300 transition-all"
-        >
-          <div className="flex items-center gap-2 text-red-600">
-            <AlertTriangle size={16} />
-            <span className="text-sm font-medium">{stockAlerts} alerte{stockAlerts > 1 ? 's' : ''} stock</span>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
-        {menuGroups.map((group, gIdx) => (
-          <div key={gIdx} className="mb-4">
-            {group.title && (
-              <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {group.title}
-              </div>
-            )}
-            {group.items
-              .filter(item => item.roles.includes(user.ROLE))
-              .map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => { onModuleChange(item.id); if (mobileOpen) onMobileToggle(); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 transition-all ${
-                    activeModule === item.id
-                      ? 'nav-active'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              ))}
-          </div>
-        ))}
-      </nav>
-
-      {/* Utiliser l'imprimante - propre à ce poste et utilisateur (seulement caisse ou admin) */}
-      {['Administrateur', 'Gérant', 'Caissier'].includes(user.ROLE) && (
-        <div className="p-3 border-t border-gray-100 bg-gray-50/70">
-          <label className="flex items-start gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={utiliserImprimante}
-              onChange={e => handleToggleImprimante(e.target.checked)}
-              className="w-4 h-4 mt-0.5 rounded text-[#0D47A1] focus:ring-[#0D47A1] cursor-pointer"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <p className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
-                  <Printer size={13} className="text-[#0D47A1]" />
-                  Utiliser l'imprimante
-                </p>
-                <span className="text-[9px] text-blue-700 bg-blue-50 px-1 rounded shrink-0">Ce poste</span>
-              </div>
-              <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
-                {utiliserImprimante ? 'Impression directe sur ce poste' : 'Désactivée sur ce poste'}
-              </p>
-            </div>
-          </label>
-        </div>
-      )}
-
-      {/* User Info */}
-      <div className="p-4 border-t border-gray-100">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0D47A1] to-[#1976D2] flex items-center justify-center text-white font-semibold">
-            {user.PRENOM.charAt(0)}{user.NOM.charAt(0)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-gray-900 truncate">{user.PRENOM} {user.NOM}</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${roleColors[user.ROLE]}`}>
-              {user.ROLE}
-            </span>
-          </div>
-        </div>
+  const content = (
+    <div
+      className={`flex h-full min-h-0 flex-col border-r select-none transition-colors ${
+        isDark
+          ? 'bg-[#080B10] border-slate-800 text-slate-400'
+          : 'bg-white border-slate-200 text-slate-600'
+      }`}
+    >
+      {/* Compose Button */}
+      <div className="border-b border-inherit p-3 sm:p-4">
         <button
-          onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-all"
+          id="sidebar-compose-button"
+          type="button"
+          onClick={() => {
+            onOpenCompose();
+            onCloseMobile();
+          }}
+          className={`flex w-full items-center justify-center gap-2.5 rounded-lg px-4 py-3 text-xs font-mono font-bold uppercase tracking-wider transition active:scale-[0.98] ${
+            isDark
+              ? 'bg-cyan-500/10 border border-cyan-500/40 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.15)] hover:bg-cyan-500/20 hover:border-cyan-400'
+              : 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-md hover:shadow-lg'
+          }`}
         >
-          <LogOut size={18} />
-          <span className="font-medium">Déconnexion</span>
+          <PenSquare className="h-4 w-4" />
+          <span>Nouveau message</span>
         </button>
       </div>
 
-      {/* Developer signature */}
-      <div className="p-4 text-center border-t border-gray-100">
-        <p className="text-xs text-gray-400">Développé par</p>
-        <p className="text-xs text-gray-500 font-medium">MAHARITSE H. Bertrand</p>
-        <p className="text-xs text-gray-400">📞 038 34 092 61</p>
+      {/* Navigation Links */}
+      <div className="flex-1 overflow-y-auto px-3 space-y-1">
+        <div className={`px-2 pb-1 text-[9px] font-mono uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          Dossiers principaux
+        </div>
+        {systemNav.map((item) => {
+          const Icon = item.icon;
+          const isActive = selectedLabelId === item.id;
+          return (
+            <button
+              key={item.id}
+              id={`nav-label-${item.id.toLowerCase()}`}
+              type="button"
+              onClick={() => handleNavClick(item.id)}
+              className={`flex w-full items-center justify-between rounded-lg px-3.5 py-2 text-xs font-medium transition ${
+                isActive
+                  ? isDark
+                    ? 'bg-slate-800 text-cyan-400 border border-cyan-500/30 shadow-[0_0_12px_rgba(34,211,238,0.15)]'
+                    : 'bg-cyan-50 text-cyan-800 border border-cyan-200 font-semibold'
+                  : isDark
+                  ? 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border border-transparent'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon
+                  className={`h-4 w-4 ${
+                    isActive
+                      ? isDark ? 'text-cyan-400' : 'text-cyan-600'
+                      : isDark ? 'text-slate-500' : 'text-slate-400'
+                  }`}
+                />
+                <span>{item.name}</span>
+              </div>
+              {item.count > 0 && (
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold ${
+                    isActive
+                      ? isDark
+                        ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/60'
+                        : 'bg-cyan-200 text-cyan-900'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {item.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Tools & Settings Section */}
+        <div className="pt-4">
+          <div className={`px-2 pb-1 text-[9px] font-mono uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            Gestion & Outils
+          </div>
+          <div className="space-y-1">
+            {onOpenAgenda && (
+              <button
+                type="button"
+                id="nav-open-agenda-btn"
+                onClick={() => {
+                  onOpenAgenda();
+                  onCloseMobile();
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3.5 py-2 text-xs font-medium transition cursor-pointer ${
+                  selectedLabelId === 'AGENDA'
+                    ? isDark
+                      ? 'bg-slate-800 border border-cyan-500/30 text-white font-semibold'
+                      : 'bg-slate-100 border border-slate-300 text-slate-900 font-semibold'
+                    : isDark
+                    ? 'text-slate-400 hover:bg-slate-800/60 hover:text-cyan-400 border border-transparent'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-cyan-700 border border-transparent'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <CalendarDays className="h-4 w-4 text-cyan-400" />
+                  <span>Agenda & Tâches</span>
+                </div>
+                {agendaCount > 0 && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
+                      isDark
+                        ? 'bg-cyan-950 border border-cyan-800/80 text-cyan-300'
+                        : 'bg-cyan-100 border border-cyan-300 text-cyan-900'
+                    }`}
+                  >
+                    {agendaCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {onOpenContacts && (
+              <button
+                type="button"
+                id="nav-open-contacts-btn"
+                onClick={() => {
+                  onOpenContacts();
+                  onCloseMobile();
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3.5 py-2 text-xs font-medium transition cursor-pointer ${
+                  selectedLabelId === 'CONTACTS'
+                    ? isDark
+                      ? 'bg-slate-800 border border-cyan-500/30 text-white font-semibold'
+                      : 'bg-slate-100 border border-slate-300 text-slate-900 font-semibold'
+                    : isDark
+                    ? 'text-slate-400 hover:bg-slate-800/60 hover:text-cyan-400 border border-transparent'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-cyan-700 border border-transparent'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="h-4 w-4 text-cyan-400" />
+                  <span>Carnet de Contacts</span>
+                </div>
+                {contactsCount > 0 && (
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-mono ${isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'}`}>
+                    {contactsCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {onOpenSignatures && (
+              <button
+                type="button"
+                id="nav-open-signatures-btn"
+                onClick={() => {
+                  onOpenSignatures();
+                  onCloseMobile();
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3.5 py-2 text-xs font-medium transition cursor-pointer ${
+                  isDark
+                    ? 'text-slate-400 hover:bg-slate-800/60 hover:text-cyan-400 border border-transparent'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-cyan-700 border border-transparent'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileSignature className="h-4 w-4 text-emerald-400" />
+                  <span>Signatures d'e-mails</span>
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Connection Status Badge & Sign Out */}
+      <div className="p-3 space-y-2">
+        <div className={`p-3 rounded-xl border ${
+          isDark
+            ? 'bg-cyan-950/20 border-cyan-800/40'
+            : 'bg-slate-100 border-slate-200'
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_#34d399] animate-pulse"></div>
+            <span className={`text-[10px] font-bold font-mono uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-800'}`}>
+              Liaison Google active
+            </span>
+          </div>
+          <p className={`text-[10px] font-mono leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+            Assistant IA Gemini & synchronisation Gmail opérationnels.
+          </p>
+        </div>
+
+        {onSignOut && (
+          <button
+            type="button"
+            id="sidebar-sign-out-btn"
+            onClick={() => {
+              onCloseMobile();
+              onSignOut();
+            }}
+            className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs font-mono font-medium transition cursor-pointer ${
+              isDark
+                ? 'bg-slate-900/50 border-slate-800/80 text-slate-400 hover:text-red-400 hover:border-red-900/50 hover:bg-red-950/20'
+                : 'bg-white border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50'
+            }`}
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span>Déconnexion</span>
+          </button>
+        )}
       </div>
     </div>
   );
 
   return (
     <>
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white/95 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-3 z-40">
-        <button 
-          onClick={onMobileToggle} 
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-xl active:scale-95 transition-transform"
-          aria-label="Ouvrir le menu"
-        >
-          <Menu size={22} className="text-gray-700" />
-        </button>
-        
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-lg shrink-0">{societe.LOGO_TYPE === 'emoji' ? societe.LOGO_EMOJI : '🍺'}</span>
-          <span className="font-bold text-gray-900 truncate text-sm">{societe.NOM}</span>
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-[#0D47A1] shrink-0">
-            {user.PRENOM} ({user.ROLE})
-          </span>
-        </div>
-
-        <button 
-          onClick={onLogout} 
-          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-          title="Se déconnecter"
-          aria-label="Se déconnecter"
-        >
-          <LogOut size={18} />
-        </button>
-      </div>
-
-      {/* Mobile Overlay */}
-      {mobileOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={onMobileToggle}
-        />
-      )}
-
-      {/* Mobile Sidebar */}
-      <aside className={`lg:hidden fixed top-0 left-0 bottom-0 w-72 bg-white z-50 transform transition-transform duration-300 ${
-        mobileOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <span className="font-bold text-gray-900">Menu</span>
-          <button onClick={onMobileToggle} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X size={20} className="text-gray-700" />
-          </button>
-        </div>
-        {sidebarContent}
-      </aside>
-
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:block fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-30">
-        {sidebarContent}
+      <aside
+        id="desktop-sidebar"
+        className="hidden md:block h-full min-h-0 w-64 shrink-0"
+      >
+        {content}
       </aside>
+
+      {/* Mobile Drawer */}
+      {isOpenMobile && (
+        <div
+          id="mobile-sidebar-backdrop"
+          className="fixed inset-0 z-40 md:hidden bg-black/80 backdrop-blur-xs"
+          onClick={onCloseMobile}
+        >
+          <div
+            id="mobile-sidebar-drawer"
+            className={`w-72 h-full shadow-2xl border-r ${
+              isDark ? 'bg-[#080B10] border-slate-800' : 'bg-white border-slate-200'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {content}
+          </div>
+        </div>
+      )}
     </>
   );
-}
+};
+

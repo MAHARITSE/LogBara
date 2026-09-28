@@ -1,0 +1,171 @@
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  User,
+} from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+export const SCOPES = [
+  'https://mail.google.com/',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar.events.readonly',
+  'https://www.googleapis.com/auth/calendar.events',
+];
+
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+
+const provider = new GoogleAuthProvider();
+for (const scope of SCOPES) {
+  provider.addScope(scope);
+}
+// Prompt user to select account and ensure fresh consent if needed
+provider.setCustomParameters({
+  prompt: 'select_account',
+});
+
+const TOKEN_STORAGE_KEY = 'gmail_net_oauth_access_token';
+
+let isSigningIn = false;
+let cachedAccessToken: string | null = null;
+try {
+  if (typeof window !== 'undefined') {
+    cachedAccessToken = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  }
+} catch {
+  // Ignore storage access restrictions
+}
+
+export const initAuth = (
+  onAuthSuccess?: (user: User, token: string) => void,
+  onAuthFailure?: () => void
+) => {
+  return onAuthStateChanged(auth, async (user: User | null) => {
+    let token = cachedAccessToken;
+    if (!token && typeof window !== 'undefined') {
+      try {
+        token =
+          window.sessionStorage.getItem(TOKEN_STORAGE_KEY) ||
+          window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      } catch {
+        // Ignore
+      }
+    }
+
+    if (user && token) {
+      cachedAccessToken = token;
+      if (onAuthSuccess) onAuthSuccess(user, token);
+    } else if (!user) {
+      // Do not wipe storage or fail if universal token exists (e.g. via GSI direct login)
+      let hasStorageToken = false;
+      if (typeof window !== 'undefined') {
+        try {
+          hasStorageToken = Boolean(
+            window.sessionStorage.getItem(TOKEN_STORAGE_KEY) ||
+            window.localStorage.getItem(TOKEN_STORAGE_KEY)
+          );
+        } catch {}
+      }
+
+      if (!hasStorageToken) {
+        cachedAccessToken = null;
+        if (onAuthFailure) onAuthFailure();
+      }
+    }
+  });
+};
+
+export const getAuthErrorMessage = (error: any): string => {
+  if (!error) return 'Une erreur d\'authentification inattendue est survenue.';
+  const code = error?.code || '';
+  const message = typeof error?.message === 'string' ? error.message : '';
+
+  if (/invalid_client|OAuth client was not found|deleted_client/i.test(`${code} ${message}`)) {
+    return 'Erreur 401 invalid_client : Google ne reconnaît pas le client OAuth configuré (incorrect ou supprimé). Dans Google Cloud Console → Identifiants, vérifiez ou créez un client OAuth de type Application Web, puis renseignez son ID dans Configuration OAuth ci-dessous. Ajouter un utilisateur de test ne corrige pas cette erreur.';
+  }
+  if (code === 'auth/popup-closed-by-user' || message.includes('popup-closed-by-user')) {
+    return 'La fenêtre de connexion Google a été fermée avant la fin de l\'autorisation. Veuillez cliquer sur S\'authentifier et garder la fenêtre popup ouverte jusqu\'à la sélection de votre compte Google.';
+  }
+  if (code === 'auth/popup-blocked' || message.includes('popup-blocked')) {
+    return 'La fenêtre contextuelle de connexion a été bloquée par votre navigateur. Veuillez autoriser les fenêtres popups pour ce site, ou ouvrir l\'application dans un nouvel onglet.';
+  }
+  if (code === 'auth/cancelled-popup-request' || message.includes('cancelled-popup-request') || message.includes('Pending promise was never set')) {
+    return 'La tentative d\'authentification a été interrompue. Veuillez cliquer à nouveau sur S\'authentifier avec Google.';
+  }
+  if (code === 'auth/network-request-failed' || message.includes('network-request-failed')) {
+    return 'Problème de connexion réseau. Veuillez vérifier votre connexion Internet et réessayer.';
+  }
+  if (code === 'auth/unauthorized-domain') {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'ce domaine';
+    return `Domaine non autorisé : « ${host} » n'est pas dans la liste des domaines autorisés du projet Firebase. Ajoutez-le dans Firebase Console → Authentication → Paramètres → Domaines autorisés.`;
+  }
+  if (message.includes('origin_mismatch') || message.includes('400')) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `Origine JavaScript non autorisée (Erreur 400 origin_mismatch) : Veuillez ajouter « ${origin} » aux Origines JavaScript autorisées dans Google Cloud Console → Client OAuth 2.0.`;
+  }
+  if (code === 'auth/access-denied' || message.includes('access_denied') || message.includes('403')) {
+    return `ACCES_DENIED: L'application Google OAuth est en mode test. Seuls les comptes ajoutés aux « Utilisateurs de test » dans Google Cloud Console peuvent se connecter. Le développeur doit ajouter votre adresse e-mail dans Google Cloud Console → Écran de consentement OAuth → Utilisateurs de test.`;
+  }
+
+  const cleaned = message.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?$/i, '$1').trim();
+  return cleaned || error?.message || 'Échec de l\'authentification avec Google. Veuillez réessayer.';
+};
+
+export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  if (isSigningIn) {
+    console.warn('Sign in is already in progress.');
+    return null;
+  }
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      throw new Error('Failed to get access token from Google Authentication');
+    }
+
+    cachedAccessToken = credential.accessToken;
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(TOKEN_STORAGE_KEY, credential.accessToken);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return { user: result.user, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    const isUserClosed =
+      error?.code === 'auth/popup-closed-by-user' ||
+      (typeof error?.message === 'string' && error.message.includes('popup-closed-by-user'));
+
+    if (isUserClosed) {
+      console.warn('Google sign-in popup was closed before completing auth flow.');
+    } else {
+      console.error('Sign in error:', error);
+    }
+    throw error;
+  } finally {
+    isSigningIn = false;
+  }
+};
+
+export const getAccessToken = async (): Promise<string | null> => {
+  return cachedAccessToken;
+};
+
+export const logout = async () => {
+  await auth.signOut();
+  cachedAccessToken = null;
+  try {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+};

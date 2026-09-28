@@ -1,5 +1,8 @@
 node_modules/
+build/
 dist/
-*.log
+coverage/
 .DS_Store
-tsconfig.tsbuildinfo
+*.log
+.env*
+!.env.example
