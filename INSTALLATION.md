@@ -1,0 +1,156 @@
+# Installation WAMP — LogBara v4.3 (MySQL uniquement)
+
+**Développeur** : MAHARITSE Hiacinthe Bertrand — 038 34 092 61
+
+Cette version ne possède aucun mode de stockage navigateur. Les articles, ventes, achats, stocks, paramètres et sessions sont enregistrés dans **MySQL** par l’API PHP fournie. L’API utilise XML pour les échanges HTTP : aucun fichier de données JSON n’est utilisé.
+
+## Prérequis
+
+| Composant | Version minimale |
+|---|---:|
+| WampServer 64 bits | 3.x |
+| Apache | 2.4 |
+| PHP | 8.0 |
+| MySQL | 8.0 |
+| Extensions PHP | PDO, pdo_mysql, SimpleXML |
+
+## Installation rapide
+
+1. Démarrer WAMP et attendre que son icône devienne verte.
+2. Copier le dossier prêt à déployer :
+
+   ```text
+   wamp_deploy  ->  C:\wamp64\www\logbara
+   ```
+
+3. Ouvrir <http://localhost/phpmyadmin>.
+4. Choisir **Importer**, puis sélectionner :
+
+   ```text
+   C:\wamp64\www\logbara\sql\logbara.sql
+   ```
+
+   Attention : le script recrée entièrement la base `logbara`. Sauvegardez une base existante avant de le réimporter.
+
+5. Avec l’installation WAMP standard (`root` sans mot de passe), aucune modification n’est nécessaire. Sinon, modifier :
+
+   ```text
+   C:\wamp64\www\logbara\api\config.php
+   ```
+
+6. Tester MySQL avec <http://localhost/logbara/api/diagnostic.php>.
+7. Ouvrir l’application : <http://localhost/logbara/>.
+
+## Comptes initiaux
+
+| Login | Mot de passe | Rôle |
+|---|---|---|
+| admin | admin123 | Administrateur |
+| gerant | gerant123 | Gérant |
+| caisse1 | 1234 | Caissier |
+| caisse2 | 1234 | Caissier |
+| magasin | 1234 | Magasinier |
+| serveur | 1234 | Serveur |
+
+Les mots de passe sont hachés dans MySQL. Il est recommandé de les modifier après la première connexion.
+
+## Structure du dossier livré
+
+```text
+wamp_deploy/
+├── index.html                 application compilée, autonome
+├── clientwamp.bat             lanceur universel unique (local + réseau Wi-Fi/Ethernet/Hotspot, --kiosk-printing)
+├── detect_server.ps1          détection automatique du serveur WAMP (localhost / réseau)
+├── .htaccess                  protections Apache
+├── api/
+│   ├── index.php              API PHP/XML
+│   ├── config.php             paramètres MySQL
+│   ├── database.php           connexion PDO
+│   ├── mappings.php           correspondance interface/tables
+│   └── diagnostic.php         contrôle d’installation
+├── sql/
+│   ├── sql/
+│   ├── logbara.sql           schéma et données initiales (base « logbara »)
+│   └── mise_a_jour_v4.3.sql  mise à niveau d'une base existante
+└── README_INSTALLATION.txt
+```
+
+## Fonctionnement MySQL exclusif
+
+- aucun basculement de mode ;
+- aucune persistance métier dans `localStorage` ou `sessionStorage` ;
+- sessions applicatives dans la table `app_sessions` ;
+- cookie navigateur limité à un jeton opaque `HttpOnly` ;
+- écritures SQL préparées avec PDO ;
+- mots de passe hachés ;
+- export SQL construit directement à partir des tables MySQL.
+
+## Lancement avec impression directe (sans aperçu)
+
+**Lanceur universel unique (`clientwamp.bat`)** — fourni dans `wamp_deploy` avec `detect_server.ps1` :
+
+- Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
+- Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
+- Supprime le `lancer-impression-directe.bat` au profit de ce lanceur universel.
+
+Case à cocher « Utiliser l'imprimante » par poste (menu latéral) :
+- Cochée : impression directe silencieuse sur l'imprimante par défaut (aucune page affichée) ;
+- Décochée : aucune impression kiosque sur ce poste (ventes enregistrées sans ticket ; pour la clôture, ouverture de la page d'impression avec choix de l'imprimante).
+
+Détails techniques :
+- Détection en 3 étapes : test `localhost`/`127.0.0.1`, puis IP mémorisée (`%LOCALAPPDATA%\LogBara\server_ip.txt`), puis balayage réseau intelligent (passerelles `Get-NetRoute`, cache ARP, sous-réseaux `Get-NetIPAddress`) avec test TCP port 80 + HTTP HEAD/GET sur `http://<ip>/logbara/`.
+- Si aucune détection automatique : invite à saisir manuellement l'IP (ex. `192.168.1.50` ou `localhost`) et la mémorise.
+- Lance Google Chrome ou Microsoft Edge en mode application avec `--kiosk-printing` : les tickets partent directement sur l'imprimante Windows par défaut, sans aperçu d'impression. Utilise un profil dédié `%LOCALAPPDATA%\LogBara\KioskProfile` (`--user-data-dir`) pour ne pas interférer avec la navigation personnelle.
+
+Utilisation :
+
+```text
+Double-clic sur wamp_deploy\clientwamp.bat
+# Pour réinitialiser l'IP mémorisée et forcer une nouvelle détection/saisie :
+clientwamp.bat --reset
+# alias court :
+clientwamp.bat -c
+```
+
+Le lanceur fonctionne indifféremment sur le **poste serveur** (détection `localhost` immédiate) et sur tout **poste client** du réseau (Wi-Fi, Ethernet, Hotspot mobile).
+
+Prérequis : une imprimante ticket 80 mm définie comme imprimante Windows **par défaut** (éviter « Microsoft Print to PDF »).
+
+## Sauvegarde
+
+Dans le module **Sauvegarde**, utiliser **Export SQL**. Le fichier obtenu contient les vraies colonnes MySQL et les mots de passe hachés. Pour le restaurer, l’importer dans phpMyAdmin après avoir installé le schéma `sql/logbara.sql`.
+
+La réinitialisation est réservée à l’administrateur. Elle efface les opérations (ventes, achats, paiements, mouvements, inventaires, clôtures et consommations), remet stocks et crédits à zéro et conserve les comptes et référentiels.
+
+## Dépannage
+
+| Symptôme | Vérification |
+|---|---|
+| « API PHP inaccessible » | WAMP vert, Apache démarré, URL sous `http://localhost` |
+| « Erreur MySQL » | importer `sql/logbara.sql`, puis vérifier `api/config.php` |
+| SimpleXML absent | activer l’extension PHP `simplexml` dans WAMP |
+| Connexion PDO impossible | activer `pdo_mysql` et vérifier le port MySQL |
+| Page blanche | consulter les journaux Apache/PHP de WAMP |
+| Diagnostic OK mais login refusé | utiliser un compte initial ou réimporter la base après sauvegarde |
+
+## Développement et reconstruction
+
+Le dossier `wamp_deploy` est déjà compilé. Pour reconstruire `index.html` après modification des sources :
+
+```bash
+npm ci
+npm run build
+```
+
+Pour la version WAMP, utiliser plutôt :
+
+```bash
+npm run build:wamp
+```
+
+qui copie `dist/index.html` vers `wamp_deploy/index.html` ET y injecte le
+drapeau « MySQL forcé » (`__BARPOS_USE_API__ = true`) : dans cette version,
+l'application fonctionne EXCLUSIVEMENT avec MySQL — jamais de repli en mode
+local navigateur (erreurs affichées au lieu d'un basculement silencieux).
+
+Les fichiers PHP et SQL restent ceux du dossier `wamp_deploy`.
