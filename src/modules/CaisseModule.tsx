@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle, KeyRound } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, CartItem, TableR, Client } from '../types';
+import { Personnel, CartItem, TableR, Client, Cloture } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
@@ -44,6 +44,32 @@ export default function CaisseModule({ user, onLogout }: Props) {
     return store.getOuvertureSession(user.ROLE === 'Caissier' ? user.IDPERSONNEL : undefined);
   }, [rk, user]);
 
+  // Si le caissier a déjà des ventes ou opérations non clôturées, ne pas exiger d'ouverture :
+  // la clôture regroupera toutes les opérations non clôturées depuis la dernière clôture.
+  const hasUnclosedOperations = useMemo(() => {
+    const allVentes = store.getVentes();
+    const allClotures = store.getClotures();
+    const lastUserCloture = allClotures
+      .filter(c => user.ROLE === 'Caissier' ? c.IDPERSONNEL === user.IDPERSONNEL : true)
+      .reduce<Cloture | undefined>((last, c) => (!last || c.IDCLOTURE > last.IDCLOTURE ? c : last), undefined);
+
+    const hasSales = allVentes.some(v => {
+      const matchUser = user.ROLE === 'Caissier' ? v.IDPERSONNEL === user.IDPERSONNEL : true;
+      if (!matchUser) return false;
+      if (v.CLOTUREE || v.IDCLOTURE) return false;
+      if (lastUserCloture && v.DATE_VENTE < lastUserCloture.DATE_CLOTURE) return false;
+      return true;
+    });
+
+    if (hasSales) return true;
+
+    // Tables occupées ou consommations non soldées pour ce caissier
+    const allTables = store.getTables();
+    return allTables.some(t => t.ETAT === 'Occupée' && (user.ROLE !== 'Caissier' || t.IDCAISSIER === user.IDPERSONNEL));
+  }, [rk, user]);
+
+  const isCaisseActive = Boolean(activeOuverture || hasUnclosedOperations);
+
   const canGrantCredit = true; // Permettre le paiement à crédit lors de l'encaissement en caisse pour tous les caissiers/utilisateurs
 
   useEffect(() => {
@@ -62,12 +88,12 @@ export default function CaisseModule({ user, onLogout }: Props) {
     };
   }, []);
 
-  // Forcer l'ouverture de caisse si aucune session active et aucune vente en cours dans le panier
+  // Forcer l'ouverture de caisse UNIQUEMENT si aucune session active, aucune vente non clôturée et aucun article dans le panier
   useEffect(() => {
-    if (!activeOuverture && cart.length === 0) {
+    if (!isCaisseActive && cart.length === 0) {
       setShowOuvertureModal(true);
     }
-  }, [activeOuverture, cart.length]);
+  }, [isCaisseActive, cart.length]);
 
   const familles = store.getFamilles();
   const articles = useMemo(() => store.getArticles(), [rk]);
@@ -157,7 +183,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
   const monnaie = Number(montantRecu) - netAPayer;
 
   const addToCart = (artId: number) => {
-    if (!activeOuverture) {
+    if (!isCaisseActive) {
       showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
       setShowOuvertureModal(true);
       return;
@@ -191,7 +217,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
 
   // === RÈGLE 2 : Envoyer = AJOUTER à la table (pas remplacer) ===
   const handleSendToTable = () => {
-    if (!activeOuverture) {
+    if (!isCaisseActive) {
       showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
       setShowOuvertureModal(true);
       return;
@@ -255,7 +281,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
   const setRefreshKey = () => setRk(k => k + 1);
 
   const openPayment = () => {
-    if (!activeOuverture) {
+    if (!isCaisseActive) {
       showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
       setShowOuvertureModal(true);
       return;
@@ -647,19 +673,9 @@ export default function CaisseModule({ user, onLogout }: Props) {
 
       {/* Grille articles */}
       <div className={`flex-1 flex-col min-w-0 ${mobileTab === 'articles' ? 'flex' : 'hidden lg:flex'}`}>
-        {/* Banner Ouverture de Caisse & Stock Dotation */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-3.5 mb-3 flex flex-wrap items-center justify-between gap-2.5">
-          {activeOuverture ? (
-            <div className="flex items-center gap-2.5 text-sm">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-              <div>
-                <span className="font-extrabold text-gray-900">Caisse Ouverte</span>
-                <span className="text-gray-500 text-xs ml-2 hidden sm:inline">
-                  (depuis {activeOuverture.HEURE_OUVERTURE} par {activeOuverture.NOM_PERSONNEL}{activeOuverture.FOND_DE_CAISSE > 0 ? ` — Fond: ${formatAr(activeOuverture.FOND_DE_CAISSE)}` : ''})
-                </span>
-              </div>
-            </div>
-          ) : (
+        {/* Banner si caisse non ouverte (masqué dès que la caisse est active ou qu'il existe des ventes non clôturées) */}
+        {!isCaisseActive && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-3.5 mb-3 flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap items-center justify-between w-full gap-2">
               <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
                 <AlertTriangle size={18} className="text-amber-600 shrink-0" />
@@ -674,8 +690,8 @@ export default function CaisseModule({ user, onLogout }: Props) {
                 <span>Ouvrir la caisse</span>
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 mb-3">
           <div className="flex gap-2 sm:gap-3 items-center">
@@ -1271,7 +1287,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
         onClose={() => {
           setShowOuvertureModal(false);
           const currentSession = store.getOuvertureSession(user.ROLE === 'Caissier' ? user.IDPERSONNEL : undefined);
-          if (!currentSession) {
+          if (!currentSession && !hasUnclosedOperations) {
             if (onLogout) {
               onLogout();
             } else {
