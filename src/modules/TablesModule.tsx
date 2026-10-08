@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Plus, Users, Trash2, Wallet, X, Eye, Minus, RotateCcw } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, TableR, CartItem, Paiement } from '../types';
+import { Personnel, TableR, CartItem, Paiement, Client } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
-import { printTicket, printPreview } from '../components/PrintTicket';
+import { printTicket, printDirect } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import MoneyInput from '../components/MoneyInput';
 
@@ -35,9 +35,13 @@ export default function TablesModule({ user }: Props) {
   const [formDescription, setFormDescription] = useState('');
   const [formPlaces, setFormPlaces] = useState(4);
 
-  const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Mixte'>('Espèces');
+  const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Mixte' | 'Crédit'>('Espèces');
   const [remise, setRemise] = useState(0);
   const [mixteEspeces, setMixteEspeces] = useState(0); // part espèces en paiement Mixte
+  const [selectedClient, setSelectedClient] = useState<number | null>(null);
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientNom, setNewClientNom] = useState('');
+  const [newClientTel, setNewClientTel] = useState('');
   const [tableFilter, setTableFilter] = useState<'all' | 'occupee' | 'libre'>('all');
 
   const isAdmin = user.ROLE === 'Administrateur';
@@ -225,6 +229,9 @@ export default function TablesModule({ user }: Props) {
   const openPayment = (table: TableR) => {
     setSelectedTable(table);
     setRemise(0); setPaymentMode('Espèces'); setMixteEspeces(0);
+    const existingClients = store.getClients();
+    setSelectedClient(existingClients.length > 0 ? existingClients[0].IDCLIENT : null);
+    setShowNewClientForm(false);
     setShowPayment(true);
   };
 
@@ -257,7 +264,6 @@ export default function TablesModule({ user }: Props) {
     const ventes = store.getVentes();
     const lignesVente = store.getLignesVente();
     const paiements = store.getPaiements();
-    const articlesList = store.getArticles();
 
     const idVente = nextId(ventes, 'IDVENTE');
     const numeroFacture = generateFactureNum('VTE', idVente);
@@ -277,7 +283,15 @@ export default function TablesModule({ user }: Props) {
     let idPaiement = nextId(paiements, 'IDPAIEMENT');
     const base = { DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL };
     const newPaiements: Paiement[] = [];
-    if (paymentMode === 'Mixte') {
+    if (paymentMode === 'Crédit') {
+      if (!selectedClient) {
+        showMsg('Veuillez sélectionner un client pour le paiement à crédit');
+        return;
+      }
+      newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: netAPayer, MODE_PAIEMENT: 'Crédit', IDCLIENT: selectedClient });
+      const allClients = store.getClients();
+      store.setClients(allClients.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + netAPayer } : c));
+    } else if (paymentMode === 'Mixte') {
       const partEspeces = Math.max(0, Math.min(mixteEspeces, netAPayer));
       const partMobile = Math.max(0, netAPayer - partEspeces);
       if (partEspeces > 0) newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: partEspeces, MODE_PAIEMENT: 'Espèces' });
@@ -310,13 +324,13 @@ export default function TablesModule({ user }: Props) {
     refresh(); showMsg('Table encaissée !');
   };
 
-  const printTablePreview = (table: TableR) => {
+  const printTableDirect = (table: TableR) => {
     const items = getTableItems(table.IDTABLE);
     const total = getTableTotal(table.IDTABLE);
     const caissier = personnel.find(p => p.IDPERSONNEL === table.IDCAISSIER);
     const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
-    printPreview(`
-      <div class="center bold">SUIVI TABLE</div>
+    printDirect(`
+      <div class="center bold">SUIVI TABLE ${table.NUMERO}</div>
       <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
       <div>Table: ${table.DESCRIPTION}</div>
       ${caissier ? `<div>Serveur: ${caissier.PRENOM}</div>` : ''}
@@ -324,7 +338,8 @@ export default function TablesModule({ user }: Props) {
       <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
       <div class="row bold"><span>TOTAL</span><span>${formatAr(total)}</span></div>
-    `);
+    `, false);
+    showMsg('Addition envoyée à l\'imprimante !');
   };
 
   const visibleTables = tables.filter(t => {
@@ -424,6 +439,16 @@ export default function TablesModule({ user }: Props) {
                       aria-label="Aperçu & Addition table"
                     >
                       <Eye size={18} />
+                    </button>
+                  )}
+                  {isOccupied && (
+                    <button 
+                      onClick={() => printTableDirect(table)} 
+                      className="py-2.5 px-3 min-h-[44px] min-w-[44px] rounded-xl bg-blue-100 text-[#0D47A1] text-sm hover:bg-blue-200 flex items-center justify-center active:scale-95 transition-transform" 
+                      title="Imprimer l'addition directement"
+                      aria-label="Imprimer l'addition directement"
+                    >
+                      🖨️
                     </button>
                   )}
                   {/* Bouton RETOUR sur la carte de table */}
@@ -586,20 +611,111 @@ export default function TablesModule({ user }: Props) {
 
               <div>
                 <label className="text-sm font-semibold text-gray-700 mb-2 block">Mode de paiement</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['Espèces', 'Mobile Money', 'Mixte'] as const).map(m => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(['Espèces', 'Mobile Money', 'Mixte', 'Crédit'] as const).map(m => (
                     <button 
                       key={m} 
-                      onClick={() => setPaymentMode(m)} 
+                      onClick={() => {
+                        setPaymentMode(m);
+                        if (m === 'Crédit') {
+                          const existingClients = store.getClients();
+                          if (existingClients.length > 0 && !selectedClient) {
+                            setSelectedClient(existingClients[0].IDCLIENT);
+                          }
+                        }
+                      }} 
                       className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold min-h-[44px] transition-all ${
                         paymentMode === m ? 'bg-[#0D47A1] text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      {m}
+                      {m === 'Crédit' ? '📝 Crédit' : m}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {paymentMode === 'Crédit' && (
+                <div className="space-y-3 bg-amber-50/80 border border-amber-200 rounded-2xl p-4 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                      👤 Client à créditer <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewClientForm(!showNewClientForm)}
+                      className="text-xs font-bold text-[#0D47A1] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {showNewClientForm ? '✕ Annuler' : '＋ Nouveau client'}
+                    </button>
+                  </div>
+
+                  {showNewClientForm ? (
+                    <div className="space-y-2.5 bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                      <p className="text-xs font-bold text-gray-800">Ajouter un nouveau client :</p>
+                      <input
+                        type="text"
+                        placeholder="Nom du client (ex: M. Rakoto)"
+                        value={newClientNom}
+                        onChange={e => setNewClientNom(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Téléphone (ex: 034 00 000 00)"
+                        value={newClientTel}
+                        onChange={e => setNewClientTel(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newClientNom.trim()) { showMsg('Nom du client requis'); return; }
+                          const currentClients = store.getClients();
+                          const newId = nextId(currentClients, 'IDCLIENT');
+                          const created: Client = {
+                            IDCLIENT: newId,
+                            NOM_CLIENT: capitalize(newClientNom.trim()),
+                            TELEPHONE: newClientTel.trim(),
+                            ADRESSE: '',
+                            CREDIT_TOTAL: 0,
+                            DATE_CREATION: today(),
+                          };
+                          store.setClients([...currentClients, created]);
+                          setSelectedClient(newId);
+                          setShowNewClientForm(false);
+                          setNewClientNom('');
+                          setNewClientTel('');
+                          showMsg(`Client ${created.NOM_CLIENT} créé !`);
+                        }}
+                        className="w-full bg-[#0D47A1] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#1565C0] cursor-pointer"
+                      >
+                        Enregistrer & Sélectionner
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {store.getClients().length === 0 ? (
+                        <p className="text-xs text-amber-800 italic">
+                          Aucun client enregistré. Cliquez sur « Nouveau client » ci-dessus.
+                        </p>
+                      ) : (
+                        <select
+                          value={selectedClient || ''}
+                          onChange={e => setSelectedClient(Number(e.target.value) || null)}
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold bg-white focus:ring-2 focus:ring-[#0D47A1]"
+                        >
+                          <option value="">-- Sélectionner le client --</option>
+                          {store.getClients().map(c => (
+                            <option key={c.IDCLIENT} value={c.IDCLIENT}>
+                              {c.NOM_CLIENT} {c.TELEPHONE ? `(${c.TELEPHONE})` : ''} — Crédit actuel: {formatAr(c.CREDIT_TOTAL)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {paymentMode === 'Mixte' && (() => {
                 const net = Math.max(0, getTableTotal(selectedTable.IDTABLE) - remise);
@@ -806,7 +922,7 @@ export default function TablesModule({ user }: Props) {
 
               <button
                 onClick={() => {
-                  if (previewTable) printTablePreview(previewTable);
+                  if (previewTable) printTableDirect(previewTable);
                 }}
                 className="flex-1 bg-[#0D47A1] hover:bg-[#1565C0] active:scale-95 text-white py-2.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all"
               >

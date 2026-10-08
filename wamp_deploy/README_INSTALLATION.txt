@@ -139,6 +139,12 @@ DEPANNAGE
 ---------
 - Page blanche ou mode local : ouvrir http://localhost/logbara/api/diagnostic.php
   et suivre son message.
+- Clients réseau injoignables (ERR_CONNECTION_TIMED_OUT) :
+  * Le pare-feu Windows du serveur bloque le port 80.
+    Sur le serveur, exécuter dans PowerShell (Administrateur) :
+    New-NetFirewallRule -DisplayName "WAMP Apache (Port 80)" -Direction Inbound -LocalPort 80 -Protocol TCP -Action Allow -Profile Any
+  * S'assurer que le réseau Wi-Fi/Ethernet est défini en « Réseau privé » (pas Public).
+  * Sur le poste client, réinitialiser l'IP si besoin : clientwamp.bat --reset
 - API inaccessible : vérifier Apache et l'URL http://localhost/logbara/
 - Erreur MySQL « Unknown column 'alerte_stock' » : importer sql\mise_a_jour_v4.3.sql
   (ou relancer l'application : la colonne est ajoutée automatiquement).

@@ -201,6 +201,7 @@ export default function ClotureModule({ user, onLogout }: Props) {
     store.setVentes(updatedVentes);
     store.setAchats(updatedAchats);
     if (idsRemb.size > 0) store.setPaiements(updatedPaiements);
+    store.closeOuvertureSession();
 
     setShowConfirm(false);
     showMsg('Caisse clôturée avec succès ! Déconnexion...');

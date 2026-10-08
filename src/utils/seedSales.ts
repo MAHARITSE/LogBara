@@ -47,7 +47,6 @@ export function generateRandomSales(months = 3, append = false): {
   const now = new Date();
   const totalDays = months * 30; // ~90 jours
 
-  const modesPaiement: Array<'Espèces' | 'Mobile Money' | 'Crédit'> = ['Espèces', 'Mobile Money', 'Crédit'];
   const modeWeights = [0.70, 0.25, 0.05];
 
   const pickMode = (): 'Espèces' | 'Mobile Money' | 'Crédit' => {
@@ -176,6 +175,7 @@ export function generateRandomSales(months = 3, append = false): {
           QUANTITE: qtyAchat,
           PRIX_ACHAT: paUnit,
           PRIX_VENTE: art.PRIX_VENTE,
+          MONTANT: totalLigne,
         });
       }
 

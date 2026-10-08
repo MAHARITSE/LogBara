@@ -5,7 +5,7 @@
 
 import {
   Societe, Personnel, Famille, Article, TableR, Client,
-  Fournisseur, Vente, LigneVente, Paiement, Cloture,
+  Fournisseur, Vente, LigneVente, Paiement, Cloture, OuvertureCaisse,
   Mouvement, Achat, LigneAchat, Inventaire, LigneInventaire, Consommation,
 } from './types';
 import { generateRandomSales } from './utils/seedSales';
@@ -485,6 +485,56 @@ export const store = {
   getClotures: (): Cloture[] => safeRead<Cloture>('clotures', []),
   setClotures: (data: Cloture[]): void => sync('clotures', data),
 
+  getOuvertureSession: (idPersonnel?: number): OuvertureCaisse | null => {
+    try {
+      const raw = localStorage.getItem('barpos_ouverture_session');
+      if (raw) {
+        const parsed = JSON.parse(raw) as OuvertureCaisse;
+        if (parsed && parsed.ACTIVE) {
+          if (!idPersonnel || parsed.IDPERSONNEL === idPersonnel) return parsed;
+        }
+      }
+    } catch (_) {}
+    return null;
+  },
+
+  setOuvertureSession: (data: OuvertureCaisse | null): void => {
+    try {
+      if (data) {
+        localStorage.setItem('barpos_ouverture_session', JSON.stringify(data));
+        const historyRaw = localStorage.getItem('barpos_ouvertures_history');
+        const history: OuvertureCaisse[] = historyRaw ? JSON.parse(historyRaw) : [];
+        const idx = history.findIndex(o => o.IDOUVERTURE === data.IDOUVERTURE);
+        if (idx >= 0) history[idx] = data;
+        else history.push(data);
+        localStorage.setItem('barpos_ouvertures_history', JSON.stringify(history));
+      } else {
+        localStorage.removeItem('barpos_ouverture_session');
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('barpos-data-updated', { detail: { dataset: 'ouverture' } }));
+      }
+    } catch (_) {}
+  },
+
+  getOuverturesHistory: (): OuvertureCaisse[] => {
+    try {
+      const historyRaw = localStorage.getItem('barpos_ouvertures_history');
+      return historyRaw ? JSON.parse(historyRaw) : [];
+    } catch (_) {
+      return [];
+    }
+  },
+
+  closeOuvertureSession: (): void => {
+    const current = store.getOuvertureSession();
+    if (current) {
+      current.ACTIVE = false;
+      store.setOuvertureSession(current);
+      localStorage.removeItem('barpos_ouverture_session');
+    }
+  },
+
   getMouvements: (): Mouvement[] => safeRead<Mouvement>('mouvements', []),
   setMouvements: (data: Mouvement[]): void => sync('mouvements', data),
 
@@ -642,7 +692,7 @@ export const store = {
       lignes_vente: 'lignes_vente',
       paiements: 'paiements',
       clotures: 'clotures',
-      mouvements: 'mouvements_stock',
+      mouvements: 'mouvements',
       achats: 'achats',
       lignes_achat: 'lignes_achat',
       inventaires: 'inventaires',
@@ -666,4 +716,358 @@ export const store = {
     sql += `SET FOREIGN_KEY_CHECKS = 1;\n`;
     return sql;
   },
+
+  restoreSQL: (sqlContent: string): { success: boolean; message: string; totalRecords: number; details: Record<string, number> } => {
+    if (!sqlContent || typeof sqlContent !== 'string' || sqlContent.trim() === '') {
+      throw new Error('Le fichier SQL est vide ou invalide.');
+    }
+
+    // 1. Si API MySQL configurée (WAMP), envoyer le script SQL à MySQL
+    if (isApiConfigured()) {
+      try {
+        sendXml(`<request action="restore"><sql>${escapeXml(sqlContent)}</sql></request>`);
+      } catch (error) {
+        if (isForcedApi()) {
+          throw new Error(errorMessage(error));
+        }
+      }
+    }
+
+    // 2. Parser le contenu SQL pour restaurer les données dans l'application
+    const parsed = parseSqlInsertStatements(sqlContent);
+    const tableKeys = Object.keys(parsed);
+
+    // Supprimer tous les fichiers / données de la base avant restauration
+    const ALL_DATASETS: DatasetName[] = [
+      'societe', 'personnel', 'familles', 'articles', 'tables',
+      'clients', 'fournisseurs', 'ventes', 'lignes_vente',
+      'paiements', 'clotures', 'mouvements', 'achats',
+      'lignes_achat', 'inventaires', 'lignes_inventaire', 'consommations'
+    ];
+    ALL_DATASETS.forEach(d => {
+      try {
+        localStorage.removeItem(`barpos_${d}`);
+        setLocalDataset(d, []);
+      } catch (_) {}
+    });
+    try {
+      localStorage.removeItem('barpos_ouverture_session');
+      localStorage.removeItem('barpos_ouvertures_history');
+      localStorage.removeItem('barpos_seeded_3months_v2');
+      localStorage.removeItem('barpos_seeded_3months_sales');
+    } catch (_) {}
+
+    const TABLE_TO_DATASET: Record<string, DatasetName> = {
+      societe: 'societe',
+      personnel: 'personnel',
+      familles: 'familles',
+      articles: 'articles',
+      tables_resto: 'tables',
+      tables: 'tables',
+      clients: 'clients',
+      fournisseurs: 'fournisseurs',
+      ventes: 'ventes',
+      lignes_vente: 'lignes_vente',
+      paiements: 'paiements',
+      clotures: 'clotures',
+      mouvements: 'mouvements',
+      mouvements_stock: 'mouvements',
+      achats: 'achats',
+      lignes_achat: 'lignes_achat',
+      inventaires: 'inventaires',
+      lignes_inventaire: 'lignes_inventaire',
+      consommations: 'consommations',
+    };
+
+    const details: Record<string, number> = {};
+    let totalRecords = 0;
+
+    tableKeys.forEach(table => {
+      const dataset = TABLE_TO_DATASET[table.toLowerCase()];
+      if (!dataset) return;
+      const rawRows = parsed[table];
+      if (!rawRows || rawRows.length === 0) return;
+
+      const formatted = rawRows.map(row => formatRowForDataset(row, dataset));
+      setLocalDataset(dataset, formatted);
+      details[dataset] = (details[dataset] || 0) + formatted.length;
+      totalRecords += formatted.length;
+    });
+
+    // S'assurer que les tables minimales requises existent
+    if (!details['societe']) {
+      setLocalDataset('societe', [SEED_SOCIETE]);
+    }
+    if (!details['personnel'] || safeRead<Personnel>('personnel', []).length === 0) {
+      setLocalDataset('personnel', SEED_PERSONNEL);
+    }
+    if (!details['familles'] || safeRead<Famille>('familles', []).length === 0) {
+      setLocalDataset('familles', SEED_FAMILLES);
+    }
+
+    // Mettre à jour la session courante si l'utilisateur existe dans le personnel restauré
+    const currentSession = store.getSession();
+    const restoredPersonnel = safeRead<Personnel>('personnel', []);
+    if (currentSession && restoredPersonnel.length > 0) {
+      const match = restoredPersonnel.find(
+        p => p.IDPERSONNEL === currentSession.IDPERSONNEL || p.LOGIN.toLowerCase() === currentSession.LOGIN.toLowerCase()
+      );
+      if (match) {
+        store.setSession(match);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('barpos-data-updated'));
+      window.dispatchEvent(new CustomEvent('barpos-articles-updated'));
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    return {
+      success: true,
+      message: `Restauration effectuée avec succès ! ${totalRecords} enregistrements importés.`,
+      totalRecords,
+      details,
+    };
+  },
 };
+
+function parseSqlInsertStatements(sql: string): Record<string, Record<string, unknown>[]> {
+  const result: Record<string, Record<string, unknown>[]> = {};
+  let i = 0;
+  const n = sql.length;
+
+  while (i < n) {
+    // Commentaires en ligne -- ou #
+    if ((sql[i] === '-' && sql[i + 1] === '-') || sql[i] === '#') {
+      while (i < n && sql[i] !== '\n') i++;
+      continue;
+    }
+    // Commentaires en bloc /* */
+    if (sql[i] === '/' && sql[i + 1] === '*') {
+      i += 2;
+      while (i < n && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    // Espaces
+    if (/\s/.test(sql[i])) {
+      i++;
+      continue;
+    }
+
+    // Détection INSERT INTO ou INSERT
+    if (sql.substring(i, i + 6).toUpperCase() === 'INSERT') {
+      i += 6;
+      while (i < n && /\s/.test(sql[i])) i++;
+      if (sql.substring(i, i + 4).toUpperCase() === 'INTO') {
+        i += 4;
+        while (i < n && /\s/.test(sql[i])) i++;
+      }
+
+      // Nom de table
+      let tableName = '';
+      if (sql[i] === '`' || sql[i] === '"' || sql[i] === "'") {
+        const quote = sql[i++];
+        while (i < n && sql[i] !== quote) {
+          tableName += sql[i++];
+        }
+        i++;
+      } else {
+        while (i < n && /[a-zA-Z0-9_]/.test(sql[i])) {
+          tableName += sql[i++];
+        }
+      }
+
+      while (i < n && /\s/.test(sql[i])) i++;
+
+      // Colonnes si présentes : (col1, col2, ...)
+      let columns: string[] = [];
+      if (sql[i] === '(') {
+        i++;
+        let colStr = '';
+        while (i < n && sql[i] !== ')') {
+          colStr += sql[i++];
+        }
+        if (sql[i] === ')') i++;
+        columns = colStr
+          .split(',')
+          .map(c => c.trim().replace(/^[`"']|[`"']$/g, ''))
+          .filter(Boolean);
+      }
+
+      while (i < n && /\s/.test(sql[i])) i++;
+
+      // VALUES ou VALUE
+      if (sql.substring(i, i + 6).toUpperCase() === 'VALUES') {
+        i += 6;
+      } else if (sql.substring(i, i + 5).toUpperCase() === 'VALUE') {
+        i += 5;
+      }
+
+      const tableKey = tableName.toLowerCase();
+      if (!result[tableKey]) {
+        result[tableKey] = [];
+      }
+
+      // Lecture des tuples (v1, v2), (v3, v4)...
+      while (i < n) {
+        while (i < n && (/\s/.test(sql[i]) || sql[i] === ',')) i++;
+        if (sql[i] !== '(') {
+          if (sql[i] === ';') i++;
+          break;
+        }
+        i++; // Sauter '('
+
+        const rowValues: unknown[] = [];
+        while (i < n && sql[i] !== ')') {
+          while (i < n && /\s/.test(sql[i])) i++;
+          if (sql[i] === ')') break;
+
+          if (sql[i] === "'" || sql[i] === '"') {
+            const quote = sql[i++];
+            let str = '';
+            while (i < n) {
+              if (sql[i] === '\\') {
+                i++;
+                if (i < n) {
+                  const esc = sql[i++];
+                  if (esc === 'n') str += '\n';
+                  else if (esc === 'r') str += '\r';
+                  else if (esc === 't') str += '\t';
+                  else str += esc;
+                }
+              } else if (sql[i] === quote) {
+                if (sql[i + 1] === quote) {
+                  str += quote;
+                  i += 2;
+                } else {
+                  i++; // Fin de chaîne
+                  break;
+                }
+              } else {
+                str += sql[i++];
+              }
+            }
+            rowValues.push(str);
+          } else {
+            let token = '';
+            while (i < n && sql[i] !== ',' && sql[i] !== ')' && !/\s/.test(sql[i])) {
+              token += sql[i++];
+            }
+            token = token.trim();
+            const upperToken = token.toUpperCase();
+            if (upperToken === 'NULL') {
+              rowValues.push(null);
+            } else if (upperToken === 'TRUE') {
+              rowValues.push(true);
+            } else if (upperToken === 'FALSE') {
+              rowValues.push(false);
+            } else if (!isNaN(Number(token)) && token !== '') {
+              rowValues.push(Number(token));
+            } else {
+              rowValues.push(token);
+            }
+          }
+
+          while (i < n && /\s/.test(sql[i])) i++;
+          if (sql[i] === ',') i++;
+        }
+
+        if (sql[i] === ')') i++;
+
+        if (columns.length > 0) {
+          const rowObj: Record<string, unknown> = {};
+          for (let c = 0; c < columns.length; c++) {
+            rowObj[columns[c]] = rowValues[c] !== undefined ? rowValues[c] : null;
+          }
+          result[tableKey].push(rowObj);
+        }
+
+        while (i < n && /\s/.test(sql[i])) i++;
+        if (sql[i] === ',') {
+          continue;
+        } else if (sql[i] === ';') {
+          i++;
+          break;
+        } else {
+          break;
+        }
+      }
+      continue;
+    }
+
+    i++;
+  }
+
+  return result;
+}
+
+function formatRowForDataset(row: Record<string, unknown>, dataset: DatasetName): Row {
+  const result: Row = {};
+
+  const BOOLEAN_COLUMNS = new Set([
+    'ACTIF', 'GERE_STOCK', 'SAISIE_PRIX_VENTE', 'ALERTE_STOCK',
+    'NE_PLUS_VENDRE', 'UTILISER_IMPRIMANTE', 'CLOTUREE', 'VALIDE', 'CHECKED'
+  ]);
+
+  const NUMERIC_COLUMNS = new Set([
+    'IDARTICLE', 'IDFAMILLE', 'STOCK', 'STOCK_MIN', 'PRIX_ACHAT', 'PRIX_VENTE',
+    'IDTABLE', 'NUMERO', 'PLACES', 'IDCAISSIER', 'IDPERSONNEL', 'IDCLIENT',
+    'CREDIT_TOTAL', 'IDFOURNISSEUR', 'IDVENTE', 'TOTAL', 'REMISE', 'IDCLOTURE',
+    'TOTAL_VENTES', 'TOTAL_REMISES', 'TOTAL_ESPECES', 'TOTAL_MOBILE', 'TOTAL_CREDIT',
+    'TOTAL_REMBOURSEMENTS', 'NB_VENTES', 'IDLIGNEVENTE', 'QUANTITE', 'PRIX_UNITAIRE',
+    'MONTANT', 'IDPAIEMENT', 'IDMOUVEMENT', 'IDACHAT', 'IDLIGNEACHAT', 'IDINVENTAIRE',
+    'STOCK_THEORIQUE', 'STOCK_PHYSIQUE', 'ECART', 'IDLIGNEINVENTAIRE', 'IDCONSOMMATION',
+    'ORDRE'
+  ]);
+
+  Object.entries(row).forEach(([col, val]) => {
+    let key = col.toUpperCase();
+    if (col.toLowerCase() === 'type_mouvement') key = 'TYPE';
+    if (col.toLowerCase() === 'nom_client') key = 'NOM_CLIENT';
+    if (col.toLowerCase() === 'prix_achat') key = 'PRIX_ACHAT';
+    if (col.toLowerCase() === 'prix_vente') key = 'PRIX_VENTE';
+    if (col.toLowerCase() === 'date_mouvement') key = 'DATE_MOUVEMENT';
+    if (col.toLowerCase() === 'date_vente') key = 'DATE_VENTE';
+    if (col.toLowerCase() === 'date_achat') key = 'DATE_ACHAT';
+    if (col.toLowerCase() === 'date_inventaire') key = 'DATE_INVENTAIRE';
+    if (col.toLowerCase() === 'date_cloture') key = 'DATE_CLOTURE';
+    if (col.toLowerCase() === 'date_paiement') key = 'DATE_PAIEMENT';
+    if (col.toLowerCase() === 'date_creation') key = 'DATE_CREATION';
+    if (col.toLowerCase() === 'numero_facture') key = 'NUMERO_FACTURE';
+    if (col.toLowerCase() === 'credit_total') key = 'CREDIT_TOTAL';
+
+    if (BOOLEAN_COLUMNS.has(key)) {
+      result[key] = val === 1 || val === '1' || val === true || val === 'true';
+    } else if (NUMERIC_COLUMNS.has(key)) {
+      if (val === null || val === undefined || val === '') {
+        const nullableIds = ['IDTABLE', 'IDCAISSIER', 'IDCLIENT', 'IDCLOTURE', 'IDFOURNISSEUR'];
+        result[key] = nullableIds.includes(key) ? null : 0;
+      } else {
+        result[key] = Number(val) || 0;
+      }
+    } else {
+      result[key] = val === null ? null : (typeof val === 'string' ? val : String(val));
+    }
+  });
+
+  if (dataset === 'societe') {
+    if (!result.NOM) result.NOM = 'Bar POS';
+    if (!result.ADRESSE) result.ADRESSE = 'Antananarivo, Madagascar';
+    if (!result.TELEPHONE) result.TELEPHONE = '034 00 000 00';
+    if (!result.LOGO_EMOJI) result.LOGO_EMOJI = '🍺';
+    if (!result.LOGO_TYPE) result.LOGO_TYPE = 'emoji';
+    if (result.UTILISER_IMPRIMANTE === undefined) result.UTILISER_IMPRIMANTE = true;
+  }
+  if (dataset === 'articles') {
+    if (result.ACTIF === undefined) result.ACTIF = true;
+    if (result.GERE_STOCK === undefined) result.GERE_STOCK = true;
+  }
+  if (dataset === 'personnel') {
+    if (result.ACTIF === undefined) result.ACTIF = true;
+    if (!result.MOT_DE_PASSE) result.MOT_DE_PASSE = 'admin123';
+  }
+
+  return result;
+}

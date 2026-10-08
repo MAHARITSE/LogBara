@@ -120,6 +120,24 @@ export interface Paiement {
   IDCLOTURE?: number | null;
 }
 
+export interface DotationArticle {
+  IDARTICLE: number;
+  NOM: string;
+  QUANTITE: number;
+}
+
+export interface OuvertureCaisse {
+  IDOUVERTURE: number;
+  DATE_OUVERTURE: string;
+  HEURE_OUVERTURE: string;
+  IDPERSONNEL: number;
+  NOM_PERSONNEL: string;
+  FOND_DE_CAISSE: number;
+  DOTATIONS: DotationArticle[];
+  OBSERVATION?: string;
+  ACTIVE: boolean;
+}
+
 export interface Cloture {
   IDCLOTURE: number;
   DATE_CLOTURE: string;

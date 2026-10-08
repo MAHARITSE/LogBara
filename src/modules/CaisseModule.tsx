@@ -1,16 +1,21 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle, KeyRound } from 'lucide-react';
 import { store } from '../store';
-import { Personnel, CartItem, TableR } from '../types';
-import { formatAr, today, nowTime, nextId, generateFactureNum } from '../helpers';
+import { Personnel, CartItem, TableR, Client } from '../types';
+import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
 import { printTicket } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 import MoneyInput from '../components/MoneyInput';
+import OuvertureCaisseModal from '../components/OuvertureCaisseModal';
+import StockDotationViewModal from '../components/StockDotationViewModal';
 
-interface Props { user: Personnel }
-type PaymentMode = 'Espèces' | 'Mobile Money' | 'Mixte';
+interface Props { 
+  user: Personnel;
+  onLogout?: () => void;
+}
+type PaymentMode = 'Espèces' | 'Mobile Money' | 'Mixte' | 'Crédit';
 
-export default function CaisseModule({ user }: Props) {
+export default function CaisseModule({ user, onLogout }: Props) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [remise, setRemise] = useState(0);
   const [selectedFamily, setSelectedFamily] = useState<number | null | 'rupture'>(null);
@@ -22,11 +27,24 @@ export default function CaisseModule({ user }: Props) {
   const [montantRecu, setMontantRecu] = useState('');
   const [mixteEspeces, setMixteEspeces] = useState(0);
   const [mixteMobile, setMixteMobile] = useState(0);
+  const [mixteCredit, setMixteCredit] = useState(0);
+  const [selectedClient, setSelectedClient] = useState<number | null>(null);
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientNom, setNewClientNom] = useState('');
+  const [newClientTel, setNewClientTel] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const [mobileTab, setMobileTab] = useState<'articles' | 'panier'>('articles');
   const [toast, setToast] = useState('');
   const [rk, setRk] = useState(0);
   const [showAlertModal, setShowAlertModal] = useState(false);
+  const [showOuvertureModal, setShowOuvertureModal] = useState(false);
+  const [showDotationViewModal, setShowDotationViewModal] = useState(false);
+
+  const activeOuverture = useMemo(() => {
+    return store.getOuvertureSession(user.ROLE === 'Caissier' ? user.IDPERSONNEL : undefined);
+  }, [rk, user]);
+
+  const canGrantCredit = true; // Permettre le paiement à crédit lors de l'encaissement en caisse pour tous les caissiers/utilisateurs
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -43,6 +61,13 @@ export default function CaisseModule({ user }: Props) {
       window.removeEventListener('focus', handleUpdate);
     };
   }, []);
+
+  // Forcer l'ouverture de caisse si aucune session active et aucune vente en cours dans le panier
+  useEffect(() => {
+    if (!activeOuverture && cart.length === 0) {
+      setShowOuvertureModal(true);
+    }
+  }, [activeOuverture, cart.length]);
 
   const familles = store.getFamilles();
   const articles = useMemo(() => store.getArticles(), [rk]);
@@ -132,6 +157,11 @@ export default function CaisseModule({ user }: Props) {
   const monnaie = Number(montantRecu) - netAPayer;
 
   const addToCart = (artId: number) => {
+    if (!activeOuverture) {
+      showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
+      setShowOuvertureModal(true);
+      return;
+    }
     const art = articles.find(a => a.IDARTICLE === artId);
     if (!art) return;
     if (art.GERE_STOCK && art.STOCK <= 0) { showMsg('Stock insuffisant !'); return; }
@@ -161,6 +191,11 @@ export default function CaisseModule({ user }: Props) {
 
   // === RÈGLE 2 : Envoyer = AJOUTER à la table (pas remplacer) ===
   const handleSendToTable = () => {
+    if (!activeOuverture) {
+      showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
+      setShowOuvertureModal(true);
+      return;
+    }
     if (!selectedTable || cart.length === 0) return;
 
     const allConso = store.getConsommations();
@@ -220,9 +255,21 @@ export default function CaisseModule({ user }: Props) {
   const setRefreshKey = () => setRk(k => k + 1);
 
   const openPayment = () => {
+    if (!activeOuverture) {
+      showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
+      setShowOuvertureModal(true);
+      return;
+    }
     if (rienAPayer) return;
     if (mode === 'table' && !selectedTable) { showMsg('Choisissez une table (ou passez en mode Comptoir)'); return; }
     setMontantRecu(String(Math.max(0, total - remise)));
+    setPaymentMode('Espèces');
+    setMixteEspeces(0);
+    setMixteMobile(0);
+    setMixteCredit(0);
+    setShowNewClientForm(false);
+    const existingClients = store.getClients();
+    setSelectedClient(existingClients.length > 0 ? existingClients[0].IDCLIENT : null);
     setShowPayment(true);
   };
 
@@ -233,7 +280,6 @@ export default function CaisseModule({ user }: Props) {
     const ventes = store.getVentes();
     const lignesVente = store.getLignesVente();
     const paiements = store.getPaiements();
-    const articlesList = store.getArticles();
 
     const idVente = nextId(ventes, 'IDVENTE');
     const numeroFacture = generateFactureNum('VTE', idVente);
@@ -252,11 +298,89 @@ export default function CaisseModule({ user }: Props) {
     const newPaiements: typeof paiements = [];
     const nap = total - remise;
 
-    if (paymentMode === 'Mixte') {
-      const partEspeces = Math.min(mixteEspeces, nap);
-      const partMobile = Math.max(0, nap - partEspeces);
-      if (partEspeces > 0) newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: partEspeces, MODE_PAIEMENT: 'Espèces' });
-      if (partMobile > 0) newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: partMobile, MODE_PAIEMENT: 'Mobile Money' });
+    if (paymentMode === 'Crédit') {
+      if (!selectedClient) {
+        showMsg('Veuillez choisir un client pour le crédit.');
+        return;
+      }
+      const clientObj = store.getClients().find(c => c.IDCLIENT === selectedClient);
+      if (!clientObj) {
+        showMsg('Client introuvable.');
+        return;
+      }
+      newPaiements.push({
+        IDPAIEMENT: idPaiement++,
+        DATE_PAIEMENT: today(),
+        HEURE: nowTime(),
+        IDVENTE: idVente,
+        IDPERSONNEL: user.IDPERSONNEL,
+        MONTANT: nap,
+        MODE_PAIEMENT: 'Crédit',
+        IDCLIENT: selectedClient,
+      });
+
+      // Mettre à jour le solde de crédit du client
+      const allClients = store.getClients();
+      const updatedClients = allClients.map(c =>
+        c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + nap } : c
+      );
+      store.setClients(updatedClients);
+    } else if (paymentMode === 'Mixte') {
+      if (mixteCredit > 0) {
+        if (!selectedClient) {
+          showMsg('Veuillez choisir un client pour la partie à crédit.');
+          return;
+        }
+        const clientObj = store.getClients().find(c => c.IDCLIENT === selectedClient);
+        if (!clientObj) {
+          showMsg('Client introuvable.');
+          return;
+        }
+      }
+
+      if (mixteEspeces > 0) {
+        newPaiements.push({
+          IDPAIEMENT: idPaiement++,
+          DATE_PAIEMENT: today(),
+          HEURE: nowTime(),
+          IDVENTE: idVente,
+          IDPERSONNEL: user.IDPERSONNEL,
+          MONTANT: mixteEspeces,
+          MODE_PAIEMENT: 'Espèces',
+        });
+      }
+
+      if (mixteMobile > 0) {
+        newPaiements.push({
+          IDPAIEMENT: idPaiement++,
+          DATE_PAIEMENT: today(),
+          HEURE: nowTime(),
+          IDVENTE: idVente,
+          IDPERSONNEL: user.IDPERSONNEL,
+          MONTANT: mixteMobile,
+          MODE_PAIEMENT: 'Mobile Money',
+        });
+      }
+
+      if (mixteCredit > 0 && selectedClient) {
+        newPaiements.push({
+          IDPAIEMENT: idPaiement++,
+          DATE_PAIEMENT: today(),
+          HEURE: nowTime(),
+          IDVENTE: idVente,
+          IDPERSONNEL: user.IDPERSONNEL,
+          MONTANT: mixteCredit,
+          MODE_PAIEMENT: 'Crédit',
+          IDCLIENT: selectedClient,
+        });
+
+        // Mettre à jour le solde de crédit du client
+        const allClients = store.getClients();
+        const updatedClients = allClients.map(c =>
+          c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + mixteCredit } : c
+        );
+        store.setClients(updatedClients);
+      }
     } else {
       newPaiements.push({ IDPAIEMENT: idPaiement++, DATE_PAIEMENT: today(), HEURE: nowTime(), IDVENTE: idVente, IDPERSONNEL: user.IDPERSONNEL, MONTANT: nap, MODE_PAIEMENT: paymentMode });
     }
@@ -294,7 +418,6 @@ export default function CaisseModule({ user }: Props) {
     store.setVentes([...ventes, newVente]);
     store.setLignesVente([...lignesVente, ...newLignes]);
     store.setPaiements([...paiements, ...newPaiements]);
-    store.setArticles(updatedArticles);
 
     if (selectedTable) {
       const ft = store.getTables();
@@ -302,6 +425,7 @@ export default function CaisseModule({ user }: Props) {
       store.setConsommations(store.getConsommations().filter(c => c.IDTABLE !== selectedTable.IDTABLE));
     }
 
+    const clientObj = selectedClient ? store.getClients().find(c => c.IDCLIENT === selectedClient) : null;
     const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printTicket(`
       <div class="center bold">TICKET DE CAISSE</div>
@@ -315,12 +439,12 @@ export default function CaisseModule({ user }: Props) {
       ${remise > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(remise)}</span></div>` : ''}
       <div class="row bold"><span>TOTAL</span><span>${formatAr(nap)}</span></div>
       <div class="line"></div>
-      <div class="row"><span>Mode</span><span>${paymentMode}</span></div>
+      <div class="row"><span>Mode</span><span>${paymentMode}${paymentMode === 'Crédit' && clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span></div>
       ${paymentMode === 'Espèces' && Number(montantRecu) > nap ? `<div class="row"><span>Reçu</span><span>${formatAr(Number(montantRecu))}</span></div><div class="row"><span>Monnaie</span><span>${formatAr(monnaie)}</span></div>` : ''}
       ${paymentMode === 'Mixte' ? `<div class="row"><span>Espèces</span><span>${formatAr(mixteEspeces)}</span></div><div class="row"><span>Mobile Money</span><span>${formatAr(mixteMobile)}</span></div>` : ''}
     `, false, user.IDPERSONNEL);
 
-    setCart([]); setRemise(0); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setMixteEspeces(0); setMixteMobile(0); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); setMobileTab('articles'); showMsg('Vente enregistrée !');
+    setCart([]); setRemise(0); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setMixteEspeces(0); setMixteMobile(0); setSelectedClient(null); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); setMobileTab('articles'); showMsg('Vente enregistrée !');
   };
 
   const cartTotalQty = cart.reduce((s, c) => s + c.QUANTITE, 0);
@@ -523,6 +647,36 @@ export default function CaisseModule({ user }: Props) {
 
       {/* Grille articles */}
       <div className={`flex-1 flex-col min-w-0 ${mobileTab === 'articles' ? 'flex' : 'hidden lg:flex'}`}>
+        {/* Banner Ouverture de Caisse & Stock Dotation */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-3.5 mb-3 flex flex-wrap items-center justify-between gap-2.5">
+          {activeOuverture ? (
+            <div className="flex items-center gap-2.5 text-sm">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <div>
+                <span className="font-extrabold text-gray-900">Caisse Ouverte</span>
+                <span className="text-gray-500 text-xs ml-2 hidden sm:inline">
+                  (depuis {activeOuverture.HEURE_OUVERTURE} par {activeOuverture.NOM_PERSONNEL}{activeOuverture.FOND_DE_CAISSE > 0 ? ` — Fond: ${formatAr(activeOuverture.FOND_DE_CAISSE)}` : ''})
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between w-full gap-2">
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+                <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                <span className="font-bold">Caisse non ouverte</span>
+                <span className="text-xs text-amber-700 hidden md:inline">— L'ouverture de caisse est obligatoire avant de réaliser des opérations.</span>
+              </div>
+              <button
+                onClick={() => setShowOuvertureModal(true)}
+                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
+              >
+                <KeyRound size={16} />
+                <span>Ouvrir la caisse</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 mb-3">
           <div className="flex gap-2 sm:gap-3 items-center">
             <div className="relative flex-1">
@@ -727,20 +881,129 @@ export default function CaisseModule({ user }: Props) {
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-700 mb-2 block">Mode de paiement</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['Espèces', 'Mobile Money', 'Mixte'] as PaymentMode[]).map(m => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(['Espèces', 'Mobile Money', 'Mixte', 'Crédit'] as PaymentMode[]).map(m => (
                     <button 
                       key={m} 
-                      onClick={() => { setPaymentMode(m); if (m === 'Espèces') setMontantRecu(String(netAPayer)); }} 
+                      type="button"
+                      onClick={() => {
+                        setPaymentMode(m);
+                        if (m === 'Espèces') setMontantRecu(String(netAPayer));
+                        if (m === 'Crédit') {
+                          const existingClients = store.getClients();
+                          if (existingClients.length > 0 && !selectedClient) {
+                            setSelectedClient(existingClients[0].IDCLIENT);
+                          }
+                        }
+                      }} 
                       className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[44px] ${
                         paymentMode === m ? 'bg-[#0D47A1] text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      {m}
+                      {m === 'Crédit' ? '📝 Crédit' : m}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Choix et gestion du client si mode Crédit */}
+              {paymentMode === 'Crédit' && canGrantCredit && (
+                <div className="space-y-3 bg-amber-50/80 border border-amber-200 rounded-2xl p-4 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                      👤 Client à créditer <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewClientForm(!showNewClientForm)}
+                      className="text-xs font-bold text-[#0D47A1] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {showNewClientForm ? '✕ Annuler' : '＋ Nouveau client'}
+                    </button>
+                  </div>
+
+                  {showNewClientForm ? (
+                    <div className="space-y-2.5 bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                      <p className="text-xs font-bold text-gray-800">Ajouter un nouveau client :</p>
+                      <input
+                        type="text"
+                        placeholder="Nom du client (ex: M. Rakoto)"
+                        value={newClientNom}
+                        onChange={e => setNewClientNom(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Téléphone (ex: 034 00 000 00)"
+                        value={newClientTel}
+                        onChange={e => setNewClientTel(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newClientNom.trim()) { showMsg('Nom du client requis'); return; }
+                          const currentClients = store.getClients();
+                          const newId = nextId(currentClients, 'IDCLIENT');
+                          const created: Client = {
+                            IDCLIENT: newId,
+                            NOM_CLIENT: capitalize(newClientNom.trim()),
+                            TELEPHONE: newClientTel.trim(),
+                            ADRESSE: '',
+                            CREDIT_TOTAL: 0,
+                            DATE_CREATION: today(),
+                          };
+                          store.setClients([...currentClients, created]);
+                          setSelectedClient(newId);
+                          setShowNewClientForm(false);
+                          setNewClientNom('');
+                          setNewClientTel('');
+                          showMsg(`Client ${created.NOM_CLIENT} créé !`);
+                        }}
+                        className="w-full bg-[#0D47A1] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#1565C0] cursor-pointer"
+                      >
+                        Enregistrer & Sélectionner
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {store.getClients().length === 0 ? (
+                        <p className="text-xs text-amber-800 italic">
+                          Aucun client enregistré. Cliquez sur « Nouveau client » ci-dessus.
+                        </p>
+                      ) : (
+                        <select
+                          value={selectedClient || ''}
+                          onChange={e => setSelectedClient(Number(e.target.value) || null)}
+                          className="w-full px-3 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold bg-white focus:ring-2 focus:ring-[#0D47A1]"
+                        >
+                          <option value="">-- Sélectionner le client --</option>
+                          {store.getClients().map(c => (
+                            <option key={c.IDCLIENT} value={c.IDCLIENT}>
+                              {c.NOM_CLIENT} {c.TELEPHONE ? `(${c.TELEPHONE})` : ''} — Crédit actuel: {formatAr(c.CREDIT_TOTAL)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {selectedClient && (() => {
+                        const clientObj = store.getClients().find(c => c.IDCLIENT === selectedClient);
+                        if (!clientObj) return null;
+                        return (
+                          <div className="mt-2 text-xs bg-white p-2.5 rounded-xl border border-amber-200 space-y-1 text-gray-700">
+                            <p><span className="font-bold">Client :</span> {clientObj.NOM_CLIENT}</p>
+                            <p><span className="font-bold">Crédit actuel :</span> {formatAr(clientObj.CREDIT_TOTAL)}</p>
+                            <p className="font-bold text-amber-900">
+                              Nouveau solde après cette vente : {formatAr(clientObj.CREDIT_TOTAL + netAPayer)}
+                            </p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {paymentMode === 'Espèces' && (
                 <div>
                   <label className="text-sm font-semibold text-gray-700 mb-2 block">Montant reçu</label>
@@ -777,11 +1040,126 @@ export default function CaisseModule({ user }: Props) {
                       placeholder="0"
                     />
                   </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 mb-1 block flex items-center justify-between">
+                      <span>Montant Crédit</span>
+                      <span className="text-[11px] text-amber-700 font-normal">📝 Achat à crédit partiel</span>
+                    </label>
+                    <MoneyInput
+                      value={mixteCredit}
+                      onChange={val => {
+                        setMixteCredit(val);
+                        if (val > 0) {
+                          const existingClients = store.getClients();
+                          if (existingClients.length > 0 && !selectedClient) {
+                            setSelectedClient(existingClients[0].IDCLIENT);
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 rounded-xl border text-base font-bold text-center focus:ring-2 focus:ring-[#0D47A1]"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  {/* Sélection du client si la part crédit est supérieure à 0 */}
+                  {mixteCredit > 0 && (
+                    <div className="space-y-2.5 bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                          👤 Client à créditer pour la part crédit <span className="text-red-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowNewClientForm(!showNewClientForm)}
+                          className="text-xs font-bold text-[#0D47A1] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          {showNewClientForm ? '✕ Annuler' : '＋ Nouveau client'}
+                        </button>
+                      </div>
+
+                      {showNewClientForm ? (
+                        <div className="space-y-2 bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                          <p className="text-xs font-bold text-gray-800">Nouveau client :</p>
+                          <input
+                            type="text"
+                            placeholder="Nom du client"
+                            value={newClientNom}
+                            onChange={e => setNewClientNom(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                          />
+                          <input
+                            type="tel"
+                            placeholder="Téléphone"
+                            value={newClientTel}
+                            onChange={e => setNewClientTel(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newClientNom.trim()) { showMsg('Nom du client requis'); return; }
+                              const currentClients = store.getClients();
+                              const newId = nextId(currentClients, 'IDCLIENT');
+                              const created: Client = {
+                                IDCLIENT: newId,
+                                NOM_CLIENT: capitalize(newClientNom.trim()),
+                                TELEPHONE: newClientTel.trim(),
+                                ADRESSE: '',
+                                CREDIT_TOTAL: 0,
+                                DATE_CREATION: today(),
+                              };
+                              store.setClients([...currentClients, created]);
+                              setSelectedClient(newId);
+                              setShowNewClientForm(false);
+                              setNewClientNom('');
+                              setNewClientTel('');
+                              showMsg(`Client ${created.NOM_CLIENT} créé !`);
+                            }}
+                            className="w-full bg-[#0D47A1] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#1565C0] cursor-pointer"
+                          >
+                            Enregistrer & Sélectionner
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {store.getClients().length === 0 ? (
+                            <p className="text-xs text-amber-800 italic">
+                              Aucun client enregistré. Cliquez sur « Nouveau client » ci-dessus.
+                            </p>
+                          ) : (
+                            <select
+                              value={selectedClient || ''}
+                              onChange={e => setSelectedClient(Number(e.target.value) || null)}
+                              className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-[#0D47A1]"
+                            >
+                              <option value="">-- Sélectionner le client --</option>
+                              {store.getClients().map(c => (
+                                <option key={c.IDCLIENT} value={c.IDCLIENT}>
+                                  {c.NOM_CLIENT} {c.TELEPHONE ? `(${c.TELEPHONE})` : ''} — Crédit actuel: {formatAr(c.CREDIT_TOTAL)}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          {selectedClient && (() => {
+                            const clientObj = store.getClients().find(c => c.IDCLIENT === selectedClient);
+                            if (!clientObj) return null;
+                            return (
+                              <p className="mt-1.5 text-xs font-bold text-amber-900">
+                                Nouveau solde crédit du client : {formatAr(clientObj.CREDIT_TOTAL + mixteCredit)}
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="p-3 rounded-xl bg-gray-50 border text-xs sm:text-sm text-center">
-                    {mixteEspeces + mixteMobile < netAPayer ? (
-                      <p className="text-red-500 font-bold">Reste à régler : {formatAr(netAPayer - (mixteEspeces + mixteMobile))}</p>
-                    ) : mixteEspeces + mixteMobile > netAPayer ? (
-                      <p className="text-green-600 font-extrabold">Monnaie à rendre : {formatAr((mixteEspeces + mixteMobile) - netAPayer)}</p>
+                    {(mixteEspeces + mixteMobile + mixteCredit) < netAPayer ? (
+                      <p className="text-red-500 font-bold">Reste à régler : {formatAr(netAPayer - (mixteEspeces + mixteMobile + mixteCredit))}</p>
+                    ) : (mixteEspeces + mixteMobile + mixteCredit) > netAPayer ? (
+                      <p className="text-green-600 font-extrabold">Monnaie à rendre : {formatAr((mixteEspeces + mixteMobile + mixteCredit) - netAPayer)}</p>
                     ) : (
                       <p className="text-green-600 font-bold">✓ Montant complet réglé</p>
                     )}
@@ -792,9 +1170,13 @@ export default function CaisseModule({ user }: Props) {
                 onClick={handlePayment}
                 disabled={
                   (paymentMode === 'Espèces' && Number(montantRecu) < netAPayer) ||
-                  (paymentMode === 'Mixte' && (mixteEspeces + mixteMobile) < netAPayer)
+                  (paymentMode === 'Mixte' && (
+                    (mixteEspeces + mixteMobile + mixteCredit) < netAPayer ||
+                    (mixteCredit > 0 && !selectedClient)
+                  )) ||
+                  (paymentMode === 'Crédit' && (!selectedClient || !canGrantCredit))
                 }
-                className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-extrabold text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-md min-h-[48px] active:scale-[0.98] transition-all"
+                className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-extrabold text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-md min-h-[48px] active:scale-[0.98] transition-all cursor-pointer"
               >
                 ✅ Valider le paiement
               </button>
@@ -881,6 +1263,37 @@ export default function CaisseModule({ user }: Props) {
       )}
 
       <ConfirmModal open={confirmClear} type="warning" title="Vider le panier" message="Voulez-vous vraiment vider le panier ?" confirmText="Oui, vider" cancelText="Non" onConfirm={clearCart} onCancel={() => setConfirmClear(false)} />
+
+      {/* Modals Ouverture & Dotation Caisse */}
+      <OuvertureCaisseModal
+        user={user}
+        isOpen={showOuvertureModal}
+        onClose={() => {
+          setShowOuvertureModal(false);
+          const currentSession = store.getOuvertureSession(user.ROLE === 'Caissier' ? user.IDPERSONNEL : undefined);
+          if (!currentSession) {
+            if (onLogout) {
+              onLogout();
+            } else {
+              store.logout();
+              window.location.reload();
+            }
+          }
+        }}
+        onSuccess={() => {
+          setRefreshKey();
+          showMsg('Ouverture de caisse enregistrée avec succès !');
+        }}
+      />
+
+      {activeOuverture && (
+        <StockDotationViewModal
+          user={user}
+          session={activeOuverture}
+          isOpen={showDotationViewModal}
+          onClose={() => setShowDotationViewModal(false)}
+        />
+      )}
     </div>
   );
 }

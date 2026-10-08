@@ -21,7 +21,7 @@ export const buildSocieteHeaderHtml = () => {
 };
 
 // Génère le HTML complet du ticket
-export const buildTicketHtml = (content: string) => {
+export const buildTicketHtml = (content: string, showFooter: boolean = true) => {
   const societe = store.getSociete();
   const headerHtml = buildSocieteHeaderHtml();
 
@@ -70,8 +70,7 @@ export const buildTicketHtml = (content: string) => {
     <body>
       ${headerHtml}
       ${content}
-      <div class="line"></div>
-      <div class="center small">Merci de votre visite !</div>
+      ${showFooter ? `<div class="line"></div><div class="center small">Merci de votre visite !</div>` : ''}
     </body>
     </html>
   `;
@@ -135,13 +134,50 @@ const executeDirectPrint = (html: string) => {
       } catch (err) {
         console.warn('Erreur impression iframe', err);
         cleanup();
-        openPrintPage(html);
+        openDirectPrintPopup(html);
       }
     }, 250);
   } catch (e) {
     console.warn('Erreur déclenchement impression directe', e);
-    openPrintPage(html);
+    openDirectPrintPopup(html);
   }
+};
+
+/**
+ * Impression directe via popup sans bandeau d'aperçu
+ */
+export const openDirectPrintPopup = (html: string) => {
+  try {
+    const printWindow = window.open('', '_blank', 'width=420,height=680');
+    if (printWindow) {
+      const autoPrintHtml = html.replace(
+        '</body>',
+        `<script>
+          window.onload = function() {
+            window.focus();
+            window.print();
+            window.onafterprint = function() { window.close(); };
+          };
+        </script></body>`
+      );
+      printWindow.document.open();
+      printWindow.document.write(autoPrintHtml);
+      printWindow.document.close();
+    } else {
+      globalToast('Impression bloquée. Veuillez autoriser les fenêtres popups.', 'warning');
+    }
+  } catch {
+    globalToast('Impression non disponible dans cet environnement', 'info');
+  }
+};
+
+/**
+ * Impression DIRECTE : envoie directement le ticket vers l'imprimante (kiosque / boîte système)
+ * sans ouvrir la fenêtre d'aperçu ni le bandeau « Aperçu du document ».
+ */
+export const printDirect = (content: string, showFooter: boolean = true) => {
+  const html = buildTicketHtml(content, showFooter);
+  executeDirectPrint(html);
 };
 
 /**
@@ -230,6 +266,18 @@ export const printPreview = (content: string) => {
  */
 export const printClotureTicket = (content: string, userId?: number, directPrint: boolean = false) => {
   const html = buildTicketHtml(content);
+  if (directPrint && store.isUserPrinterEnabled(userId)) {
+    executeDirectPrint(html);
+  } else {
+    openPreviewPage(html);
+  }
+};
+
+/**
+ * Impression du ticket d'OUVERTURE DE CAISSE & BON DE DOTATION STOCK
+ */
+export const printOuvertureTicket = (content: string, userId?: number, directPrint: boolean = false) => {
+  const html = buildTicketHtml(content, false);
   if (directPrint && store.isUserPrinterEnabled(userId)) {
     executeDirectPrint(html);
   } else {

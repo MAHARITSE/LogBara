@@ -106,14 +106,14 @@ function App() {
       case 'dashboard':
         return <DashboardModule user={user} />;
       case 'caisse':
-        return <CaisseModule user={user} />;
+        return <CaisseModule user={user} onLogout={handleLogout} />;
       case 'tables':
         return <TablesModule user={user} />;
       case 'ventes':
         return <VentesModule user={user} />;
       case 'paiements':
         if (user.ROLE !== 'Administrateur' && user.ROLE !== 'Gérant') {
-          return <CaisseModule user={user} />;
+          return <CaisseModule user={user} onLogout={handleLogout} />;
         }
         return <PaiementsModule user={user} />;
       case 'cloture':
@@ -134,7 +134,7 @@ function App() {
         return <ClientsModule user={user} />;
       case 'credits':
         if (user.ROLE !== 'Administrateur') {
-          return <CaisseModule user={user} />;
+          return <CaisseModule user={user} onLogout={handleLogout} />;
         }
         return <CreditsModule user={user} />;
       case 'personnel':

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Search, Package, Bell, BellOff, Upload, Image as ImageIcon, Ban, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Package, Bell, BellOff, Upload, Ban } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Article } from '../types';
 import { formatAr, nextId, capitalize } from '../helpers';

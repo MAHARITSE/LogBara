@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Search, Eye, Trash2, X, Printer, UtensilsCrossed } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Vente, CartItem } from '../types';
-import { formatAr, dateLabel, today } from '../helpers';
+import { formatAr, dateLabel, today, nextId, nowTime } from '../helpers';
 import { printPreview } from '../components/PrintTicket';
 import ConfirmModal from '../components/ConfirmModal';
 

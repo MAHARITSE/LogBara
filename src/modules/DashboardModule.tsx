@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { 
   TrendingUp, ShoppingCart, Users, Package, 
   AlertTriangle, DollarSign, CreditCard, Wallet,
-  FileSpreadsheet, Sparkles
+  FileSpreadsheet
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -19,7 +19,6 @@ interface Props {
 
 export default function DashboardModule({ user }: Props) {
   const [showExportModal, setShowExportModal] = useState(false);
-  const [toast, setToast] = useState('');
   const [dataVersion, setDataVersion] = useState(0);
 
   useEffect(() => {
@@ -33,17 +32,6 @@ export default function DashboardModule({ user }: Props) {
   const lignesVente = store.getLignesVente();
   const clients = store.getClients();
   const familles = store.getFamilles();
-
-  const showMsg = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
-
-  const handleGenerate3MonthsSales = () => {
-    const res = store.seedRandomSales(3, false);
-    setDataVersion(v => v + 1);
-    showMsg(`✅ ${res.countVentes} ventes générées sur 3 mois (${formatAr(res.totalCa)})`);
-  };
 
   const stats = useMemo(() => {
     const ventesAujourdhui = ventes.filter(v => v.DATE_VENTE === today() && v.STATUT === 'Payée');
@@ -113,19 +101,12 @@ export default function DashboardModule({ user }: Props) {
       topProduits,
       dernieresVentes,
     };
-  }, [ventes, articles, lignesVente, clients, familles]);
+  }, [ventes, articles, lignesVente, clients, familles, dataVersion]);
 
   const personnel = store.getPersonnel();
 
   return (
     <div className="space-y-6">
-      {toast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl z-50 font-bold text-sm flex items-center gap-2 animate-bounce">
-          <Sparkles size={18} />
-          <span>{toast}</span>
-        </div>
-      )}
-
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">📊 Tableau de bord</h1>

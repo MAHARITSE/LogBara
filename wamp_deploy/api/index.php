@@ -643,6 +643,43 @@ try {
         exit;
     }
 
+    if ($action === 'restore') {
+        if ($user['role'] !== 'Administrateur') {
+            xml_error('Seul un administrateur peut restaurer la base MySQL.');
+        }
+        $sql = '';
+        if (isset($request->sql)) {
+            $sql = (string) $request->sql;
+        } elseif (isset($request->content)) {
+            $sql = (string) $request->content;
+        }
+        if (trim($sql) === '') {
+            xml_error('Contenu du fichier SQL manquant ou invalide.');
+        }
+
+        // Supprimer toutes les données des tables avant restauration
+        try {
+            $pdo->exec('SET NAMES utf8mb4');
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+            $pdo->exec('DELETE FROM app_sessions');
+            foreach (array_reverse(barpos_backup_tables()) as $table) {
+                $pdo->exec('DELETE FROM ' . sql_identifier($table));
+            }
+        } catch (Throwable $ignore) {
+            // Continuation vers l'exécution du dump
+        }
+
+        // Exécuter le script SQL restauré
+        $pdo->exec('SET NAMES utf8mb4');
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+        $pdo->exec($sql);
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+
+        xml_success_start();
+        echo '<rows/></response>';
+        exit;
+    }
+
     xml_error('Action API inconnue.');
 } catch (PDOException $error) {
     $databaseName = isset($config['database']) ? (string) $config['database'] : 'logbara';
