@@ -52,7 +52,7 @@ if /i "%~1"=="-p" set "RESET_PRINTER=1"
 if defined RESET_PRINTER (
     if exist "%KIOSK_PROFILE%" (
         rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
-        echo Profil imprimante kiosque reinitialise (l'imprimante par defaut de Windows sera reprise).
+        echo Profil imprimante kiosque reinitialise.
         echo.
     )
 )

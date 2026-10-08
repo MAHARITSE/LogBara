@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Lock, AlertTriangle, Printer, Check } from 'lucide-react';
+import { Lock, AlertTriangle, Printer } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Cloture } from '../types';
 import { formatAr, today, nowTime, nextId } from '../helpers';
@@ -357,7 +357,7 @@ export default function ClotureModule({ user, onLogout }: Props) {
 
       <div class="row"><span>Nombre de ventes</span><span>${cloture.NB_VENTES}</span></div>
       <div class="row"><span>Total ventes</span><span>${formatAr(cloture.TOTAL_VENTES)}</span></div>
-      <div class="row"><span>Remises accordees</span><span>-${formatAr(cloture.TOTAL_REMISES)}</span></div>
+      ${cloture.TOTAL_REMISES > 0 ? `<div class="row"><span>Remises accordees</span><span>-${formatAr(cloture.TOTAL_REMISES)}</span></div>` : ''}
       <div class="line"></div>
 
       <div class="bold">Detail des paiements:</div>
@@ -522,13 +522,12 @@ export default function ClotureModule({ user, onLogout }: Props) {
       )}
 
       {alreadyClosed ? (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center space-y-4">
-          <Check size={48} className="mx-auto text-green-500 mb-2" />
-          <h2 className="text-xl font-bold text-green-700">Caisse déjà clôturée</h2>
-          <p className="text-green-600">Vous avez déjà effectué votre clôture aujourd'hui.</p>
-          <p className="text-sm text-green-700">
-            Une seule clôture par jour : la prochaine sera possible <b>demain</b>.
-            Vous pouvez continuer à vendre et à saisir des achats en attendant.
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center space-y-4">
+          <Lock size={48} className="mx-auto text-red-600 mb-2" />
+          <h2 className="text-xl font-bold text-red-700">Caisse clôturée pour aujourd'hui</h2>
+          <p className="text-red-600 font-medium">Vous avez déjà effectué votre clôture de caisse aujourd'hui.</p>
+          <p className="text-sm text-red-700 max-w-md mx-auto">
+            Accès verrouillé : aucune nouvelle vente ni opération ne peut être saisie sur ce compte aujourd'hui. La caisse pourra être réouverte <b>demain</b>.
           </p>
           {clotures.find(c => c.DATE_CLOTURE === today() && c.IDPERSONNEL === user.IDPERSONNEL) && (
             <button
@@ -541,29 +540,6 @@ export default function ClotureModule({ user, onLogout }: Props) {
               <Printer size={18} />
               Imprimer le ticket de clôture
             </button>
-          )}
-
-          {(stats.nbVentes > 0 || stats.achatsJour.length > 0 || stats.remboursements.length > 0) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mt-4">
-              <p className="font-semibold text-amber-800 flex items-center gap-2">
-                <AlertTriangle size={18} />
-                Opérations saisies après la clôture
-              </p>
-              <p className="text-sm text-amber-700 mt-1">
-                Elles ne modifient pas la clôture déjà faite : elles seront incluses dans la <b>prochaine clôture</b>.
-              </p>
-              <div className="mt-3 space-y-1 text-sm text-amber-900">
-                {stats.nbVentes > 0 && (
-                  <div className="flex justify-between"><span>🧾 {stats.nbVentes} vente{stats.nbVentes > 1 ? 's' : ''}</span><span className="font-semibold">{formatAr(stats.totalVentes)}</span></div>
-                )}
-                {stats.remboursements.length > 0 && (
-                  <div className="flex justify-between"><span>🔄 {stats.remboursements.length} remboursement{stats.remboursements.length > 1 ? 's' : ''}</span><span className="font-semibold">{formatAr(stats.totalRemboursements)}</span></div>
-                )}
-                {stats.achatsJour.length > 0 && (
-                  <div className="flex justify-between"><span>🛒 {stats.achatsJour.length} achat{stats.achatsJour.length > 1 ? 's' : ''}</span><span className="font-semibold">{formatAr(stats.totalAchats)}</span></div>
-                )}
-              </div>
-            </div>
           )}
         </div>
       ) : (
@@ -593,10 +569,12 @@ export default function ClotureModule({ user, onLogout }: Props) {
               <p className="text-2xl font-bold text-[#0D47A1]">{formatAr(stats.totalVentes)}</p>
             </div>
 
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <p className="text-sm text-gray-500">Remises accordées</p>
-              <p className="text-2xl font-bold text-red-500">-{formatAr(stats.totalRemises)}</p>
-            </div>
+            {stats.totalRemises > 0 && (
+              <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                <p className="text-sm text-gray-500">Remises accordées</p>
+                <p className="text-2xl font-bold text-red-500">-{formatAr(stats.totalRemises)}</p>
+              </div>
+            )}
           </div>
 
           {/* Détail des paiements */}

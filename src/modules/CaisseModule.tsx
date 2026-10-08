@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle, KeyRound } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, Trash2, Wallet, Send, X, Search, Edit2, Package, ArrowLeft, AlertTriangle, KeyRound, Lock, LogOut } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, CartItem, TableR, Client, Cloture } from '../types';
 import { formatAr, today, nowTime, nextId, generateFactureNum, capitalize } from '../helpers';
@@ -39,6 +39,11 @@ export default function CaisseModule({ user, onLogout }: Props) {
   const [showOuvertureModal, setShowOuvertureModal] = useState(false);
   const [showDotationViewModal, setShowDotationViewModal] = useState(false);
 
+  const alreadyClosedToday = useMemo(() => {
+    const allClotures = store.getClotures();
+    return allClotures.some(c => c.DATE_CLOTURE === today() && (user.ROLE === 'Caissier' ? c.IDPERSONNEL === user.IDPERSONNEL : true));
+  }, [rk, user]);
+
   const activeOuverture = useMemo(() => {
     return store.getOuvertureSession(user.ROLE === 'Caissier' ? user.IDPERSONNEL : undefined);
   }, [rk, user]);
@@ -46,6 +51,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
   // Si le caissier a déjà des ventes ou opérations non clôturées, ne pas exiger d'ouverture :
   // la clôture regroupera toutes les opérations non clôturées depuis la dernière clôture.
   const hasUnclosedOperations = useMemo(() => {
+    if (alreadyClosedToday) return false;
     const allVentes = store.getVentes();
     const allClotures = store.getClotures();
     const lastUserCloture = allClotures
@@ -65,9 +71,9 @@ export default function CaisseModule({ user, onLogout }: Props) {
     // Tables occupées ou consommations non soldées pour ce caissier
     const allTables = store.getTables();
     return allTables.some(t => t.ETAT === 'Occupée' && (user.ROLE !== 'Caissier' || t.IDCAISSIER === user.IDPERSONNEL));
-  }, [rk, user]);
+  }, [rk, user, alreadyClosedToday]);
 
-  const isCaisseActive = Boolean(activeOuverture || hasUnclosedOperations);
+  const isCaisseActive = Boolean((activeOuverture || hasUnclosedOperations) && !alreadyClosedToday);
 
   const canGrantCredit = true; // Permettre le paiement à crédit lors de l'encaissement en caisse pour tous les caissiers/utilisateurs
 
@@ -87,12 +93,12 @@ export default function CaisseModule({ user, onLogout }: Props) {
     };
   }, []);
 
-  // Forcer l'ouverture de caisse UNIQUEMENT si aucune session active, aucune vente non clôturée et aucun article dans le panier
+  // Forcer l'ouverture de caisse UNIQUEMENT si aucune session active, aucune vente non clôturée et non déjà clôturée aujourd'hui
   useEffect(() => {
-    if (!isCaisseActive && cart.length === 0) {
+    if (!alreadyClosedToday && !isCaisseActive && cart.length === 0) {
       setShowOuvertureModal(true);
     }
-  }, [isCaisseActive, cart.length]);
+  }, [isCaisseActive, cart.length, alreadyClosedToday]);
 
   const familles = store.getFamilles();
   const articles = useMemo(() => store.getArticles(), [rk]);
@@ -182,6 +188,10 @@ export default function CaisseModule({ user, onLogout }: Props) {
   const monnaie = Number(montantRecu) - netAPayer;
 
   const addToCart = (artId: number) => {
+    if (alreadyClosedToday) {
+      showMsg("Accès verrouillé : la caisse est déjà clôturée pour aujourd'hui !");
+      return;
+    }
     if (!isCaisseActive) {
       showMsg("Veuillez d'abord effectuer l'ouverture de caisse !");
       setShowOuvertureModal(true);
@@ -472,6 +482,34 @@ export default function CaisseModule({ user, onLogout }: Props) {
   };
 
   const cartTotalQty = cart.reduce((s, c) => s + c.QUANTITE, 0);
+
+  if (alreadyClosedToday) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-3xl p-8 max-w-lg w-full shadow-sm space-y-4">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <Lock size={32} />
+          </div>
+          <h2 className="text-2xl font-extrabold text-red-800">Caisse clôturée pour aujourd'hui</h2>
+          <p className="text-red-700 font-semibold">
+            La clôture de caisse a été effectuée aujourd'hui.
+          </p>
+          <p className="text-sm text-red-600 leading-relaxed">
+            Pour des raisons de sécurité financière, il est interdit de saisir de nouvelles ventes après la clôture. La caisse pourra être réouverte <b>demain</b>.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition-all active:scale-95"
+            >
+              <LogOut size={18} />
+              <span>Se déconnecter</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-80px)] gap-3 lg:gap-4">

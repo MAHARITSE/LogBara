@@ -44,7 +44,11 @@ export default function TablesModule({ user }: Props) {
   const [tableFilter, setTableFilter] = useState<'all' | 'occupee' | 'libre'>('all');
 
   const isAdmin = user.ROLE === 'Administrateur';
-  const canEncaisser = user.ROLE === 'Gérant' || user.ROLE === 'Caissier';
+  const alreadyClosedToday = useMemo(() => {
+    const allClotures = store.getClotures();
+    return allClotures.some(c => c.DATE_CLOTURE === today() && (user.ROLE === 'Caissier' ? c.IDPERSONNEL === user.IDPERSONNEL : true));
+  }, [rk, user]);
+  const canEncaisser = (user.ROLE === 'Gérant' || user.ROLE === 'Caissier') && !alreadyClosedToday;
 
   const consommations = useMemo(() => store.getConsommations(), [rk]);
   const articles = store.getArticles();
@@ -226,6 +230,10 @@ export default function TablesModule({ user }: Props) {
 
   // ========= PAIEMENT (simple, sans retour) =========
   const openPayment = (table: TableR) => {
+    if (alreadyClosedToday) {
+      showMsg("Accès verrouillé : la caisse est déjà clôturée pour aujourd'hui !");
+      return;
+    }
     setSelectedTable(table);
     setPaymentMode('Espèces'); setMixteEspeces(0);
     const existingClients = store.getClients();
