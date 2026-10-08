@@ -44,6 +44,19 @@ set "DO_RESET="
 if /i "%~1"=="--reset" set "DO_RESET=1"
 if /i "%~1"=="-c" set "DO_RESET=1"
 
+REM Reinitialisation du profil imprimante si demande via --reset-printer ou -p
+set "RESET_PRINTER="
+if /i "%~1"=="--reset-printer" set "RESET_PRINTER=1"
+if /i "%~1"=="--reset-imprimante" set "RESET_PRINTER=1"
+if /i "%~1"=="-p" set "RESET_PRINTER=1"
+if defined RESET_PRINTER (
+    if exist "%KIOSK_PROFILE%" (
+        rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
+        echo Profil imprimante kiosque reinitialise (l'imprimante par defaut de Windows sera reprise).
+        echo.
+    )
+)
+
 REM Mode "choix de l'imprimante" : --dialogue (alias -d ou --choix)
 REM lance le navigateur SANS --kiosk-printing : a chaque ticket, la
 REM fenetre d'impression s'ouvre pour choisir l'imprimante.
@@ -53,7 +66,8 @@ if /i "%~1"=="--choix" set "PRINT_DIALOG=1"
 if /i "%~1"=="-d" set "PRINT_DIALOG=1"
 if defined DO_RESET (
     if exist "%IP_FILE%" del /f /q "%IP_FILE%" >nul 2>&1
-    echo Configuration de l'IP reinitialisee.
+    if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
+    echo Configuration IP et profil imprimante reinitialises.
     echo.
 )
 
@@ -198,6 +212,8 @@ echo ===========================================================================
 echo   Bar POS est en cours d'execution !
 echo   Pour reconfigurer l'adresse IP une prochaine fois :
 echo   clientwamp.bat --reset
+echo   Pour reinitialiser l'imprimante par defaut apres un changement Windows :
+echo   clientwamp.bat --reset-printer
 echo   Pour ouvrir la fenetre de choix de l'imprimante a chaque ticket :
 echo   clientwamp.bat --dialogue
 echo ============================================================================

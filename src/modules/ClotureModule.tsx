@@ -302,7 +302,13 @@ export default function ClotureModule({ user, onLogout }: Props) {
 
     const artRows = Object.values(tcd)
       .sort((a, b) => b.montant - a.montant)
-      .map(r => `<tr><td>${r.nom}</td><td class="right">${r.siPlusAchat}</td><td class="right">${r.qte}</td><td class="right">${r.sf}</td><td class="right">${formatAr(r.montant)}</td></tr>`)
+      .map(r => `<tr>
+        <td style="text-align:left; padding-right:4px;">${r.nom}</td>
+        <td style="text-align:center; padding:0 4px;">${r.siPlusAchat}</td>
+        <td style="text-align:center; padding:0 4px;">${r.qte}</td>
+        <td style="text-align:center; padding:0 4px;">${r.sf}</td>
+        <td style="text-align:right; padding-left:4px; white-space:nowrap;">${formatAr(r.montant)}</td>
+      </tr>`)
       .join('');
     const totalQte = Object.values(tcd).reduce((s, r) => s + r.qte, 0);
     const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
@@ -369,7 +375,13 @@ export default function ClotureModule({ user, onLogout }: Props) {
       <div class="center bold">RECAP VENTES PAR ARTICLE</div>
       <div class="line"></div>
       <table>
-        <tr><td class="bold">Article</td><td class="bold right">SI+Achat</td><td class="bold right">Vente</td><td class="bold right">SF</td><td class="bold right">Montant</td></tr>
+        <tr>
+          <td class="bold" style="text-align:left; padding-right:4px;">Article</td>
+          <td class="bold" style="text-align:center; padding:0 4px; white-space:nowrap;">SI+Ach</td>
+          <td class="bold" style="text-align:center; padding:0 4px; white-space:nowrap;">Vente</td>
+          <td class="bold" style="text-align:center; padding:0 4px; white-space:nowrap;">SF</td>
+          <td class="bold" style="text-align:right; padding-left:4px; white-space:nowrap;">Montant</td>
+        </tr>
         ${artRows}
       </table>
       <div class="line"></div>

@@ -35,13 +35,16 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
         @page { margin: 0; size: 80mm auto; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-          font-family: 'Courier New', monospace, sans-serif;
-          font-size: 12px;
+          font-family: 'Segoe UI', Arial, Helvetica, -apple-system, sans-serif;
+          font-size: 13px;
+          font-weight: 500;
           width: 80mm;
-          padding: 4mm 5mm;
-          line-height: 1.4;
+          padding: 4mm 4mm;
+          line-height: 1.35;
           color: #000;
           background: #fff;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         .center { text-align: center; }
         .bold { font-weight: bold; }
@@ -49,8 +52,8 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
         .row { display: flex; justify-content: space-between; }
         .right { text-align: right; }
         table { width: 100%; border-collapse: collapse; }
-        td { padding: 2px 0; vertical-align: top; }
-        .small { font-size: 10px; }
+        td, th { padding: 3px 2px; vertical-align: middle; }
+        .small { font-size: 11px; }
         .header { margin-bottom: 8px; }
         /* Nouvelle page (ex. récap ACHATS de la clôture) : pas de ligne pointillée
            au-dessus du logo, la page commence directement par l'en-tête société. */
@@ -59,7 +62,7 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
           break-before: page;
         }
         @media print {
-          body { width: 80mm; padding: 2mm 3mm; }
+          body { width: 80mm; padding: 2mm 3mm; font-size: 13px; }
           .page-break {
             page-break-before: always !important;
             break-before: page !important;
@@ -186,43 +189,15 @@ export const printDirect = (content: string, showFooter: boolean = true) => {
  * afin d'éviter que le mode kiosque de Chrome (--kiosk-printing) n'intercepte et ne ferme l'aperçu.
  */
 export const openPreviewPage = (html: string) => {
-  try {
-    const printWindow = window.open('', '_blank', 'width=420,height=680,scrollbars=yes,resizable=yes');
-    if (printWindow) {
-      const barHtml = `
-        <div class="no-print" style="position: sticky; top: 0; left: 0; right: 0; background: #0D47A1; color: #fff; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; font-family: system-ui, -apple-system, sans-serif; font-size: 13px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10000; border-bottom: 1px solid rgba(255,255,255,0.2);">
-          <span style="display: flex; align-items: center; gap: 6px;">👁️ Aperçu du document</span>
-          <div style="display: flex; gap: 8px;">
-            <button onclick="window.print()" style="background: #22c55e; color: white; border: none; padding: 6px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
-              🖨️ Imprimer
-            </button>
-            <button onclick="window.close()" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px;">
-              ❌ Fermer
-            </button>
-          </div>
-        </div>
-      `;
-
-      const previewHtml = html
-        .replace('</style>', `@media print { .no-print { display: none !important; } }</style>`)
-        .replace('<body>', `<body>${barHtml}`);
-
-      printWindow.document.open();
-      printWindow.document.write(previewHtml);
-      printWindow.document.close();
-      printWindow.focus();
-    } else {
-      globalToast('Fenêtre d\'aperçu bloquée. Veuillez autoriser les popups.', 'warning');
-    }
-  } catch {
-    globalToast('Aperçu non disponible dans cet environnement', 'info');
-  }
+  executeDirectPrint(html);
 };
 
 /**
  * Alias de compatibilité
  */
-export const openPrintPage = (html: string) => openPreviewPage(html);
+export const openPrintPage = (html: string) => {
+  executeDirectPrint(html);
+};
 
 /**
  * Impression d'un ticket, en respectant la préférence du poste / utilisateur :
@@ -241,46 +216,33 @@ export const printTicket = (content: string, force: boolean = false, userId?: nu
   }
 
   const html = buildTicketHtml(content);
-
-  if (isPrinterActive) {
-    executeDirectPrint(html);
-  } else {
-    openPreviewPage(html);
-  }
+  executeDirectPrint(html);
 };
 
 /**
  * APERÇU / REPRINTS / RAPPORTS / TABLES SUIVI / VENTES / ACHATS / ETC.
- * Ouvre TOUJOURS la fenêtre d'aperçu d'impression (openPreviewPage)
- * sans auto-print/auto-close pour qu'elle reste affichée à l'écran.
+ * Déclenche directement la page / boîte d'impression sans écran intermédiaire bloquant.
  */
 export const printPreview = (content: string) => {
   const html = buildTicketHtml(content);
-  openPreviewPage(html);
+  executeDirectPrint(html);
 };
 
 /**
  * Impression du ticket de CLÔTURE DE CAISSE :
- * - Imprimante activée -> impression DIRECTE silencieuse (kiosque) ;
- * - Imprimante désactivée -> ouverture de la FENÊTRE D'APERÇU.
+ * Envoie directement à l'impression (mode kiosque immédiat si configuré, ou boîte d'impression)
+ * sans afficher la fenêtre d'aperçu avec boutons.
  */
-export const printClotureTicket = (content: string, userId?: number, directPrint: boolean = false) => {
+export const printClotureTicket = (content: string, _userId?: number, _directPrint: boolean = false) => {
   const html = buildTicketHtml(content);
-  if (directPrint && store.isUserPrinterEnabled(userId)) {
-    executeDirectPrint(html);
-  } else {
-    openPreviewPage(html);
-  }
+  executeDirectPrint(html);
 };
 
 /**
- * Impression du ticket d'OUVERTURE DE CAISSE & BON DE DOTATION STOCK
+ * Impression du ticket d'OUVERTURE DE CAISSE & BON DE DOTATION STOCK :
+ * Envoie directement à l'impression sans afficher la fenêtre d'aperçu avec boutons.
  */
-export const printOuvertureTicket = (content: string, userId?: number, directPrint: boolean = false) => {
+export const printOuvertureTicket = (content: string, _userId?: number, _directPrint: boolean = false) => {
   const html = buildTicketHtml(content, false);
-  if (directPrint && store.isUserPrinterEnabled(userId)) {
-    executeDirectPrint(html);
-  } else {
-    openPreviewPage(html);
-  }
+  executeDirectPrint(html);
 };
