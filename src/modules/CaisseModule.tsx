@@ -17,7 +17,6 @@ type PaymentMode = 'Espèces' | 'Mobile Money' | 'Mixte' | 'Crédit';
 
 export default function CaisseModule({ user, onLogout }: Props) {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [remise, setRemise] = useState(0);
   const [selectedFamily, setSelectedFamily] = useState<number | null | 'rupture'>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [mode, setMode] = useState<'comptoir' | 'table'>('comptoir');
@@ -179,7 +178,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
   const rienAPayer = itemsAPayer.length === 0;
 
   const total = cart.reduce((s, i) => s + i.QUANTITE * i.PRIX_UNITAIRE, 0) + tableTotal;
-  const netAPayer = total - remise;
+  const netAPayer = total;
   const monnaie = Number(montantRecu) - netAPayer;
 
   const addToCart = (artId: number) => {
@@ -213,7 +212,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
 
   const updatePrice = (artId: number, price: number) => { setCart(cart.map(c => c.IDARTICLE === artId ? { ...c, PRIX_UNITAIRE: Math.max(0, price) } : c)); };
   const removeFromCart = (artId: number) => { setCart(cart.filter(c => c.IDARTICLE !== artId)); };
-  const clearCart = () => { setCart([]); setRemise(0); setConfirmClear(false); };
+  const clearCart = () => { setCart([]); setConfirmClear(false); };
 
   // === RÈGLE 2 : Envoyer = AJOUTER à la table (pas remplacer) ===
   const handleSendToTable = () => {
@@ -288,7 +287,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
     }
     if (rienAPayer) return;
     if (mode === 'table' && !selectedTable) { showMsg('Choisissez une table (ou passez en mode Comptoir)'); return; }
-    setMontantRecu(String(Math.max(0, total - remise)));
+    setMontantRecu(String(Math.max(0, total)));
     setPaymentMode('Espèces');
     setMixteEspeces(0);
     setMixteMobile(0);
@@ -314,7 +313,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
       IDVENTE: idVente, NUMERO_FACTURE: numeroFacture, DATE_VENTE: today(), HEURE: nowTime(),
       IDPERSONNEL: user.IDPERSONNEL, IDTABLE: selectedTable?.IDTABLE || null,
       TYPE: mode === 'table' ? 'Table' as const : 'Comptoir' as const,
-      STATUT: 'Payée' as const, TOTAL: total, REMISE: remise, CLOTUREE: false, IDCLOTURE: null,
+      STATUT: 'Payée' as const, TOTAL: total, REMISE: 0, CLOTUREE: false, IDCLOTURE: null,
     };
 
     let idLigne = nextId(lignesVente, 'IDLIGNEVENTE');
@@ -322,7 +321,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
 
     let idPaiement = nextId(paiements, 'IDPAIEMENT');
     const newPaiements: typeof paiements = [];
-    const nap = total - remise;
+    const nap = total;
 
     if (paymentMode === 'Crédit') {
       if (!selectedClient) {
@@ -462,7 +461,6 @@ export default function CaisseModule({ user, onLogout }: Props) {
       <div class="line"></div>
       <table><tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
-      ${remise > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(remise)}</span></div>` : ''}
       <div class="row bold"><span>TOTAL</span><span>${formatAr(nap)}</span></div>
       <div class="line"></div>
       <div class="row"><span>Mode</span><span>${paymentMode}${paymentMode === 'Crédit' && clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span></div>
@@ -470,7 +468,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
       ${paymentMode === 'Mixte' ? `<div class="row"><span>Espèces</span><span>${formatAr(mixteEspeces)}</span></div><div class="row"><span>Mobile Money</span><span>${formatAr(mixteMobile)}</span></div>` : ''}
     `, false, user.IDPERSONNEL);
 
-    setCart([]); setRemise(0); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setMixteEspeces(0); setMixteMobile(0); setSelectedClient(null); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); setMobileTab('articles'); showMsg('Vente enregistrée !');
+    setCart([]); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setMixteEspeces(0); setMixteMobile(0); setSelectedClient(null); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); setMobileTab('articles'); showMsg('Vente enregistrée !');
   };
 
   const cartTotalQty = cart.reduce((s, c) => s + c.QUANTITE, 0);
@@ -634,19 +632,8 @@ export default function CaisseModule({ user, onLogout }: Props) {
         </div>
 
         <div className="p-3.5 sm:p-4 border-t border-gray-100 space-y-3 bg-white">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600">Remise:</span>
-            <MoneyInput
-              value={remise}
-              onChange={val => setRemise(Math.max(0, Math.min(total, val)))}
-              className="flex-1 px-3 py-2 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-[#0D47A1]"
-              placeholder="0"
-            />
-            <span className="text-sm text-gray-400">Ar</span>
-          </div>
           <div className="bg-[#0D47A1] text-white rounded-xl p-3.5 shadow-sm">
-            {remise > 0 && <div className="flex justify-between text-xs opacity-80 mb-1"><span>Remise</span><span>-{formatAr(remise)}</span></div>}
-            <div className="flex justify-between text-lg sm:text-xl font-extrabold"><span>Total</span><span>{formatAr(netAPayer)}</span></div>
+            <div className="flex justify-between text-lg sm:text-xl font-extrabold"><span>Total</span><span>{formatAr(total)}</span></div>
           </div>
           <div className="flex gap-2">
             {mode === 'table' && selectedTable && (

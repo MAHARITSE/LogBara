@@ -36,7 +36,6 @@ export default function TablesModule({ user }: Props) {
   const [formPlaces, setFormPlaces] = useState(4);
 
   const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Mixte' | 'Crédit'>('Espèces');
-  const [remise, setRemise] = useState(0);
   const [mixteEspeces, setMixteEspeces] = useState(0); // part espèces en paiement Mixte
   const [selectedClient, setSelectedClient] = useState<number | null>(null);
   const [showNewClientForm, setShowNewClientForm] = useState(false);
@@ -228,7 +227,7 @@ export default function TablesModule({ user }: Props) {
   // ========= PAIEMENT (simple, sans retour) =========
   const openPayment = (table: TableR) => {
     setSelectedTable(table);
-    setRemise(0); setPaymentMode('Espèces'); setMixteEspeces(0);
+    setPaymentMode('Espèces'); setMixteEspeces(0);
     const existingClients = store.getClients();
     setSelectedClient(existingClients.length > 0 ? existingClients[0].IDCLIENT : null);
     setShowNewClientForm(false);
@@ -259,7 +258,7 @@ export default function TablesModule({ user }: Props) {
     if (items.length === 0) { showMsg('Aucun article à payer'); return; }
 
     const total = getTableTotal(selectedTable.IDTABLE);
-    const netAPayer = total - remise;
+    const netAPayer = total;
 
     const ventes = store.getVentes();
     const lignesVente = store.getLignesVente();
@@ -271,7 +270,7 @@ export default function TablesModule({ user }: Props) {
     const newVente = {
       IDVENTE: idVente, NUMERO_FACTURE: numeroFacture, DATE_VENTE: today(), HEURE: nowTime(),
       IDPERSONNEL: user.IDPERSONNEL, IDTABLE: selectedTable.IDTABLE,
-      TYPE: 'Table' as const, STATUT: 'Payée' as const, TOTAL: total, REMISE: remise,
+      TYPE: 'Table' as const, STATUT: 'Payée' as const, TOTAL: total, REMISE: 0,
       CLOTUREE: false, IDCLOTURE: null,
     };
 
@@ -316,11 +315,10 @@ export default function TablesModule({ user }: Props) {
       <div class="line"></div>
       <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
       <div class="line"></div>
-      ${remise > 0 ? `<div class="row"><span>Remise</span><span>-${formatAr(remise)}</span></div>` : ''}
       <div class="row bold"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
     `, false, user.IDPERSONNEL);
 
-    setShowPayment(false); setSelectedTable(null); setRemise(0); setPaymentMode('Espèces'); setMixteEspeces(0);
+    setShowPayment(false); setSelectedTable(null); setPaymentMode('Espèces'); setMixteEspeces(0);
     refresh(); showMsg('Table encaissée !');
   };
 
@@ -594,19 +592,9 @@ export default function TablesModule({ user }: Props) {
                 </div>
               </div>
 
-              <div>
-                <label className="text-sm font-semibold text-gray-700 mb-1 block">Remise</label>
-                <MoneyInput
-                  value={remise}
-                  onChange={val => setRemise(Math.max(0, val))}
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-[#0D47A1]"
-                  placeholder="0"
-                />
-              </div>
-
               <div className="bg-[#0D47A1] text-white rounded-xl p-4 text-center shadow-xs">
                 <p className="text-xs uppercase tracking-wider opacity-80">Net à payer</p>
-                <p className="text-2xl sm:text-3xl font-extrabold mt-0.5 tabular-nums">{formatAr(getTableTotal(selectedTable.IDTABLE) - remise)}</p>
+                <p className="text-2xl sm:text-3xl font-extrabold mt-0.5 tabular-nums">{formatAr(getTableTotal(selectedTable.IDTABLE))}</p>
               </div>
 
               <div>
@@ -718,7 +706,7 @@ export default function TablesModule({ user }: Props) {
               )}
 
               {paymentMode === 'Mixte' && (() => {
-                const net = Math.max(0, getTableTotal(selectedTable.IDTABLE) - remise);
+                const net = getTableTotal(selectedTable.IDTABLE);
                 const partEsp = Math.max(0, Math.min(mixteEspeces, net));
                 return (
                   <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2">

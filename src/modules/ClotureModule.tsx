@@ -247,27 +247,65 @@ export default function ClotureModule({ user, onLogout }: Props) {
     );
     const lignesJour = allLignes.filter(l => ventesJour.some(v => v.IDVENTE === l.IDVENTE));
 
-    const tcd: Record<number, { nom: string; qte: number; montant: number }> = {};
+    // Achats rattachés à cette clôture pour calculer SI+Achat par article
+    const achatsCloture = allAchats.filter(a => a.IDCLOTURE === cloture.IDCLOTURE);
+    const lignesAchats = store.getLignesAchat();
+    const totalAchatsMontant = achatsCloture.reduce((sum, a) => sum + a.TOTAL, 0);
+
+    // Quantité achetée par article pour cette session de clôture
+    const qteAcheteeParArt: Record<number, number> = {};
+    achatsCloture.forEach(a => {
+      lignesAchats.filter(l => l.IDACHAT === a.IDACHAT).forEach(l => {
+        qteAcheteeParArt[l.IDARTICLE] = (qteAcheteeParArt[l.IDARTICLE] || 0) + l.QUANTITE;
+      });
+    });
+
+    // Session d'ouverture du caissier pour retrouver le stock initial (dotation) si disponible
+    const sessionCaissier = store.getOuverturesHistory()
+      .filter(o => o.IDPERSONNEL === cloture.IDPERSONNEL)
+      .sort((a, b) => b.IDOUVERTURE - a.IDOUVERTURE)[0] || store.getOuvertureSession(cloture.IDPERSONNEL);
+
+    const dotationMap: Record<number, number> = {};
+    if (sessionCaissier && sessionCaissier.DOTATIONS) {
+      sessionCaissier.DOTATIONS.forEach(d => {
+        dotationMap[d.IDARTICLE] = d.QUANTITE;
+      });
+    }
+
+    const tcd: Record<number, { nom: string; qte: number; prixUnitaire: number; montant: number; siPlusAchat: number; sf: number }> = {};
     lignesJour.forEach(l => {
       const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
-      if (!tcd[l.IDARTICLE]) tcd[l.IDARTICLE] = { nom: art?.NOM || '-', qte: 0, montant: 0 };
+      const pu = l.PRIX_UNITAIRE || art?.PRIX_VENTE || 0;
+      if (!tcd[l.IDARTICLE]) {
+        const achatQte = qteAcheteeParArt[l.IDARTICLE] || 0;
+        const currentStock = art?.STOCK ?? 0;
+        // Si une dotation initiale est enregistrée, SI = dotation
+        // Sinon, SI reconstitué = stock_actuel + total_vendu
+        const initialStock = dotationMap[l.IDARTICLE] !== undefined
+          ? dotationMap[l.IDARTICLE]
+          : currentStock;
+        const siPlusAchat = initialStock + achatQte;
+        tcd[l.IDARTICLE] = {
+          nom: art?.NOM || '-',
+          qte: 0,
+          prixUnitaire: pu,
+          montant: 0,
+          siPlusAchat,
+          sf: Math.max(0, siPlusAchat),
+        };
+      }
       tcd[l.IDARTICLE].qte += l.QUANTITE;
-      tcd[l.IDARTICLE].montant += l.MONTANT;
+      // Montant est égal à Qté vendue X Prix Unitaire
+      tcd[l.IDARTICLE].montant = tcd[l.IDARTICLE].qte * tcd[l.IDARTICLE].prixUnitaire;
+      tcd[l.IDARTICLE].sf = Math.max(0, tcd[l.IDARTICLE].siPlusAchat - tcd[l.IDARTICLE].qte);
     });
 
     const artRows = Object.values(tcd)
       .sort((a, b) => b.montant - a.montant)
-      .map(r => `<tr><td>${r.nom}</td><td class="right">${r.qte}</td><td class="right">${formatAr(r.montant)}</td></tr>`)
+      .map(r => `<tr><td>${r.nom}</td><td class="right">${r.siPlusAchat}</td><td class="right">${r.qte}</td><td class="right">${r.sf}</td><td class="right">${formatAr(r.montant)}</td></tr>`)
       .join('');
     const totalQte = Object.values(tcd).reduce((s, r) => s + r.qte, 0);
     const totalMontant = Object.values(tcd).reduce((s, r) => s + r.montant, 0);
-
-    // Achats du jour
-    // Seuls les achats réellement rattachés à cette clôture doivent apparaître.
-    // Le rattachement évite de réimprimer les achats d'une autre clôture du même jour.
-    const achatsCloture = allAchats.filter(a => a.IDCLOTURE === cloture.IDCLOTURE);
-    const lignesAchats = store.getLignesAchat();
-    const totalAchatsMontant = achatsCloture.reduce((sum, a) => sum + a.TOTAL, 0);
 
     let achatsSection = '';
     if (achatsCloture.length > 0) {
@@ -331,7 +369,7 @@ export default function ClotureModule({ user, onLogout }: Props) {
       <div class="center bold">RECAP VENTES PAR ARTICLE</div>
       <div class="line"></div>
       <table>
-        <tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">Montant</td></tr>
+        <tr><td class="bold">Article</td><td class="bold right">SI+Achat</td><td class="bold right">Vente</td><td class="bold right">SF</td><td class="bold right">Montant</td></tr>
         ${artRows}
       </table>
       <div class="line"></div>
@@ -634,13 +672,51 @@ export default function ClotureModule({ user, onLogout }: Props) {
           {stats.ventesJour.length > 0 && (() => {
             const allArticles = store.getArticles();
             const allLignes = store.getLignesVente();
+            const lignesAchats = store.getLignesAchat();
             const lignesJour = allLignes.filter(l => stats.ventesJour.some(v => v.IDVENTE === l.IDVENTE));
-            const tcd: Record<number, { nom: string; emoji: string; qte: number; montant: number }> = {};
+
+            // Achats rattachés à la session courante en attente de clôture (stats.achatsJour)
+            const qteAcheteeParArt: Record<number, number> = {};
+            stats.achatsJour.forEach(a => {
+              lignesAchats.filter(l => l.IDACHAT === a.IDACHAT).forEach(l => {
+                qteAcheteeParArt[l.IDARTICLE] = (qteAcheteeParArt[l.IDARTICLE] || 0) + l.QUANTITE;
+              });
+            });
+
+            // Session d'ouverture active du caissier
+            const activeOuverture = store.getOuvertureSession(user.IDPERSONNEL);
+            const dotationMap: Record<number, number> = {};
+            if (activeOuverture && activeOuverture.DOTATIONS) {
+              activeOuverture.DOTATIONS.forEach(d => {
+                dotationMap[d.IDARTICLE] = d.QUANTITE;
+              });
+            }
+
+            const tcd: Record<number, { nom: string; emoji: string; qte: number; prixUnitaire: number; montant: number; siPlusAchat: number; sf: number }> = {};
             lignesJour.forEach(l => {
               const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
-              if (!tcd[l.IDARTICLE]) tcd[l.IDARTICLE] = { nom: art?.NOM || '-', emoji: art?.EMOJI || '📦', qte: 0, montant: 0 };
+              const pu = l.PRIX_UNITAIRE || art?.PRIX_VENTE || 0;
+              if (!tcd[l.IDARTICLE]) {
+                const achatQte = qteAcheteeParArt[l.IDARTICLE] || 0;
+                const currentStock = art?.STOCK ?? 0;
+                const initialStock = dotationMap[l.IDARTICLE] !== undefined
+                  ? dotationMap[l.IDARTICLE]
+                  : currentStock;
+                const siPlusAchat = initialStock + achatQte;
+                tcd[l.IDARTICLE] = {
+                  nom: art?.NOM || '-',
+                  emoji: art?.EMOJI || '📦',
+                  qte: 0,
+                  prixUnitaire: pu,
+                  montant: 0,
+                  siPlusAchat,
+                  sf: Math.max(0, siPlusAchat),
+                };
+              }
               tcd[l.IDARTICLE].qte += l.QUANTITE;
-              tcd[l.IDARTICLE].montant += l.MONTANT;
+              // Montant = Qté vendue X Prix Unitaire
+              tcd[l.IDARTICLE].montant = tcd[l.IDARTICLE].qte * tcd[l.IDARTICLE].prixUnitaire;
+              tcd[l.IDARTICLE].sf = Math.max(0, tcd[l.IDARTICLE].siPlusAchat - tcd[l.IDARTICLE].qte);
             });
             const sorted = Object.values(tcd).sort((a, b) => b.montant - a.montant);
             const totalQte = sorted.reduce((s, r) => s + r.qte, 0);
@@ -656,7 +732,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Article</th>
-                        <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500 w-24">Qté vendue</th>
+                        <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500 w-24">SI+Achat</th>
+                        <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500 w-20">Vente</th>
+                        <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500 w-20">SF</th>
                         <th className="text-right px-4 py-2 text-xs font-semibold text-gray-500 w-32">Montant</th>
                       </tr>
                     </thead>
@@ -664,7 +742,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
                       {sorted.map((r, i) => (
                         <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
                           <td className="px-4 py-2.5 text-sm font-medium">{r.emoji} {r.nom}</td>
-                          <td className="px-4 py-2.5 text-center font-semibold">{r.qte}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-gray-700">{r.siPlusAchat}</td>
+                          <td className="px-4 py-2.5 text-center font-bold text-amber-600">{r.qte}</td>
+                          <td className="px-4 py-2.5 text-center font-semibold text-blue-700">{r.sf}</td>
                           <td className="px-4 py-2.5 text-right font-semibold text-[#0D47A1]">{formatAr(r.montant)}</td>
                         </tr>
                       ))}
@@ -672,7 +752,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
                     <tfoot className="bg-gray-50">
                       <tr className="border-t-2 border-gray-200">
                         <td className="px-4 py-3 font-bold text-sm">TOTAL</td>
-                        <td className="px-4 py-3 text-center font-bold">{totalQte}</td>
+                        <td className="px-4 py-3 text-center font-bold text-gray-400">-</td>
+                        <td className="px-4 py-3 text-center font-bold text-amber-600">{totalQte}</td>
+                        <td className="px-4 py-3 text-center font-bold text-gray-400">-</td>
                         <td className="px-4 py-3 text-right font-bold text-[#0D47A1] text-lg">{formatAr(totalMontant)}</td>
                       </tr>
                     </tfoot>
