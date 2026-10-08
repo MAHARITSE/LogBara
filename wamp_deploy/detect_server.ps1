@@ -9,8 +9,50 @@
 # Compatible avec : Localhost, Wi-Fi, Ethernet, Hotspot, 4G, sous-réseaux LAN
 # ==============================================================================
 param(
-    [string]$savedIpFile = ""
+    [string]$savedIpFile = "",
+    [switch]$selectPrinter = $false,
+    [switch]$showPrinter = $false
 )
+
+if ($selectPrinter) {
+    try {
+        $printers = @(Get-CimInstance Win32_Printer | Sort-Object Name)
+        if ($printers.Count -eq 0) {
+            Write-Host "Aucune imprimante detectee sous Windows." -ForegroundColor Red
+            exit 0
+        }
+        Write-Host "============================================================================" -ForegroundColor Yellow
+        Write-Host "  CHOIX DE L'IMPRIMANTE PAR DEFAUT POUR BAR POS" -ForegroundColor Yellow
+        Write-Host "============================================================================" -ForegroundColor Yellow
+        for ($i = 0; $i -lt $printers.Count; $i++) {
+            $p = $printers[$i]
+            $def = if ($p.Default) { " [DEFAUT ACTUEL]" } else { "" }
+            Write-Host "  [$($i+1)] $($p.Name)$def"
+        }
+        Write-Host ""
+        $choice = Read-Host "Entrez le numero de l'imprimante a utiliser dans Bar POS"
+        if ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $printers.Count) {
+            $selected = $printers[[int]$choice - 1]
+            (New-Object -ComObject WScript.Network).SetDefaultPrinter($selected.Name)
+            Write-Host "✓ Imprimante par defaut Windows definie sur : '$($selected.Name)'" -ForegroundColor Green
+        } else {
+            Write-Host "Aucun changement d'imprimante effectue." -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "Erreur lors de la liste des imprimantes : $_" -ForegroundColor Red
+    }
+    exit 0
+}
+
+if ($showPrinter) {
+    try {
+        $p = Get-CimInstance Win32_Printer | Where-Object { $_.Default } | Select-Object -First 1
+        if ($p) {
+            Write-Host "   Imprimante par defaut Windows actuelle : $($p.Name)" -ForegroundColor Cyan
+        }
+    } catch {}
+    exit 0
+}
 
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 

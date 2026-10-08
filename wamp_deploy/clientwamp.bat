@@ -5,6 +5,8 @@ REM - Detecte automatiquement si le serveur WAMP tourne en local (localhost)
 REM   ou sur le reseau (Wi-Fi, Ethernet, Hotspot)
 REM - Gere la memorisation de l'IP du serveur et le lancement de
 REM   Chrome/Edge avec --kiosk-printing (impression directe)
+REM - Option --imprimante (alias -i) : affiche la liste des imprimantes Windows
+REM   et permet de choisir l'imprimante a utiliser pour les tickets
 REM - Option --dialogue (alias -d) : lance SANS --kiosk-printing pour
 REM   ouvrir la fenetre de choix de l'imprimante a chaque ticket
 REM
@@ -39,10 +41,43 @@ set "IP_FILE=%CONFIG_DIR%\server_ip.txt"
 set "KIOSK_PROFILE=%CONFIG_DIR%\KioskProfile"
 if not exist "%CONFIG_DIR%" mkdir "%CONFIG_DIR%" >nul 2>&1
 
-REM Reinitialisation manuelle de l'IP si demande via --reset ou -c
-set "DO_RESET="
-if /i "%~1"=="--reset" set "DO_RESET=1"
-if /i "%~1"=="-c" set "DO_RESET=1"
+REM Localisation de PowerShell (necessaire pour la detection IP et la gestion de l'imprimante)
+set "PS_EXE="
+if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not defined PS_EXE (
+    where powershell.exe >nul 2>&1
+    if !ERRORLEVEL! EQU 0 set "PS_EXE=powershell.exe"
+)
+
+REM Preparation du script PowerShell
+set "PS_SCRIPT=%~dp0detect_server.ps1"
+if not exist "%PS_SCRIPT%" (
+    set "BARPOS_SELF=%~f0"
+    set "PS_SCRIPT=%TEMP%\barpos_detect_%RANDOM%.ps1"
+    set "TMP_PS=1"
+    if defined PS_EXE (
+        "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText($env:BARPOS_SELF); $m='#BARPOS'+'_PS_BEGIN'; $i=$t.IndexOf($m); if ($i -lt 0) { exit 1 }; [IO.File]::WriteAllText($env:PS_SCRIPT, $t.Substring($i+$m.Length))" >nul 2>&1
+    )
+)
+
+REM Choix interactif de l'imprimante via --imprimante, --printer, -i
+set "SELECT_PRINTER="
+if /i "%~1"=="--imprimante" set "SELECT_PRINTER=1"
+if /i "%~1"=="--printer" set "SELECT_PRINTER=1"
+if /i "%~1"=="--choix-imprimante" set "SELECT_PRINTER=1"
+if /i "%~1"=="-i" set "SELECT_PRINTER=1"
+
+if defined SELECT_PRINTER (
+    if defined PS_EXE (
+        "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -selectPrinter
+        if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
+        echo Profil imprimante kiosque reinitialise pour prendre en compte la nouvelle imprimante.
+        echo.
+    ) else (
+        echo PowerShell non disponible pour lister les imprimantes.
+        echo.
+    )
+)
 
 REM Reinitialisation du profil imprimante si demande via --reset-printer ou -p
 set "RESET_PRINTER="
@@ -64,6 +99,11 @@ set "PRINT_DIALOG="
 if /i "%~1"=="--dialogue" set "PRINT_DIALOG=1"
 if /i "%~1"=="--choix" set "PRINT_DIALOG=1"
 if /i "%~1"=="-d" set "PRINT_DIALOG=1"
+
+REM Reinitialisation manuelle de l'IP si demande via --reset ou -c
+set "DO_RESET="
+if /i "%~1"=="--reset" set "DO_RESET=1"
+if /i "%~1"=="-c" set "DO_RESET=1"
 if defined DO_RESET (
     if exist "%IP_FILE%" del /f /q "%IP_FILE%" >nul 2>&1
     if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
@@ -74,27 +114,18 @@ if defined DO_RESET (
 echo ============================================================================
 echo   Bar POS - Connexion au serveur WAMP
 echo ============================================================================
+if defined PS_EXE (
+    "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -showPrinter 2>nul
+)
 echo.
 
 set "SERVER_HOST="
 set "DETECTED_IP="
-set "TMP_PS="
 set "OUT_FILE=%TEMP%\barpos_detected_ip_%RANDOM%.txt"
 if exist "%OUT_FILE%" del /f /q "%OUT_FILE%" >nul 2>&1
 
-REM Localisation de PowerShell (meme s'il n'est pas dans le PATH)
-set "PS_EXE="
-if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
-if not defined PS_EXE (
-    where powershell.exe >nul 2>&1
-    if !ERRORLEVEL! EQU 0 set "PS_EXE=powershell.exe"
-)
-
 REM ----------------------------------------------------------------------------
 REM 1. RECHERCHE ET EXECUTION DU SCRIPT DE DETECTION POWERSHELL
-REM    - utilise detect_server.ps1 s'il est a cote de ce fichier
-REM    - sinon, extrait le script integre a la fin de ce fichier (le .bat peut
-REM      donc etre copie seul sur les postes clients)
 REM ----------------------------------------------------------------------------
 echo [1/3] Recherche du serveur WAMP (local ou reseau)...
 if not defined PS_EXE goto :saisie_ip
@@ -212,6 +243,8 @@ echo ===========================================================================
 echo   Bar POS est en cours d'execution !
 echo   Pour reconfigurer l'adresse IP une prochaine fois :
 echo   clientwamp.bat --reset
+echo   Pour choisir l'imprimante a utiliser dans Bar POS :
+echo   clientwamp.bat --imprimante
 echo   Pour reinitialiser l'imprimante par defaut apres un changement Windows :
 echo   clientwamp.bat --reset-printer
 echo   Pour ouvrir la fenetre de choix de l'imprimante a chaque ticket :
@@ -227,7 +260,51 @@ REM "exit /b" ci-dessus). C'est le script PowerShell de detection integre,
 REM extrait dans %TEMP% quand detect_server.ps1 est absent.
 REM ============================================================================
 #BARPOS_PS_BEGIN
-param([string]$savedIpFile = "")
+param(
+    [string]$savedIpFile = "",
+    [switch]$selectPrinter = $false,
+    [switch]$showPrinter = $false
+)
+
+if ($selectPrinter) {
+    try {
+        $printers = @(Get-CimInstance Win32_Printer | Sort-Object Name)
+        if ($printers.Count -eq 0) {
+            Write-Host "Aucune imprimante detectee sous Windows." -ForegroundColor Red
+            exit 0
+        }
+        Write-Host "============================================================================" -ForegroundColor Yellow
+        Write-Host "  CHOIX DE L'IMPRIMANTE PAR DEFAUT POUR BAR POS" -ForegroundColor Yellow
+        Write-Host "============================================================================" -ForegroundColor Yellow
+        for ($i = 0; $i -lt $printers.Count; $i++) {
+            $p = $printers[$i]
+            $def = if ($p.Default) { " [DEFAUT ACTUEL]" } else { "" }
+            Write-Host "  [$($i+1)] $($p.Name)$def"
+        }
+        Write-Host ""
+        $choice = Read-Host "Entrez le numero de l'imprimante a utiliser dans Bar POS"
+        if ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $printers.Count) {
+            $selected = $printers[[int]$choice - 1]
+            (New-Object -ComObject WScript.Network).SetDefaultPrinter($selected.Name)
+            Write-Host "✓ Imprimante par defaut Windows definie sur : '$($selected.Name)'" -ForegroundColor Green
+        } else {
+            Write-Host "Aucun changement d'imprimante effectue." -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "Erreur lors de la liste des imprimantes : $_" -ForegroundColor Red
+    }
+    exit 0
+}
+
+if ($showPrinter) {
+    try {
+        $p = Get-CimInstance Win32_Printer | Where-Object { $_.Default } | Select-Object -First 1
+        if ($p) {
+            Write-Host "   Imprimante par defaut Windows actuelle : $($p.Name)" -ForegroundColor Cyan
+        }
+    } catch {}
+    exit 0
+}
 
 function Test-BarPos([string]$hostOrIp) {
     if ([string]::IsNullOrWhiteSpace($hostOrIp)) { return $false }

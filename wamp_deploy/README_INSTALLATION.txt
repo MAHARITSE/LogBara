@@ -102,6 +102,7 @@ Détails :
   * Si nécessaire, vous propose la saisie directe de l'IP et la mémorise automatiquement (%LOCALAPPDATA%\LogBara\server_ip.txt).
   * Lance Google Chrome ou Microsoft Edge en mode application avec impression directe (--kiosk-printing) via profil dédié %LOCALAPPDATA%\LogBara\KioskProfile.
   * Pour réinitialiser ou changer l'adresse IP mémorisée : clientwamp.bat --reset  (alias: clientwamp.bat -c)
+  * Pour choisir l'imprimante Windows à utiliser pour les tickets : clientwamp.bat --imprimante  (alias: clientwamp.bat -i)
   * Pour ouvrir la fenêtre de CHOIX DE L'IMPRIMANTE à chaque ticket : clientwamp.bat --dialogue (alias: --choix ou -d)
 - clientwamp.bat peut être copié SEUL sur un poste client : le script de détection PowerShell
   est intégré (detect_server.ps1 est utilisé en priorité s'il se trouve à côté).
