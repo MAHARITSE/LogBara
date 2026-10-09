@@ -60,57 +60,70 @@ if not exist "%PS_SCRIPT%" (
     )
 )
 
-REM Choix interactif de l'imprimante via --imprimante, --printer, -i
-set "SELECT_PRINTER="
-if /i "%~1"=="--imprimante" set "SELECT_PRINTER=1"
-if /i "%~1"=="--printer" set "SELECT_PRINTER=1"
-if /i "%~1"=="--choix-imprimante" set "SELECT_PRINTER=1"
-if /i "%~1"=="-i" set "SELECT_PRINTER=1"
+REM Choix interactif de l'imprimante via parametre en ligne de commande
+if /i "%~1"=="--imprimante" goto :action_select_printer
+if /i "%~1"=="--printer" goto :action_select_printer
+if /i "%~1"=="--choix-imprimante" goto :action_select_printer
+if /i "%~1"=="-i" goto :action_select_printer
 
-if defined SELECT_PRINTER (
-    if defined PS_EXE (
-        "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -selectPrinter
-        if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
-        echo Profil imprimante kiosque reinitialise pour prendre en compte la nouvelle imprimante.
-        echo.
-    ) else (
-        echo PowerShell non disponible pour lister les imprimantes.
-        echo.
-    )
-)
-
-REM Reinitialisation du profil imprimante si demande via --reset-printer ou -p
-set "RESET_PRINTER="
-if /i "%~1"=="--reset-printer" set "RESET_PRINTER=1"
-if /i "%~1"=="--reset-imprimante" set "RESET_PRINTER=1"
-if /i "%~1"=="-p" set "RESET_PRINTER=1"
-if defined RESET_PRINTER (
-    if exist "%KIOSK_PROFILE%" (
-        rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
-        echo Profil imprimante kiosque reinitialise.
-        echo.
-    )
-)
+REM Reinitialisation manuelle de l'IP si demande via --reset ou -c
+if /i "%~1"=="--reset" goto :action_reset_ip
+if /i "%~1"=="-c" goto :action_reset_ip
 
 REM Mode "choix de l'imprimante" : --dialogue (alias -d ou --choix)
-REM lance le navigateur SANS --kiosk-printing : a chaque ticket, la
-REM fenetre d'impression s'ouvre pour choisir l'imprimante.
 set "PRINT_DIALOG="
 if /i "%~1"=="--dialogue" set "PRINT_DIALOG=1"
 if /i "%~1"=="--choix" set "PRINT_DIALOG=1"
 if /i "%~1"=="-d" set "PRINT_DIALOG=1"
 
-REM Reinitialisation manuelle de l'IP si demande via --reset ou -c
-set "DO_RESET="
-if /i "%~1"=="--reset" set "DO_RESET=1"
-if /i "%~1"=="-c" set "DO_RESET=1"
-if defined DO_RESET (
-    if exist "%IP_FILE%" del /f /q "%IP_FILE%" >nul 2>&1
-    if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
-    echo Configuration IP et profil imprimante reinitialises.
+REM Si aucun argument, afficher le menu d'accueil rapide (auto-demarrage apres 3 secondes)
+if "%~1"=="" (
+    echo ============================================================================
+    echo   Bar POS - Point de Vente (LogBara)
+    echo ============================================================================
+    if defined PS_EXE (
+        "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -showPrinter 2>nul
+    )
     echo.
+    echo   Options :
+    echo     [1] Lancer Bar POS (Mode Kiosque - Impression directe)
+    echo     [2] Choisir l'imprimante ticket par defaut pour le mode kiosque
+    echo     [3] Reinitialiser l'adresse IP du serveur
+    echo.
+    echo   Demarrage de Bar POS dans 3 secondes (ou tapez 2 pour l'imprimante)...
+    choice /c 123 /t 3 /d 1 /n >nul 2>&1
+    if errorlevel 3 goto :action_reset_ip
+    if errorlevel 2 goto :action_select_printer
 )
 
+goto :demarrer_app
+
+:action_select_printer
+echo.
+echo ============================================================================
+echo   Configuration de l'imprimante ticket pour le Mode Kiosque
+echo ============================================================================
+if defined PS_EXE (
+    taskkill /f /im chrome.exe /fi "WINDOWTITLE eq Bar POS*" >nul 2>&1
+    taskkill /f /im msedge.exe /fi "WINDOWTITLE eq Bar POS*" >nul 2>&1
+    "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -selectPrinter
+    if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
+) else (
+    echo PowerShell non disponible pour lister les imprimantes.
+)
+echo.
+echo Appuyez sur une touche pour lancer Bar POS...
+pause >nul
+goto :demarrer_app
+
+:action_reset_ip
+if exist "%IP_FILE%" del /f /q "%IP_FILE%" >nul 2>&1
+if exist "%KIOSK_PROFILE%" rd /s /q "%KIOSK_PROFILE%" >nul 2>&1
+echo Configuration IP et profil reinitialises.
+echo.
+goto :demarrer_app
+
+:demarrer_app
 echo ============================================================================
 echo   Bar POS - Connexion au serveur WAMP
 echo ============================================================================
@@ -274,7 +287,7 @@ if ($selectPrinter) {
             exit 0
         }
         Write-Host "============================================================================" -ForegroundColor Yellow
-        Write-Host "  CHOIX DE L'IMPRIMANTE PAR DEFAUT POUR BAR POS" -ForegroundColor Yellow
+        Write-Host "  CHOIX DE L'IMPRIMANTE TICKET PAR DEFAUT POUR BAR POS (MODE KIOSQUE)" -ForegroundColor Yellow
         Write-Host "============================================================================" -ForegroundColor Yellow
         for ($i = 0; $i -lt $printers.Count; $i++) {
             $p = $printers[$i]
@@ -285,13 +298,81 @@ if ($selectPrinter) {
         $choice = Read-Host "Entrez le numero de l'imprimante a utiliser dans Bar POS"
         if ($choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $printers.Count) {
             $selected = $printers[[int]$choice - 1]
-            (New-Object -ComObject WScript.Network).SetDefaultPrinter($selected.Name)
-            Write-Host "✓ Imprimante par defaut Windows definie sur : '$($selected.Name)'" -ForegroundColor Green
+            $printerName = $selected.Name
+
+            # 1. Desactiver l'option Windows 10/11 'Laisser Windows gerer mon imprimante par defaut'
+            try {
+                Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Windows" -Name "LegacyDefaultPrinterMode" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+            } catch {}
+
+            # 2. Definir l'imprimante par defaut au niveau du systeme Windows
+            try {
+                (New-Object -ComObject WScript.Network).SetDefaultPrinter($printerName)
+            } catch {}
+            try {
+                Invoke-CimMethod -InputObject $selected -MethodName SetDefaultPrinter -ErrorAction SilentlyContinue | Out-Null
+            } catch {}
+            try {
+                (Get-WmiObject -Query "Select * From Win32_Printer Where Name = '$printerName'").SetDefaultPrinter() | Out-Null
+            } catch {}
+
+            # 3. Injecter l'imprimante choisie directement dans le profil Chrome/Edge Kiosque
+            try {
+                $prefDir = "$env:LOCALAPPDATA\LogBara\KioskProfile\Default"
+                if (-not (Test-Path $prefDir)) {
+                    New-Item -ItemType Directory -Path $prefDir -Force -ErrorAction SilentlyContinue | Out-Null
+                }
+                $prefFile = Join-Path $prefDir "Preferences"
+                
+                $appStateObj = @{
+                    version = 2
+                    recentDestinations = @(
+                        @{
+                            id = $printerName
+                            origin = "local"
+                            account = ""
+                            capabilities = @{}
+                            displayName = $printerName
+                            extensionId = ""
+                            extensionName = ""
+                        }
+                    )
+                    isHeaderFooterEnabled = $false
+                    isCssBackgroundEnabled = $true
+                }
+                $appStateJson = ConvertTo-Json -Compress $appStateObj
+
+                $prefsObj = @{
+                    printing = @{
+                        print_preview_sticky_settings = @{
+                            appState = $appStateJson
+                        }
+                    }
+                }
+
+                if (Test-Path $prefFile) {
+                    try {
+                        $raw = Get-Content $prefFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+                        if (-not $raw.printing) { $raw | Add-Member -MemberType NoteProperty -Name "printing" -Value @{} }
+                        $raw.printing.print_preview_sticky_settings = @{ appState = $appStateJson }
+                        $raw | ConvertTo-Json -Depth 15 | Set-Content $prefFile -Encoding UTF8 -Force
+                    } catch {
+                        $prefsObj | ConvertTo-Json -Depth 10 | Set-Content $prefFile -Encoding UTF8 -Force
+                    }
+                } else {
+                    $prefsObj | ConvertTo-Json -Depth 10 | Set-Content $prefFile -Encoding UTF8 -Force
+                }
+            } catch {}
+
+            Write-Host ""
+            Write-Host "✓ Imprimante ticket enregistree avec succes : '$printerName'" -ForegroundColor Green
+            Write-Host "✓ Le mode kiosque enverra les tickets directement a cette imprimante." -ForegroundColor Green
+            Write-Host ""
         } else {
             Write-Host "Aucun changement d'imprimante effectue." -ForegroundColor Gray
         }
     } catch {
-        Write-Host "Erreur lors de la liste des imprimantes : $_" -ForegroundColor Red
+        Write-Host "Erreur lors de la configuration de l'imprimante : $_" -ForegroundColor Red
     }
     exit 0
 }
@@ -306,6 +387,47 @@ if ($showPrinter) {
     exit 0
 }
 
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+
+function Test-BarPosUrl([string]$url) {
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($url)
+        $req.Timeout = 1500
+        $req.Method = "GET"
+        $req.Headers.Add("X-BarPOS-Request", "1")
+        $req.AllowAutoRedirect = $true
+        $res = $req.GetResponse()
+        $stream = $res.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($stream)
+        $content = $reader.ReadToEnd()
+        $reader.Close()
+        $res.Close()
+
+        if ($content -match "Starlink" -or $content -match "starlink") {
+            return $false
+        }
+
+        if ($content -match "<response" -or $content -match "barpos" -or $content -match "Bar POS" -or $content -match "LogBara" -or $content -match "logbara" -or $content -match "Point de Vente") {
+            return $true
+        }
+    } catch {
+        if ($_.Exception.Response) {
+            try {
+                $errStream = $_.Exception.Response.GetResponseStream()
+                if ($errStream) {
+                    $reader = New-Object System.IO.StreamReader($errStream)
+                    $errContent = $reader.ReadToEnd()
+                    $reader.Close()
+                    if ($errContent -match "<response" -or $errContent -match "barpos" -or $errContent -match "LogBara") {
+                        return $true
+                    }
+                }
+            } catch {}
+        }
+    }
+    return $false
+}
+
 function Test-BarPos([string]$hostOrIp, [int]$port = 80) {
     if ([string]::IsNullOrWhiteSpace($hostOrIp)) { return $false }
     $h = $hostOrIp.Trim()
@@ -313,51 +435,17 @@ function Test-BarPos([string]$hostOrIp, [int]$port = 80) {
         $h = $matches[1]
         $port = [int]$matches[2]
     }
-    try {
-        $tcp = New-Object System.Net.Sockets.TcpClient
-        $iar = $tcp.BeginConnect($h, $port, $null, $null)
-        if (-not $iar.AsyncWaitHandle.WaitOne(1000, $false) -or -not $tcp.Connected) {
-            $tcp.Close()
-            return $false
-        }
-        $tcp.EndConnect($iar)
-        $tcp.Close()
-    } catch { return $false }
-
     $hostWithPort = if ($port -eq 80) { $h } else { "$h`:$port" }
 
-    foreach ($appPath in @("logbara", "barpos")) {
-        try {
-            $apiUrl = "http://$hostWithPort/$appPath/api/index.php"
-            $reqApi = [System.Net.HttpWebRequest]::Create($apiUrl)
-            $reqApi.Timeout = 2000
-            $reqApi.Method = "GET"
-            $reqApi.Headers.Add("X-BarPOS-Request", "1")
-            $resApi = $reqApi.GetResponse()
-            $stream = $resApi.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($stream)
-            $content = $reader.ReadToEnd()
-            $reader.Close()
-            $resApi.Close()
-            if ($content -match "Starlink" -or $content -match "starlink") { return $false }
-            if ($content -match "<response" -or $content -match "barpos" -or $content -match "Bar POS" -or $content -match "LogBara" -or $content -match "logbara") { return $true }
-        } catch {}
-
-        try {
-            $url = "http://$hostWithPort/$appPath/"
-            $req = [System.Net.HttpWebRequest]::Create($url)
-            $req.Timeout = 2000
-            $req.Method = "GET"
-            $req.AllowAutoRedirect = $true
-            $res = $req.GetResponse()
-            $stream = $res.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($stream)
-            $html = $reader.ReadToEnd()
-            $reader.Close()
-            $res.Close()
-            if ($html -match "Starlink" -or $html -match "starlink") { return $false }
-            if ($html -match "Bar POS" -or $html -match "barpos" -or $html -match "Point de Vente" -or $html -match "LogBara" -or $html -match "logbara") { return $true }
-        } catch {}
+    $paths = @("logbara", "barpos", "", "wamp_deploy")
+    foreach ($p in $paths) {
+        $pathPrefix = if ($p) { "/$p" } else { "" }
+        if (Test-BarPosUrl "http://$hostWithPort$pathPrefix/api/index.php") {
+            return $true
+        }
+        if (Test-BarPosUrl "http://$hostWithPort$pathPrefix/") {
+            return $true
+        }
     }
     return $false
 }
@@ -371,6 +459,19 @@ foreach ($localHost in @("127.0.0.1", "localhost")) {
         }
     }
 }
+
+try {
+    $httpdRunning = (Get-Process httpd -ErrorAction SilentlyContinue)
+    if ($httpdRunning) {
+        $wampDirs = @("C:\wamp64\www\logbara", "C:\wamp\www\logbara", "C:\wamp64\www", "C:\wamp\www")
+        foreach ($wd in $wampDirs) {
+            if (Test-Path $wd) {
+                Write-Output "localhost"
+                exit 0
+            }
+        }
+    }
+} catch {}
 
 if ($savedIpFile -and (Test-Path -LiteralPath $savedIpFile)) {
     try {
@@ -396,7 +497,7 @@ try {
     $found = [regex]::Matches($arpText, '\b(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)\b')
     foreach ($m in $found) {
         $ip = $m.Value
-        if (-not $ip.EndsWith('.255') -and -not $ip.EndsWith('.0') -and -not $candidates.Contains($ip)) { $candidates.Add($ip) }
+        if (-not $ip.EndsWith('.255') -and -not $ip.EndsWith('.0') -and -not $ip.StartsWith('127.') -and -not $candidates.Contains($ip)) { $candidates.Add($ip) }
     }
 } catch {}
 
