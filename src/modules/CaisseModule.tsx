@@ -475,10 +475,14 @@ export default function CaisseModule({ user, onLogout }: Props) {
       <div class="line"></div>
       <div class="row"><span>Mode</span><span>${paymentMode}${paymentMode === 'Crédit' && clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span></div>
       ${paymentMode === 'Espèces' && Number(montantRecu) > nap ? `<div class="row"><span>Reçu</span><span>${formatAr(Number(montantRecu))}</span></div><div class="row"><span>Monnaie</span><span>${formatAr(monnaie)}</span></div>` : ''}
-      ${paymentMode === 'Mixte' ? `<div class="row"><span>Espèces</span><span>${formatAr(mixteEspeces)}</span></div><div class="row"><span>Mobile Money</span><span>${formatAr(mixteMobile)}</span></div>` : ''}
+      ${paymentMode === 'Mixte' ? `
+        ${mixteEspeces > 0 ? `<div class="row"><span>Espèces</span><span>${formatAr(mixteEspeces)}</span></div>` : ''}
+        ${mixteMobile > 0 ? `<div class="row"><span>Mobile Money</span><span>${formatAr(mixteMobile)}</span></div>` : ''}
+        ${mixteCredit > 0 ? `<div class="row"><span>Crédit${clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span><span>${formatAr(mixteCredit)}</span></div>` : ''}
+      ` : ''}
     `, false, user.IDPERSONNEL);
 
-    setCart([]); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setMixteEspeces(0); setMixteMobile(0); setSelectedClient(null); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); setMobileTab('articles'); showMsg('Vente enregistrée !');
+    setCart([]); setShowPayment(false); setPaymentMode('Espèces'); setMontantRecu(''); setMixteEspeces(0); setMixteMobile(0); setMixteCredit(0); setSelectedClient(null); setSelectedTable(null); setMode('comptoir'); setRefreshKey(); setMobileTab('articles'); showMsg('Vente enregistrée !');
   };
 
   const cartTotalQty = cart.reduce((s, c) => s + c.QUANTITE, 0);
@@ -923,7 +927,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
               <div>
                 <label className="text-sm font-semibold text-gray-700 mb-2 block">Mode de paiement</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(['Espèces', 'Mobile Money', 'Mixte', 'Crédit'] as PaymentMode[]).map(m => (
+                  {(['Espèces', 'Mobile Money', 'Crédit', 'Mixte'] as PaymentMode[]).map(m => (
                     <button 
                       key={m} 
                       type="button"
@@ -941,7 +945,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
                         paymentMode === m ? 'bg-[#0D47A1] text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      {m === 'Crédit' ? '📝 Crédit' : m}
+                      {m}
                     </button>
                   ))}
                 </div>
@@ -1084,7 +1088,7 @@ export default function CaisseModule({ user, onLogout }: Props) {
                   <div>
                     <label className="text-xs font-semibold text-gray-700 mb-1 block flex items-center justify-between">
                       <span>Montant Crédit</span>
-                      <span className="text-[11px] text-amber-700 font-normal">📝 Achat à crédit partiel</span>
+                      <span className="text-[11px] text-amber-700 font-normal">Achat à crédit partiel</span>
                     </label>
                     <MoneyInput
                       value={mixteCredit}

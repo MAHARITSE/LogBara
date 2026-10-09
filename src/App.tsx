@@ -22,6 +22,7 @@ import InventaireModule from './modules/InventaireModule';
 import SauvegardeModule from './modules/SauvegardeModule';
 import { Package } from 'lucide-react';
 import MobileBottomNav from './components/MobileBottomNav';
+import DateSystemeAlertModal from './components/DateSystemeAlertModal';
 
 function App() {
   const [user, setUser] = useState<Personnel | null>(null);
@@ -98,7 +99,12 @@ function App() {
   }
 
   if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <DateSystemeAlertModal />
+        <LoginPage onLogin={handleLogin} />
+      </>
+    );
   }
 
   const renderModule = () => {
@@ -133,7 +139,7 @@ function App() {
       case 'clients':
         return <ClientsModule user={user} />;
       case 'credits':
-        if (user.ROLE !== 'Administrateur') {
+        if (user.ROLE !== 'Administrateur' && user.ROLE !== 'Gérant') {
           return <CaisseModule user={user} onLogout={handleLogout} />;
         }
         return <CreditsModule user={user} />;
@@ -158,6 +164,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <DateSystemeAlertModal />
       <Sidebar
         user={user}
         activeModule={activeModule}

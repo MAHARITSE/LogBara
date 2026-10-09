@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Lock, AlertTriangle, Printer } from 'lucide-react';
+import { Lock, AlertTriangle, Printer, Clock } from 'lucide-react';
 import { store } from '../store';
 import { Personnel, Cloture } from '../types';
 import { formatAr, today, nowTime, nextId } from '../helpers';
@@ -130,6 +130,14 @@ export default function ClotureModule({ user, onLogout }: Props) {
     // Espèces attendues (versement) — sans déduire les achats du jour
     const especesAttendues = totalEspeces + totalRemboursements;
 
+    // Heure d'ouverture de la session de caisse
+    const activeOuverture = store.getOuvertureSession(user.IDPERSONNEL);
+    const sessionCaissier = store.getOuverturesHistory()
+      .filter(o => o.IDPERSONNEL === user.IDPERSONNEL && o.DATE_OUVERTURE === today())
+      .sort((a, b) => b.IDOUVERTURE - a.IDOUVERTURE)[0];
+    const premiereVente = ventesJour.map(v => v.HEURE).filter(Boolean).sort()[0];
+    const heureOuverture = activeOuverture?.HEURE_OUVERTURE || sessionCaissier?.HEURE_OUVERTURE || premiereVente || nowTime();
+
     return {
       totalVentes,
       totalRemises,
@@ -145,6 +153,7 @@ export default function ClotureModule({ user, onLogout }: Props) {
       ventesJour,
       achatsJour,
       remboursements,
+      heureOuverture,
       // Date de la plus ancienne opération en attente (caisse ouverte depuis…)
       ouverteDepuis: [
         ...ventesJour.map(v => v.DATE_VENTE),
@@ -165,7 +174,8 @@ export default function ClotureModule({ user, onLogout }: Props) {
     const newCloture = {
       IDCLOTURE: idCloture,
       DATE_CLOTURE: today(),
-      HEURE: nowTime(),
+      HEURE: nowTime(), // heure de fermeture
+      HEURE_OUVERTURE: stats.heureOuverture || nowTime(),
       IDPERSONNEL: user.IDPERSONNEL,
       TOTAL_VENTES: stats.totalVentes,
       TOTAL_REMISES: stats.totalRemises,
@@ -260,9 +270,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
       });
     });
 
-    // Session d'ouverture du caissier pour retrouver le stock initial (dotation) si disponible
+    // Session d'ouverture du caissier pour retrouver le stock initial (dotation) si disponible pour la date
     const sessionCaissier = store.getOuverturesHistory()
-      .filter(o => o.IDPERSONNEL === cloture.IDPERSONNEL)
+      .filter(o => o.IDPERSONNEL === cloture.IDPERSONNEL && o.DATE_OUVERTURE === cloture.DATE_CLOTURE)
       .sort((a, b) => b.IDOUVERTURE - a.IDOUVERTURE)[0] || store.getOuvertureSession(cloture.IDPERSONNEL);
 
     const dotationMap: Record<number, number> = {};
@@ -272,32 +282,57 @@ export default function ClotureModule({ user, onLogout }: Props) {
       });
     }
 
-    const tcd: Record<number, { nom: string; qte: number; prixUnitaire: number; montant: number; siPlusAchat: number; sf: number }> = {};
+    // Agréger d'abord les ventes par article pour connaître les quantités vendues totales
+    const qteVendueParArt: Record<number, number> = {};
+    const puParArt: Record<number, number> = {};
     lignesJour.forEach(l => {
-      const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
-      const pu = l.PRIX_UNITAIRE || art?.PRIX_VENTE || 0;
-      if (!tcd[l.IDARTICLE]) {
-        const achatQte = qteAcheteeParArt[l.IDARTICLE] || 0;
-        const currentStock = art?.STOCK ?? 0;
-        // Si une dotation initiale est enregistrée, SI = dotation
-        // Sinon, SI reconstitué = stock_actuel + total_vendu
-        const initialStock = dotationMap[l.IDARTICLE] !== undefined
-          ? dotationMap[l.IDARTICLE]
-          : currentStock;
-        const siPlusAchat = initialStock + achatQte;
-        tcd[l.IDARTICLE] = {
-          nom: art?.NOM || '-',
-          qte: 0,
-          prixUnitaire: pu,
-          montant: 0,
-          siPlusAchat,
-          sf: Math.max(0, siPlusAchat),
-        };
+      qteVendueParArt[l.IDARTICLE] = (qteVendueParArt[l.IDARTICLE] || 0) + l.QUANTITE;
+      if (!puParArt[l.IDARTICLE] && l.PRIX_UNITAIRE) {
+        puParArt[l.IDARTICLE] = l.PRIX_UNITAIRE;
       }
-      tcd[l.IDARTICLE].qte += l.QUANTITE;
-      // Montant est égal à Qté vendue X Prix Unitaire
-      tcd[l.IDARTICLE].montant = tcd[l.IDARTICLE].qte * tcd[l.IDARTICLE].prixUnitaire;
-      tcd[l.IDARTICLE].sf = Math.max(0, tcd[l.IDARTICLE].siPlusAchat - tcd[l.IDARTICLE].qte);
+    });
+
+    const tcd: Record<number, { nom: string; qte: number; prixUnitaire: number; montant: number; siPlusAchat: number | string; sf: number | string }> = {};
+    Object.entries(qteVendueParArt).forEach(([artIdStr, qteVendue]) => {
+      const artId = Number(artIdStr);
+      const art = allArticles.find(a => a.IDARTICLE === artId);
+      const pu = puParArt[artId] || art?.PRIX_VENTE || 0;
+      const achatQte = qteAcheteeParArt[artId] || 0;
+      const currentStock = art?.STOCK ?? 0;
+
+      let siPlusAchat: number | string;
+      let sf: number | string;
+
+      if (art && !art.GERE_STOCK) {
+        siPlusAchat = '-';
+        sf = '-';
+      } else if (dotationMap[artId] !== undefined) {
+        // Si une dotation initiale a été enregistrée à l'ouverture :
+        // SI = dotation
+        // SI+Achat = dotation + achats de la session
+        const si = dotationMap[artId];
+        siPlusAchat = si + achatQte;
+        sf = Math.max(0, siPlusAchat - qteVendue);
+      } else {
+        // Sans dotation explicite :
+        // Le stock actuel dans la base (art.STOCK) est le stock restant ACTUEL (après déduction des ventes).
+        // C'est donc le Stock Final (SF).
+        // Par conséquent, le Stock Initial + Achats disponible avant ces ventes était :
+        // SI + Achats = Stock Final + Ventes = currentStock + qteVendue
+        // Et le Stock Final reste :
+        // SF = (SI + Achats) - Ventes = currentStock
+        siPlusAchat = currentStock + qteVendue;
+        sf = currentStock;
+      }
+
+      tcd[artId] = {
+        nom: art?.NOM || '-',
+        qte: qteVendue,
+        prixUnitaire: pu,
+        montant: qteVendue * pu,
+        siPlusAchat,
+        sf,
+      };
     });
 
     const artRows = Object.values(tcd)
@@ -351,7 +386,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
 
     printClotureTicket(`
       <div class="center bold" style="font-size:15px; margin-bottom:2px;">CLOTURE DE CAISSE</div>
-      <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
+      <div class="row"><span>Date clôture :</span><span>${cloture.DATE_CLOTURE}</span></div>
+      <div class="row"><span>Heure ouverture :</span><span>${cloture.HEURE_OUVERTURE || '-'}</span></div>
+      <div class="row"><span>Heure fermeture :</span><span>${cloture.HEURE}</span></div>
       <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
       <div class="line"></div>
 
@@ -417,7 +454,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-extrabold text-sm text-gray-900">{caissier?.PRENOM} {caissier?.NOM}</span>
-                    <p className="text-xs text-gray-500 font-medium">{c.DATE_CLOTURE} · {c.HEURE}</p>
+                    <p className="text-xs text-gray-500 font-medium">
+                      {c.DATE_CLOTURE} · 🟢 {c.HEURE_OUVERTURE || '-'} ➔ 🔴 {c.HEURE}
+                    </p>
                   </div>
                   <button
                     onClick={() => printCloture(c)}
@@ -464,6 +503,8 @@ export default function ClotureModule({ user, onLogout }: Props) {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Date</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">Ouverture</th>
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500">Fermeture</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Caissier</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Ventes</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Remises</th>
@@ -478,7 +519,9 @@ export default function ClotureModule({ user, onLogout }: Props) {
                   const caissier = store.getPersonnel().find(p => p.IDPERSONNEL === c.IDPERSONNEL);
                   return (
                     <tr key={c.IDCLOTURE} className="border-t border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm">{c.DATE_CLOTURE} {c.HEURE}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{c.DATE_CLOTURE}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-green-700 tabular-nums">{c.HEURE_OUVERTURE || '-'}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-red-600 tabular-nums">{c.HEURE}</td>
                       <td className="px-4 py-3 text-sm">{caissier?.PRENOM} {caissier?.NOM}</td>
                       <td className="px-4 py-3 text-right font-semibold">{formatAr(c.TOTAL_VENTES)}</td>
                       <td className="px-4 py-3 text-right text-red-500">-{formatAr(c.TOTAL_REMISES)}</td>
@@ -499,7 +542,7 @@ export default function ClotureModule({ user, onLogout }: Props) {
                 })}
                 {clotures.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-gray-400">
+                    <td colSpan={10} className="text-center py-8 text-gray-400">
                       Aucune clôture
                     </td>
                   </tr>
@@ -560,6 +603,41 @@ export default function ClotureModule({ user, onLogout }: Props) {
               </div>
             </div>
           )}
+
+          {/* Horaires de la session de caisse */}
+          <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-slate-50 border border-blue-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-[#0D47A1] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Clock size={22} />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Horaires de la session de caisse</p>
+                  <p className="text-sm sm:text-base font-extrabold text-gray-900">
+                    {user.PRENOM} {user.NOM} · {today().split('-').reverse().join('/')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="bg-white px-3.5 py-2 rounded-xl border border-blue-100 shadow-2xs">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase block">Heure d'ouverture</span>
+                  <span className="text-sm sm:text-base font-black text-green-700 tabular-nums flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse"></span>
+                    {stats.heureOuverture}
+                  </span>
+                </div>
+
+                <div className="bg-white px-3.5 py-2 rounded-xl border border-blue-100 shadow-2xs">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase block">Heure de fermeture</span>
+                  <span className="text-sm sm:text-base font-black text-red-600 tabular-nums flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                    {nowTime()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Résumé */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -686,31 +764,58 @@ export default function ClotureModule({ user, onLogout }: Props) {
               });
             }
 
-            const tcd: Record<number, { nom: string; emoji: string; qte: number; prixUnitaire: number; montant: number; siPlusAchat: number; sf: number }> = {};
+            // Agréger d'abord les ventes par article pour connaître les quantités vendues totales
+            const qteVendueParArt: Record<number, number> = {};
+            const puParArt: Record<number, number> = {};
             lignesJour.forEach(l => {
-              const art = allArticles.find(a => a.IDARTICLE === l.IDARTICLE);
-              const pu = l.PRIX_UNITAIRE || art?.PRIX_VENTE || 0;
-              if (!tcd[l.IDARTICLE]) {
-                const achatQte = qteAcheteeParArt[l.IDARTICLE] || 0;
-                const currentStock = art?.STOCK ?? 0;
-                const initialStock = dotationMap[l.IDARTICLE] !== undefined
-                  ? dotationMap[l.IDARTICLE]
-                  : currentStock;
-                const siPlusAchat = initialStock + achatQte;
-                tcd[l.IDARTICLE] = {
-                  nom: art?.NOM || '-',
-                  emoji: art?.EMOJI || '📦',
-                  qte: 0,
-                  prixUnitaire: pu,
-                  montant: 0,
-                  siPlusAchat,
-                  sf: Math.max(0, siPlusAchat),
-                };
+              qteVendueParArt[l.IDARTICLE] = (qteVendueParArt[l.IDARTICLE] || 0) + l.QUANTITE;
+              if (!puParArt[l.IDARTICLE] && l.PRIX_UNITAIRE) {
+                puParArt[l.IDARTICLE] = l.PRIX_UNITAIRE;
               }
-              tcd[l.IDARTICLE].qte += l.QUANTITE;
-              // Montant = Qté vendue X Prix Unitaire
-              tcd[l.IDARTICLE].montant = tcd[l.IDARTICLE].qte * tcd[l.IDARTICLE].prixUnitaire;
-              tcd[l.IDARTICLE].sf = Math.max(0, tcd[l.IDARTICLE].siPlusAchat - tcd[l.IDARTICLE].qte);
+            });
+
+            const tcd: Record<number, { nom: string; emoji: string; qte: number; prixUnitaire: number; montant: number; siPlusAchat: number | string; sf: number | string }> = {};
+            Object.entries(qteVendueParArt).forEach(([artIdStr, qteVendue]) => {
+              const artId = Number(artIdStr);
+              const art = allArticles.find(a => a.IDARTICLE === artId);
+              const pu = puParArt[artId] || art?.PRIX_VENTE || 0;
+              const achatQte = qteAcheteeParArt[artId] || 0;
+              const currentStock = art?.STOCK ?? 0;
+
+              let siPlusAchat: number | string;
+              let sf: number | string;
+
+              if (art && !art.GERE_STOCK) {
+                siPlusAchat = '-';
+                sf = '-';
+              } else if (dotationMap[artId] !== undefined) {
+                // Si une dotation initiale a été enregistrée à l'ouverture :
+                // SI = dotation
+                // SI+Achat = dotation + achats de la session
+                const si = dotationMap[artId];
+                siPlusAchat = si + achatQte;
+                sf = Math.max(0, siPlusAchat - qteVendue);
+              } else {
+                // Sans dotation explicite :
+                // Le stock actuel dans la base (art.STOCK) est le stock restant ACTUEL (après déduction des ventes).
+                // C'est donc le Stock Final (SF).
+                // Par conséquent, le Stock Initial + Achats disponible avant ces ventes était :
+                // SI + Achats = Stock Final + Ventes = currentStock + qteVendue
+                // Et le Stock Final reste :
+                // SF = (SI + Achats) - Ventes = currentStock
+                siPlusAchat = currentStock + qteVendue;
+                sf = currentStock;
+              }
+
+              tcd[artId] = {
+                nom: art?.NOM || '-',
+                emoji: art?.EMOJI || '📦',
+                qte: qteVendue,
+                prixUnitaire: pu,
+                montant: qteVendue * pu,
+                siPlusAchat,
+                sf,
+              };
             });
             const sorted = Object.values(tcd).sort((a, b) => b.montant - a.montant);
             const totalQte = sorted.reduce((s, r) => s + r.qte, 0);
@@ -763,10 +868,10 @@ export default function ClotureModule({ user, onLogout }: Props) {
       <ConfirmModal
         open={showConfirm}
         type="warning"
-        title="Confirmer la clôture"
-        message="Cette action est irréversible. Voulez-vous vraiment clôturer la caisse ?"
-        confirmText="Oui, clôturer"
-        cancelText="Non"
+        title="Confirmer la clôture de caisse"
+        message={`Voulez-vous vraiment clôturer la caisse ?\n• Horaires : Ouverture à ${stats.heureOuverture} — Fermeture à ${nowTime()}\n• Nombre de ventes : ${stats.nbVentes} (${formatAr(stats.totalVentes)})\n• Espèces attendues : ${formatAr(stats.especesAttendues)}\nCette action est irréversible et verrouille les opérations pour aujourd'hui.`}
+        confirmText="Oui, clôturer la caisse"
+        cancelText="Annuler"
         onConfirm={handleCloture}
         onCancel={() => setShowConfirm(false)}
       />

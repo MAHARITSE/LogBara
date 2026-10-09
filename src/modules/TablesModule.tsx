@@ -35,8 +35,10 @@ export default function TablesModule({ user }: Props) {
   const [formDescription, setFormDescription] = useState('');
   const [formPlaces, setFormPlaces] = useState(4);
 
-  const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Mixte' | 'Crédit'>('Espèces');
-  const [mixteEspeces, setMixteEspeces] = useState(0); // part espèces en paiement Mixte
+  const [paymentMode, setPaymentMode] = useState<'Espèces' | 'Mobile Money' | 'Crédit' | 'Mixte'>('Espèces');
+  const [mixteEspeces, setMixteEspeces] = useState(0);
+  const [mixteMobile, setMixteMobile] = useState(0);
+  const [mixteCredit, setMixteCredit] = useState(0);
   const [selectedClient, setSelectedClient] = useState<number | null>(null);
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [newClientNom, setNewClientNom] = useState('');
@@ -235,7 +237,10 @@ export default function TablesModule({ user }: Props) {
       return;
     }
     setSelectedTable(table);
-    setPaymentMode('Espèces'); setMixteEspeces(0);
+    setPaymentMode('Espèces');
+    setMixteEspeces(0);
+    setMixteMobile(0);
+    setMixteCredit(0);
     const existingClients = store.getClients();
     setSelectedClient(existingClients.length > 0 ? existingClients[0].IDCLIENT : null);
     setShowNewClientForm(false);
@@ -299,10 +304,32 @@ export default function TablesModule({ user }: Props) {
       const allClients = store.getClients();
       store.setClients(allClients.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + netAPayer } : c));
     } else if (paymentMode === 'Mixte') {
-      const partEspeces = Math.max(0, Math.min(mixteEspeces, netAPayer));
-      const partMobile = Math.max(0, netAPayer - partEspeces);
+      const partEspeces = Math.max(0, mixteEspeces);
+      const partMobile = Math.max(0, mixteMobile);
+      const partCredit = Math.max(0, mixteCredit);
+      const totalMixte = partEspeces + partMobile + partCredit;
+      if (totalMixte < netAPayer) {
+        showMsg('Le montant réglé en mixte est inférieur au total à payer');
+        return;
+      }
+      if (partCredit > 0) {
+        if (!selectedClient) {
+          showMsg('Veuillez sélectionner un client pour la part à crédit');
+          return;
+        }
+        const clientObj = store.getClients().find(c => c.IDCLIENT === selectedClient);
+        if (!clientObj) {
+          showMsg('Client introuvable');
+          return;
+        }
+      }
       if (partEspeces > 0) newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: partEspeces, MODE_PAIEMENT: 'Espèces' });
       if (partMobile > 0) newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: partMobile, MODE_PAIEMENT: 'Mobile Money' });
+      if (partCredit > 0 && selectedClient) {
+        newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: partCredit, MODE_PAIEMENT: 'Crédit', IDCLIENT: selectedClient });
+        const allClients = store.getClients();
+        store.setClients(allClients.map(c => c.IDCLIENT === selectedClient ? { ...c, CREDIT_TOTAL: c.CREDIT_TOTAL + partCredit } : c));
+      }
     } else {
       newPaiements.push({ ...base, IDPAIEMENT: idPaiement++, MONTANT: netAPayer, MODE_PAIEMENT: paymentMode });
     }
@@ -313,6 +340,7 @@ export default function TablesModule({ user }: Props) {
     store.setLignesVente([...lignesVente, ...newLignes]);
     store.setPaiements([...paiements, ...newPaiements]);
 
+    const clientObj = selectedClient ? store.getClients().find(c => c.IDCLIENT === selectedClient) : null;
     const rows = items.map(c => `<tr><td class="col-art">${c.NOM}</td><td class="col-qty">${c.QUANTITE}</td><td class="col-pu">${formatAr(c.PRIX_UNITAIRE)}</td><td class="col-tot">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printTicket(`
       <div class="center bold" style="font-size:14px; margin-bottom:2px;">TICKET TABLE</div>
@@ -324,9 +352,16 @@ export default function TablesModule({ user }: Props) {
       <table><tr><th class="col-art bold">Article</th><th class="col-qty bold">Qté</th><th class="col-pu bold">P.U</th><th class="col-tot bold">Total</th></tr>${rows}</table>
       <div class="line"></div>
       <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
+      <div class="line"></div>
+      <div class="row"><span>Mode</span><span>${paymentMode}${paymentMode === 'Crédit' && clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span></div>
+      ${paymentMode === 'Mixte' ? `
+        ${mixteEspeces > 0 ? `<div class="row"><span>Espèces</span><span>${formatAr(mixteEspeces)}</span></div>` : ''}
+        ${mixteMobile > 0 ? `<div class="row"><span>Mobile Money</span><span>${formatAr(mixteMobile)}</span></div>` : ''}
+        ${mixteCredit > 0 ? `<div class="row"><span>Crédit${clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span><span>${formatAr(mixteCredit)}</span></div>` : ''}
+      ` : ''}
     `, false, user.IDPERSONNEL);
 
-    setShowPayment(false); setSelectedTable(null); setPaymentMode('Espèces'); setMixteEspeces(0);
+    setShowPayment(false); setSelectedTable(null); setPaymentMode('Espèces'); setMixteEspeces(0); setMixteMobile(0); setMixteCredit(0);
     refresh(); showMsg('Table encaissée !');
   };
 
@@ -608,7 +643,7 @@ export default function TablesModule({ user }: Props) {
               <div>
                 <label className="text-sm font-semibold text-gray-700 mb-2 block">Mode de paiement</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(['Espèces', 'Mobile Money', 'Mixte', 'Crédit'] as const).map(m => (
+                  {(['Espèces', 'Mobile Money', 'Crédit', 'Mixte'] as const).map(m => (
                     <button 
                       key={m} 
                       onClick={() => {
@@ -624,7 +659,7 @@ export default function TablesModule({ user }: Props) {
                         paymentMode === m ? 'bg-[#0D47A1] text-white shadow-xs' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
-                      {m === 'Crédit' ? '📝 Crédit' : m}
+                      {m}
                     </button>
                   ))}
                 </div>
@@ -715,19 +750,152 @@ export default function TablesModule({ user }: Props) {
 
               {paymentMode === 'Mixte' && (() => {
                 const net = getTableTotal(selectedTable.IDTABLE);
-                const partEsp = Math.max(0, Math.min(mixteEspeces, net));
+                const totalSaisi = mixteEspeces + mixteMobile + mixteCredit;
+                const reste = net - totalSaisi;
                 return (
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2">
-                    <label className="text-sm font-semibold text-gray-700 block">Part en espèces</label>
-                    <MoneyInput
-                      value={mixteEspeces}
-                      onChange={val => setMixteEspeces(Math.max(0, val))}
-                      className="w-full px-4 py-2.5 rounded-xl border text-sm font-medium focus:ring-2 focus:ring-[#0D47A1]"
-                      placeholder="0"
-                    />
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Reste en Mobile Money</span>
-                      <span className="font-bold tabular-nums">{formatAr(net - partEsp)}</span>
+                  <div className="space-y-3 bg-gray-50/80 rounded-2xl p-4 border border-gray-100">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Montant espèces</label>
+                      <MoneyInput
+                        value={mixteEspeces}
+                        onChange={val => setMixteEspeces(Math.max(0, val))}
+                        className="w-full px-4 py-2.5 rounded-xl border text-sm font-bold text-center focus:ring-2 focus:ring-[#0D47A1]"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block">Montant Mobile Money</label>
+                      <MoneyInput
+                        value={mixteMobile}
+                        onChange={val => setMixteMobile(Math.max(0, val))}
+                        className="w-full px-4 py-2.5 rounded-xl border text-sm font-bold text-center focus:ring-2 focus:ring-[#0D47A1]"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 mb-1 block flex items-center justify-between">
+                        <span>Montant Crédit</span>
+                        <span className="text-[11px] text-amber-700 font-normal">Achat à crédit partiel</span>
+                      </label>
+                      <MoneyInput
+                        value={mixteCredit}
+                        onChange={val => {
+                          const v = Math.max(0, val);
+                          setMixteCredit(v);
+                          if (v > 0) {
+                            const existingClients = store.getClients();
+                            if (existingClients.length > 0 && !selectedClient) {
+                              setSelectedClient(existingClients[0].IDCLIENT);
+                            }
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 rounded-xl border text-sm font-bold text-center focus:ring-2 focus:ring-[#0D47A1]"
+                        placeholder="0"
+                      />
+                    </div>
+
+                    {/* Sélection du client si la part crédit est supérieure à 0 */}
+                    {mixteCredit > 0 && (
+                      <div className="space-y-2.5 bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 animate-in fade-in">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                            👤 Client à créditer pour la part crédit <span className="text-red-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowNewClientForm(!showNewClientForm)}
+                            className="text-xs font-bold text-[#0D47A1] hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            {showNewClientForm ? '✕ Annuler' : '＋ Nouveau client'}
+                          </button>
+                        </div>
+
+                        {showNewClientForm ? (
+                          <div className="space-y-2 bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                            <p className="text-xs font-bold text-gray-800">Nouveau client :</p>
+                            <input
+                              type="text"
+                              placeholder="Nom du client"
+                              value={newClientNom}
+                              onChange={e => setNewClientNom(e.target.value)}
+                              className="w-full px-3 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                            />
+                            <input
+                              type="tel"
+                              placeholder="Téléphone"
+                              value={newClientTel}
+                              onChange={e => setNewClientTel(e.target.value)}
+                              className="w-full px-3 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-[#0D47A1]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newClientNom.trim()) { showMsg('Nom du client requis'); return; }
+                                const currentClients = store.getClients();
+                                const newId = nextId(currentClients, 'IDCLIENT');
+                                const created: Client = {
+                                  IDCLIENT: newId,
+                                  NOM_CLIENT: capitalize(newClientNom.trim()),
+                                  TELEPHONE: newClientTel.trim(),
+                                  ADRESSE: '',
+                                  CREDIT_TOTAL: 0,
+                                  DATE_CREATION: today(),
+                                };
+                                store.setClients([...currentClients, created]);
+                                setSelectedClient(newId);
+                                setShowNewClientForm(false);
+                                setNewClientNom('');
+                                setNewClientTel('');
+                                showMsg(`Client ${created.NOM_CLIENT} créé !`);
+                              }}
+                              className="w-full bg-[#0D47A1] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#1565C0] cursor-pointer"
+                            >
+                              Enregistrer & Sélectionner
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            {store.getClients().length === 0 ? (
+                              <p className="text-xs text-amber-800 italic">
+                                Aucun client enregistré. Cliquez sur « Nouveau client » ci-dessus.
+                              </p>
+                            ) : (
+                              <select
+                                value={selectedClient || ''}
+                                onChange={e => setSelectedClient(Number(e.target.value) || null)}
+                                className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-[#0D47A1]"
+                              >
+                                <option value="">-- Sélectionner le client --</option>
+                                {store.getClients().map(c => (
+                                  <option key={c.IDCLIENT} value={c.IDCLIENT}>
+                                    {c.NOM_CLIENT} {c.TELEPHONE ? `(${c.TELEPHONE})` : ''} — Crédit actuel: {formatAr(c.CREDIT_TOTAL)}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+
+                            {selectedClient && (() => {
+                              const clientObj = store.getClients().find(c => c.IDCLIENT === selectedClient);
+                              if (!clientObj) return null;
+                              return (
+                                <p className="mt-1.5 text-xs font-bold text-amber-900">
+                                  Nouveau solde crédit du client : {formatAr(clientObj.CREDIT_TOTAL + mixteCredit)}
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="p-3 rounded-xl bg-white border text-xs sm:text-sm text-center">
+                      {totalSaisi < net ? (
+                        <p className="text-red-500 font-bold">Reste à régler : {formatAr(reste)}</p>
+                      ) : totalSaisi > net ? (
+                        <p className="text-green-600 font-extrabold">Monnaie à rendre : {formatAr(totalSaisi - net)}</p>
+                      ) : (
+                        <p className="text-green-600 font-bold">✓ Montant complet réglé</p>
+                      )}
                     </div>
                   </div>
                 );
@@ -735,7 +903,14 @@ export default function TablesModule({ user }: Props) {
 
               <button 
                 onClick={handlePayment} 
-                className="w-full bg-green-600 text-white py-4 rounded-xl font-extrabold text-base hover:bg-green-700 transition-colors min-h-[48px] active:scale-[0.98] shadow-md"
+                disabled={
+                  (paymentMode === 'Crédit' && !selectedClient) ||
+                  (paymentMode === 'Mixte' && (
+                    (mixteEspeces + mixteMobile + mixteCredit) < getTableTotal(selectedTable.IDTABLE) ||
+                    (mixteCredit > 0 && !selectedClient)
+                  ))
+                }
+                className="w-full bg-green-600 text-white py-4 rounded-xl font-extrabold text-base hover:bg-green-700 transition-colors min-h-[48px] active:scale-[0.98] shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ✅ Valider le paiement
               </button>

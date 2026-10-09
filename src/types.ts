@@ -142,6 +142,7 @@ export interface Cloture {
   IDCLOTURE: number;
   DATE_CLOTURE: string;
   HEURE: string;
+  HEURE_OUVERTURE?: string;
   IDPERSONNEL: number;
   TOTAL_VENTES: number;
   TOTAL_REMISES: number;

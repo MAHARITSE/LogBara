@@ -38,7 +38,7 @@ const menuGroups: { title?: string; items: MenuItem[] }[] = [
       { id: 'ventes', label: 'Ventes', icon: <Receipt size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
       { id: 'paiements', label: 'Paiements', icon: <Wallet size={20} />, roles: ['Administrateur', 'Gérant'] },
       { id: 'cloture', label: 'Clôture', icon: <Calculator size={20} />, roles: ['Administrateur', 'Gérant', 'Caissier'] },
-      { id: 'credits', label: 'Crédits', icon: <CreditCard size={20} />, roles: ['Administrateur'] },
+      { id: 'credits', label: 'Crédits', icon: <CreditCard size={20} />, roles: ['Administrateur', 'Gérant'] },
     ]
   },
   {
