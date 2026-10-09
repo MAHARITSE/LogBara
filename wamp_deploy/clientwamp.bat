@@ -306,13 +306,17 @@ if ($showPrinter) {
     exit 0
 }
 
-function Test-BarPos([string]$hostOrIp) {
+function Test-BarPos([string]$hostOrIp, [int]$port = 80) {
     if ([string]::IsNullOrWhiteSpace($hostOrIp)) { return $false }
     $h = $hostOrIp.Trim()
+    if ($h -match '^([^:]+):(\d+)$') {
+        $h = $matches[1]
+        $port = [int]$matches[2]
+    }
     try {
         $tcp = New-Object System.Net.Sockets.TcpClient
-        $iar = $tcp.BeginConnect($h, 80, $null, $null)
-        if (-not $iar.AsyncWaitHandle.WaitOne(250, $false) -or -not $tcp.Connected) {
+        $iar = $tcp.BeginConnect($h, $port, $null, $null)
+        if (-not $iar.AsyncWaitHandle.WaitOne(1000, $false) -or -not $tcp.Connected) {
             $tcp.Close()
             return $false
         }
@@ -320,11 +324,13 @@ function Test-BarPos([string]$hostOrIp) {
         $tcp.Close()
     } catch { return $false }
 
+    $hostWithPort = if ($port -eq 80) { $h } else { "$h`:$port" }
+
     foreach ($appPath in @("logbara", "barpos")) {
         try {
-            $apiUrl = "http://$h/$appPath/api/index.php"
+            $apiUrl = "http://$hostWithPort/$appPath/api/index.php"
             $reqApi = [System.Net.HttpWebRequest]::Create($apiUrl)
-            $reqApi.Timeout = 1500
+            $reqApi.Timeout = 2000
             $reqApi.Method = "GET"
             $reqApi.Headers.Add("X-BarPOS-Request", "1")
             $resApi = $reqApi.GetResponse()
@@ -338,9 +344,9 @@ function Test-BarPos([string]$hostOrIp) {
         } catch {}
 
         try {
-            $url = "http://$h/$appPath/"
+            $url = "http://$hostWithPort/$appPath/"
             $req = [System.Net.HttpWebRequest]::Create($url)
-            $req.Timeout = 1500
+            $req.Timeout = 2000
             $req.Method = "GET"
             $req.AllowAutoRedirect = $true
             $res = $req.GetResponse()
@@ -356,8 +362,15 @@ function Test-BarPos([string]$hostOrIp) {
     return $false
 }
 
-if (Test-BarPos "localhost") { Write-Output "localhost"; exit 0 }
-if (Test-BarPos "127.0.0.1") { Write-Output "127.0.0.1"; exit 0 }
+foreach ($localHost in @("127.0.0.1", "localhost")) {
+    foreach ($localPort in @(80, 8080, 8000)) {
+        if (Test-BarPos $localHost $localPort) {
+            $result = if ($localPort -eq 80) { $localHost } else { "$localHost`:$localPort" }
+            Write-Output $result
+            exit 0
+        }
+    }
+}
 
 if ($savedIpFile -and (Test-Path -LiteralPath $savedIpFile)) {
     try {
