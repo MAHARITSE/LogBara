@@ -21,9 +21,27 @@ export const buildSocieteHeaderHtml = () => {
 };
 
 // Génère le HTML complet du ticket
-export const buildTicketHtml = (content: string, showFooter: boolean = true) => {
+export const buildTicketHtml = (
+  content: string,
+  footerOption: boolean | 'cloture' | string = true
+) => {
   const societe = store.getSociete();
   const headerHtml = buildSocieteHeaderHtml();
+
+  let footerHtml = '';
+  if (footerOption === 'cloture') {
+    footerHtml = `
+      <div class="line"></div>
+      <div class="center bold small" style="margin-top: 5px; font-size: 11.5px;">Merci pour votre collaboration et vos efforts !</div>
+      <div class="cloture-notes-margin" style="height: 3cm; min-height: 3cm; width: 100%; margin-top: 6px; padding-top: 4px; box-sizing: border-box;">
+        <div style="font-size: 10px; color: #555; font-style: italic;">Notes / Visa caissier :</div>
+      </div>
+    `;
+  } else if (typeof footerOption === 'string') {
+    footerHtml = `<div class="line"></div><div class="center small">${footerOption}</div>`;
+  } else if (footerOption === true) {
+    footerHtml = `<div class="line"></div><div class="center small">Merci de votre visite !</div>`;
+  }
 
   return `
     <!DOCTYPE html>
@@ -68,6 +86,10 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
         .col-qty { width: 14%; text-align: center; }
         .col-pu { width: 20%; text-align: right; }
         .col-tot { width: 22%; text-align: right; font-weight: 600; }
+        .cloture-notes-margin {
+          height: 3cm;
+          min-height: 3cm;
+        }
         /* Nouvelle page (ex. récap ACHATS de la clôture) : pas de ligne pointillée
            au-dessus du logo, la page commence directement par l'en-tête société. */
         .page-break {
@@ -77,6 +99,10 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
         @media print {
           @page { margin: 0; size: 80mm auto; }
           body { width: 76mm; max-width: 80mm; margin: 0 auto; padding: 2mm 2mm 6mm 2mm; font-size: 13px; }
+          .cloture-notes-margin {
+            height: 3cm !important;
+            min-height: 3cm !important;
+          }
           .page-break {
             page-break-before: always !important;
             break-before: page !important;
@@ -87,7 +113,7 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
     <body>
       ${headerHtml}
       ${content}
-      ${showFooter ? `<div class="line"></div><div class="center small">Merci de votre visite !</div>` : ''}
+      ${footerHtml}
     </body>
     </html>
   `;
@@ -254,7 +280,7 @@ export const printPreview = (content: string) => {
  * sans afficher la fenêtre d'aperçu avec boutons.
  */
 export const printClotureTicket = (content: string, _userId?: number, _directPrint: boolean = false) => {
-  const html = buildTicketHtml(content);
+  const html = buildTicketHtml(content, 'cloture');
   executeDirectPrint(html);
 };
 
