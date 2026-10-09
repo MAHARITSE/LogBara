@@ -313,17 +313,17 @@ export default function TablesModule({ user }: Props) {
     store.setLignesVente([...lignesVente, ...newLignes]);
     store.setPaiements([...paiements, ...newPaiements]);
 
-    const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
+    const rows = items.map(c => `<tr><td class="col-art">${c.NOM}</td><td class="col-qty">${c.QUANTITE}</td><td class="col-pu">${formatAr(c.PRIX_UNITAIRE)}</td><td class="col-tot">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printTicket(`
-      <div class="center bold">TICKET TABLE</div>
+      <div class="center bold" style="font-size:14px; margin-bottom:2px;">TICKET TABLE</div>
       <div class="center">${numeroFacture}</div>
       <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
       <div>Table: ${selectedTable.DESCRIPTION}</div>
       <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
       <div class="line"></div>
-      <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
+      <table><tr><th class="col-art bold">Article</th><th class="col-qty bold">Qté</th><th class="col-pu bold">P.U</th><th class="col-tot bold">Total</th></tr>${rows}</table>
       <div class="line"></div>
-      <div class="row bold"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
+      <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatAr(netAPayer)}</span></div>
     `, false, user.IDPERSONNEL);
 
     setShowPayment(false); setSelectedTable(null); setPaymentMode('Espèces'); setMixteEspeces(0);
@@ -334,16 +334,16 @@ export default function TablesModule({ user }: Props) {
     const items = getTableItems(table.IDTABLE);
     const total = getTableTotal(table.IDTABLE);
     const caissier = personnel.find(p => p.IDPERSONNEL === table.IDCAISSIER);
-    const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
+    const rows = items.map(c => `<tr><td class="col-art">${c.NOM}</td><td class="col-qty">${c.QUANTITE}</td><td class="col-pu">${formatAr(c.PRIX_UNITAIRE)}</td><td class="col-tot">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printDirect(`
-      <div class="center bold">SUIVI TABLE ${table.NUMERO}</div>
+      <div class="center bold" style="font-size:14px; margin-bottom:2px;">SUIVI TABLE ${table.NUMERO}</div>
       <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
       <div>Table: ${table.DESCRIPTION}</div>
       ${caissier ? `<div>Serveur: ${caissier.PRENOM}</div>` : ''}
       <div class="line"></div>
-      <table><tr><td class="bold">Article</td><td class="bold right">Qte</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
+      <table><tr><th class="col-art bold">Article</th><th class="col-qty bold">Qté</th><th class="col-pu bold">P.U</th><th class="col-tot bold">Total</th></tr>${rows}</table>
       <div class="line"></div>
-      <div class="row bold"><span>TOTAL</span><span>${formatAr(total)}</span></div>
+      <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatAr(total)}</span></div>
     `, false);
     showMsg('Addition envoyée à l\'imprimante !');
   };

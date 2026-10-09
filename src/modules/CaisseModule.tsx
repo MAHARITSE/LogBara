@@ -461,17 +461,17 @@ export default function CaisseModule({ user, onLogout }: Props) {
     }
 
     const clientObj = selectedClient ? store.getClients().find(c => c.IDCLIENT === selectedClient) : null;
-    const rows = items.map(c => `<tr><td>${c.NOM}</td><td class="right">${c.QUANTITE}</td><td class="right">${formatAr(c.PRIX_UNITAIRE)}</td><td class="right">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
+    const rows = items.map(c => `<tr><td class="col-art">${c.NOM}</td><td class="col-qty">${c.QUANTITE}</td><td class="col-pu">${formatAr(c.PRIX_UNITAIRE)}</td><td class="col-tot">${formatAr(c.QUANTITE * c.PRIX_UNITAIRE)}</td></tr>`).join('');
     printTicket(`
-      <div class="center bold">TICKET DE CAISSE</div>
+      <div class="center bold" style="font-size:14px; margin-bottom:2px;">TICKET DE CAISSE</div>
       <div class="center">${numeroFacture}</div>
       <div class="row"><span>${today()}</span><span>${nowTime()}</span></div>
       <div>Caissier: ${user.PRENOM} ${user.NOM}</div>
       ${selectedTable ? `<div>Table: ${selectedTable.DESCRIPTION}</div>` : ''}
       <div class="line"></div>
-      <table><tr><td class="bold">Article</td><td class="bold right">Qté</td><td class="bold right">PU</td><td class="bold right">Mt</td></tr>${rows}</table>
+      <table><tr><th class="col-art bold">Article</th><th class="col-qty bold">Qté</th><th class="col-pu bold">P.U</th><th class="col-tot bold">Total</th></tr>${rows}</table>
       <div class="line"></div>
-      <div class="row bold"><span>TOTAL</span><span>${formatAr(nap)}</span></div>
+      <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatAr(nap)}</span></div>
       <div class="line"></div>
       <div class="row"><span>Mode</span><span>${paymentMode}${paymentMode === 'Crédit' && clientObj ? ` (${clientObj.NOM_CLIENT})` : ''}</span></div>
       ${paymentMode === 'Espèces' && Number(montantRecu) > nap ? `<div class="row"><span>Reçu</span><span>${formatAr(Number(montantRecu))}</span></div><div class="row"><span>Monnaie</span><span>${formatAr(monnaie)}</span></div>` : ''}

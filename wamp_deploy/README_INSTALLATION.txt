@@ -79,21 +79,23 @@ Le module Sauvegarde produit un fichier SQL directement depuis MySQL.
 Pour restaurer, installer d'abord le schéma logbara.sql puis importer la
 sauvegarde dans phpMyAdmin (elle contient la ligne « USE logbara; »).
 
-LANCEUR UNIVERSEL UNIQUE (clientwamp.bat) & IMPRESSION
----------------------------------------------------------
-Lanceur universel unique (clientwamp.bat) :
-- Ouvre automatiquement http://<serveur>/logbara/ (localhost ou IP réseau).
-- Détecte automatiquement si le serveur WAMP tourne en local (localhost) ou sur le réseau (Wi-Fi, Ethernet, Hotspot).
-- Gère la mémorisation de l'IP du serveur et le lancement de Chrome/Edge avec --kiosk-printing (impression directe).
+LANCEUR UNIVERSEL UNIQUE (clientwamp.bat) & IMPRESSION 80MM
+------------------------------------------------------------
+Lanceur unifié (clientwamp.bat) — UN SEUL BOUTON pour tout gérer :
+- Lancez simplement « clientwamp.bat » :
+  * Détecte immédiatement le serveur WAMP (localhost si exécuté sur le serveur, ou recherche IP sur le réseau).
+  * Affiche l'imprimante thermique 80mm configurée.
+  * Démarre automatiquement Bar POS en mode Kiosque plein écran après 2 secondes.
+  * Touche [P] au démarrage pour choisir ou changer l'imprimante ticket 80mm.
+  * Touche [S] au démarrage pour reconfigurer l'adresse IP du serveur.
+- Raccourci « choisir-imprimante.bat » : redirige directement vers le choix de l'imprimante ticket 80mm.
+- Les tickets sont calibrés au format standard 80mm (largeur 76-80mm sans marge, colonnes Article, Qté, PU, Total nettes et lisibles).
 
 IMPRESSION PAR POSTE (case à cocher dans le menu latéral) :
-- Cochée   : le ticket part immédiatement sur l'imprimante PAR DÉFAUT de Windows,
-  sans aucune page ni fenêtre affichée (mode kiosque silencieux).
-- Décochée : en CAISSE, aucun ticket kiosque (vente enregistrée sans impression).
-  Pour la CLÔTURE, règle spécifique : imprimante non cochée -> la PAGE
-  D'IMPRESSION s'ouvre (fenêtre du ticket + boîte de dialogue pour choisir
-  l'imprimante) ; imprimante cochée -> impression directe silencieuse.
-Le réglage est mémorisé par utilisateur et par poste (pas de modification de la base).
+- Cochée   : le ticket sort directement sur l'imprimante 80mm sans aucun aperçu ni dialogue (mode kiosque silencieux).
+- Décochée : en CAISSE, aucun ticket imprimé (vente enregistrée sans impression).
+  Pour la CLÔTURE, règle spécifique : imprimante cochée -> impression directe 80mm silencieuse.
+Le réglage est mémorisé par utilisateur et par poste.
 
 Détails :
 - Lancer clientwamp.bat sur n'importe quel poste :

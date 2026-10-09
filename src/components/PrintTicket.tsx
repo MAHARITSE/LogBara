@@ -34,12 +34,19 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
       <style>
         @page { margin: 0; size: 80mm auto; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+        }
         body {
           font-family: 'Segoe UI', Arial, Helvetica, -apple-system, sans-serif;
           font-size: 13px;
           font-weight: 500;
-          width: 80mm;
-          padding: 4mm 4mm;
+          width: 76mm;
+          max-width: 80mm;
+          margin: 0 auto;
+          padding: 2mm 2mm 8mm 2mm;
           line-height: 1.35;
           color: #000;
           background: #fff;
@@ -48,13 +55,19 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
         }
         .center { text-align: center; }
         .bold { font-weight: bold; }
-        .line { border-top: 1px dashed #000; margin: 8px 0; }
-        .row { display: flex; justify-content: space-between; }
+        .left { text-align: left; }
         .right { text-align: right; }
+        .line { border-top: 1px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; align-items: baseline; }
         table { width: 100%; border-collapse: collapse; }
-        td, th { padding: 3px 2px; vertical-align: middle; }
+        td, th { padding: 3px 2px; vertical-align: top; font-size: 12.5px; }
         .small { font-size: 11px; }
         .header { margin-bottom: 8px; }
+        /* Colonnes standard pour tickets 80mm */
+        .col-art { width: 44%; text-align: left; word-break: break-word; }
+        .col-qty { width: 14%; text-align: center; }
+        .col-pu { width: 20%; text-align: right; }
+        .col-tot { width: 22%; text-align: right; font-weight: 600; }
         /* Nouvelle page (ex. récap ACHATS de la clôture) : pas de ligne pointillée
            au-dessus du logo, la page commence directement par l'en-tête société. */
         .page-break {
@@ -62,7 +75,8 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
           break-before: page;
         }
         @media print {
-          body { width: 80mm; padding: 2mm 3mm; font-size: 13px; }
+          @page { margin: 0; size: 80mm auto; }
+          body { width: 76mm; max-width: 80mm; margin: 0 auto; padding: 2mm 2mm 6mm 2mm; font-size: 13px; }
           .page-break {
             page-break-before: always !important;
             break-before: page !important;

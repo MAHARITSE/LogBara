@@ -350,43 +350,47 @@ export default function ClotureModule({ user, onLogout }: Props) {
     }
 
     printClotureTicket(`
-      <div class="center bold">CLOTURE DE CAISSE</div>
+      <div class="center bold" style="font-size:15px; margin-bottom:2px;">CLOTURE DE CAISSE</div>
       <div class="row"><span>${cloture.DATE_CLOTURE}</span><span>${cloture.HEURE}</span></div>
       <div>Caissier: ${caissier.PRENOM} ${caissier.NOM}</div>
       <div class="line"></div>
 
       <div class="row"><span>Nombre de ventes</span><span>${cloture.NB_VENTES}</span></div>
       <div class="row"><span>Total ventes</span><span>${formatAr(cloture.TOTAL_VENTES)}</span></div>
-      ${cloture.TOTAL_REMISES > 0 ? `<div class="row"><span>Remises accordees</span><span>-${formatAr(cloture.TOTAL_REMISES)}</span></div>` : ''}
+      ${cloture.TOTAL_REMISES > 0 ? `<div class="row"><span>Remises accordées</span><span>-${formatAr(cloture.TOTAL_REMISES)}</span></div>` : ''}
       <div class="line"></div>
 
-      <div class="bold">Detail des paiements:</div>
-      <div class="row"><span>Especes</span><span>${formatAr(cloture.TOTAL_ESPECES)}</span></div>
+      <div class="bold">Détail des paiements :</div>
+      <div class="row"><span>Espèces</span><span>${formatAr(cloture.TOTAL_ESPECES)}</span></div>
       <div class="row"><span>Mobile Money</span><span>${formatAr(cloture.TOTAL_MOBILE)}</span></div>
-      ${cloture.TOTAL_CREDIT > 0 ? `<div class="row"><span>Credits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>` : ''}
+      ${cloture.TOTAL_CREDIT > 0 ? `<div class="row"><span>Crédits</span><span>${formatAr(cloture.TOTAL_CREDIT)}</span></div>` : ''}
       ${cloture.TOTAL_REMBOURSEMENTS > 0 ? `<div class="row"><span>Remboursements</span><span>${formatAr(cloture.TOTAL_REMBOURSEMENTS)}</span></div>` : ''}
       ${totalAchatsMontant > 0 ? `<div class="row"><span>Achats du jour</span><span>${formatAr(totalAchatsMontant)}</span></div>` : ''}
       <div class="line"></div>
 
-      <div class="row bold"><span>ESPECES ATTENDUES</span><span>${formatAr(cloture.TOTAL_ESPECES + cloture.TOTAL_REMBOURSEMENTS)}</span></div>
+      <div class="row bold" style="font-size:14px;"><span>ESPÈCES ATTENDUES</span><span>${formatAr(cloture.TOTAL_ESPECES + cloture.TOTAL_REMBOURSEMENTS)}</span></div>
       <div class="line"></div>
       <br/>
 
-      <div class="center bold">RECAP VENTES PAR ARTICLE</div>
+      <div class="center bold" style="font-size:13px; margin-bottom:2px;">RÉCAP VENTES PAR ARTICLE</div>
       <div class="line"></div>
       <table>
-        <tr>
-          <td class="bold" style="text-align:left; padding-right:4px;">Article</td>
-          <td class="bold" style="text-align:center; padding:0 4px; white-space:nowrap;">SI+Ach</td>
-          <td class="bold" style="text-align:center; padding:0 4px; white-space:nowrap;">Vente</td>
-          <td class="bold" style="text-align:center; padding:0 4px; white-space:nowrap;">SF</td>
-          <td class="bold" style="text-align:right; padding-left:4px; white-space:nowrap;">Montant</td>
-        </tr>
-        ${artRows}
+        <thead>
+          <tr>
+            <th class="bold" style="text-align:left; padding-right:4px;">Article</th>
+            <th class="bold" style="text-align:center; padding:0 3px; white-space:nowrap;">SI+Ach</th>
+            <th class="bold" style="text-align:center; padding:0 3px; white-space:nowrap;">Vte</th>
+            <th class="bold" style="text-align:center; padding:0 3px; white-space:nowrap;">SF</th>
+            <th class="bold" style="text-align:right; padding-left:4px; white-space:nowrap;">Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${artRows}
+        </tbody>
       </table>
       <div class="line"></div>
       <div class="row"><span>Total articles</span><span>${totalQte}</span></div>
-      <div class="row bold"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
+      <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatAr(totalMontant)}</span></div>
       ${achatsSection}
     `, user.IDPERSONNEL, isAutoCloture);
   };
