@@ -80,16 +80,15 @@ export const buildTicketHtml = (content: string, showFooter: boolean = true) => 
 };
 
 /**
- * Impression SILENCIEUSE : iframe invisible hors écran, AUCUNE fenêtre ni
- * popup affichée (plus d'« affichage bref de la page d'impression »).
+ * Impression SILENCIEUSE et DISCRÈTE :
+ * Utilise un iframe invisible (opacity: 0, positionné hors écran, sans visibility:hidden
+ * pour que le moteur de rendu Chromium ne bloque pas l'impression).
  *
- * - Avec le lanceur clientwamp.bat (--kiosk-printing, comportement par défaut) :
- *   le ticket part DIRECTEMENT sur l'imprimante par défaut, sans rien afficher.
- * - Sans le mode kiosque (lanceur clientwamp.bat --dialogue) : le navigateur
- *   ouvre sa boîte de dialogue : l'utilisateur choisit l'imprimante.
- *
- * L'iframe n'est retiré qu'APRÈS l'événement afterprint (ou 60 s au maximum) :
- * le retirer trop tôt annulait l'impression en cours.
+ * - Avec le lanceur clientwamp.bat (--kiosk-printing) :
+ *   Chrome intercepte l'appel window.print() de l'iframe et envoie DIRECTEMENT
+ *   le ticket à l'imprimante Windows par défaut sans aucune boîte de dialogue,
+ *   sans pop-up et sans le moindre aperçu visible à l'écran.
+ * - Aucune fenêtre pop-up visible n'est affichée à l'écran.
  */
 const executeDirectPrint = (html: string) => {
   try {
@@ -101,9 +100,10 @@ const executeDirectPrint = (html: string) => {
     const iframe = document.createElement('iframe');
     iframe.id = 'barpos-direct-print-frame';
     iframe.setAttribute('aria-hidden', 'true');
+    // Important : opacity: 0 et hors écran au lieu de visibility: hidden (qui bloque l'impression sous Chromium)
     iframe.setAttribute(
       'style',
-      'position:fixed;top:-10000px;left:-10000px;width:80mm;height:100px;border:none;visibility:hidden;pointer-events:none;'
+      'position:fixed;left:-9999px;top:-9999px;width:80mm;height:100px;border:none;opacity:0;pointer-events:none;z-index:-9999;'
     );
     document.body.appendChild(iframe);
 
@@ -118,9 +118,6 @@ const executeDirectPrint = (html: string) => {
     frameDoc.write(html);
     frameDoc.close();
 
-    // Retire l'iframe seulement une fois l'impression terminée (afterprint),
-    // avec une sécurité à 60 s. Supprimer l'iframe trop tôt annulait
-    // l'impression / fermait brutalement la boîte de dialogue.
     let cleaned = false;
     const cleanup = () => {
       if (cleaned) return;
@@ -130,16 +127,24 @@ const executeDirectPrint = (html: string) => {
     iframe.contentWindow.addEventListener('afterprint', cleanup);
     setTimeout(cleanup, 60000);
 
-    setTimeout(() => {
+    const doPrint = () => {
       try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
+        if (!iframe.contentWindow) return;
+        iframe.contentWindow.print();
       } catch (err) {
-        console.warn('Erreur impression iframe', err);
+        console.warn('Erreur impression directe iframe', err);
         cleanup();
         openDirectPrintPopup(html);
       }
-    }, 250);
+    };
+
+    // Déclenche l'impression dès que le document est prêt sans voler le focus
+    if (frameDoc.readyState === 'complete') {
+      setTimeout(doPrint, 80);
+    } else {
+      iframe.onload = () => setTimeout(doPrint, 80);
+      setTimeout(doPrint, 250);
+    }
   } catch (e) {
     console.warn('Erreur déclenchement impression directe', e);
     openDirectPrintPopup(html);
@@ -147,19 +152,20 @@ const executeDirectPrint = (html: string) => {
 };
 
 /**
- * Impression directe via popup sans bandeau d'aperçu
+ * Impression de secours discrète via mini popup si l'iframe est totalement restreint par l'OS
  */
 export const openDirectPrintPopup = (html: string) => {
   try {
-    const printWindow = window.open('', '_blank', 'width=420,height=680');
+    // Positionné hors champ ou invisible pour éviter tout flash d'aperçu à l'écran
+    const printWindow = window.open('', '_blank', 'left=50000,top=50000,width=10,height=10');
     if (printWindow) {
       const autoPrintHtml = html.replace(
         '</body>',
         `<script>
           window.onload = function() {
-            window.focus();
             window.print();
             window.onafterprint = function() { window.close(); };
+            setTimeout(function() { window.close(); }, 5000);
           };
         </script></body>`
       );
@@ -167,7 +173,7 @@ export const openDirectPrintPopup = (html: string) => {
       printWindow.document.write(autoPrintHtml);
       printWindow.document.close();
     } else {
-      globalToast('Impression bloquée. Veuillez autoriser les fenêtres popups.', 'warning');
+      globalToast('Impression bloquée. Veuillez autoriser les fenêtres popups ou le mode kiosque.', 'warning');
     }
   } catch {
     globalToast('Impression non disponible dans cet environnement', 'info');
